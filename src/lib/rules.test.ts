@@ -6,7 +6,7 @@ import {
   boardFull, canPlace, deckFor, drawValue, groupAt, highestTile, outcome, place, previewAt, resolveWild, seedBoard, valueToPlace,
   applyPressure, nextSpawn, randomEmpty,
   KITE_CHANCE, canPlaceDealt, dealShape, shapeToPlace,
-  POW3_DECK, floorPow3, mergeResult, valuesFor,
+  POW3_DECK, TOP_VALUE, floorPow3, mergeResult, valuesFor,
 } from './rules';
 
 // A small graph to test on:
@@ -638,5 +638,23 @@ describe('what a merge makes (Q11)', () => {
     const cells = seedBoard(board, rand, 0.1, valuesFor(step));
     for (const c of cells) if (c !== EMPTY) expect([0, 1, 3, 9]).toContain(c);
     expect(cells).toContain(9);
+  });
+});
+
+describe('making Z (Q11 power-of-3 rules)', () => {
+  it('wins the game at once, whatever the goal, with free tiles left', () => {
+    const cells = cellsOf({ 0: TOP_VALUE });
+    for (const merge of ['cap', 'step'] as const) {
+      expect(outcome(cells, opts({ merge }))).toEqual({ over: true, won: true, highest: TOP_VALUE });
+      expect(outcome(cells, opts({ merge, goal: 'target', target: 200 }))).toEqual({ over: true, won: true, highest: TOP_VALUE });
+    }
+  });
+
+  it('one rung short does not', () => {
+    expect(outcome(cellsOf({ 0: TOP_VALUE / 3 }), opts({ merge: 'step' }))).toEqual({ over: false });
+  });
+
+  it('under the sum rule the number is not special', () => {
+    expect(outcome(cellsOf({ 0: TOP_VALUE }), opts())).toEqual({ over: false });
   });
 });
