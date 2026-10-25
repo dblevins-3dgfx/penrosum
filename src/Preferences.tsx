@@ -106,12 +106,29 @@ const Preferences = ({ options, setOption, onClose }: PreferencesProps) => {
           ]}
           onChange={v => setOption('shapes', v)}
         />
+        <Choice
+          label="Q12. What does a merge score?"
+          value={options.score}
+          options={[
+            ['rungXTiles', 'Rung × tiles merged'],
+            ['rung', 'Rung made'],
+            ['tiles', 'Tiles merged'],
+            ['rungPlus', 'Rung + 1 per extra tile'],
+          ]}
+          onChange={v => setOption('score', v)}
+        />
+        <Choice
+          label="Chain bonus (×2, ×3 … for each later merge in a chain)"
+          value={options.chain}
+          options={[['on', 'On'], ['off', 'Off']]}
+          onChange={v => setOption('chain', v)}
+        />
         <p className="text-xs text-slate-500 mt-2">
           How to play: place the Next letter (beside the title) on any empty tile. When it makes a
           group of {MIN_GROUP} or more tiles with the same letter, they merge into the tile you placed,
           one rung up the alphabet (three As make a B; nine make a C). # tiles are obstacles that only
-          a placed # merges away. If the new letter then makes a group too, it merges again. Make a Z
-          to win. Hover a tile to see what would merge.
+          a placed # merges away. If the new letter then makes a group too, it merges again. Merges score
+          points (a letter's rung is its place in the alphabet: A 1, B 2 …). Make a Z to win. Hover a tile to see what would merge.
         </p>
         <div className="mt-4 text-right">
           <button onClick={onClose} className="px-4 py-1.5 rounded bg-indigo-600 text-white text-sm">Done</button>

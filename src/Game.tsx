@@ -7,7 +7,7 @@ import { parseBoardSize, parseOptions } from './lib/prefs';
 import {
   EMPTY, MIN_GROUP, WILD,
   type Cell, type Merge, type Options, type Shape,
-  applyPressure, canPlaceDealt, dealShape, shapeToPlace, deckFor, drawValue, highestTile, nextSpawn, outcome, place, previewAt, seedBoard,
+  applyPressure, canPlaceDealt, dealShape, shapeToPlace, deckFor, drawValue, highestTile, nextSpawn, outcome, place, previewAt, scoreMerges, seedBoard,
   valueToPlace,
 } from './lib/rules';
 import { fitView, toBoard } from './lib/view';
@@ -93,6 +93,7 @@ interface Snapshot {
   cells: Cell[];
   next: number;
   moves: number;
+  score: number; // points from merges so far (Q12)
   lastMove: number | null;
   spawnAt: number | null; // where the 'spawn' pressure rule's next 0 appears
   nextShape: Shape | null; // the shape dealt with the next value (Q10 'dealt')
@@ -155,7 +156,7 @@ const Game = () => {
     setBoard({ size: newSize, tiles, bounds: boardBounds(tiles) });
     const cells = seedBoard(tiles);
     setState({
-      cells, next: nextValueFor(options), moves: 0, lastMove: null, spawnAt: nextSpawn(cells, options),
+      cells, next: nextValueFor(options), moves: 0, score: 0, lastMove: null, spawnAt: nextSpawn(cells, options),
       nextShape: dealShape(options), message: '',
     });
     setUndo([]);
@@ -204,17 +205,19 @@ const Game = () => {
     const value = valueToPlace(tiles, cells, id, drawn, options);
     const { cells: placed, merges } = place(tiles, cells, id, value, options);
     const { cells: after, zeros, spawnAt } = applyPressure(placed, merges, options, state.spawnAt);
+    const gained = scoreMerges(merges, options);
     setUndo([...undo, state]);
     setState({
       cells: after,
       next: nextValueFor(options),
       moves: state.moves + 1,
+      score: state.score + gained,
       lastMove: id,
       spawnAt,
       nextShape: dealShape(options),
       message: [
         drawn === WILD ? `Wild played as ${label(value)}.` : '',
-        describeMerges(merges, label),
+        describeMerges(merges, label) + (gained ? ` (+${gained})` : ''),
         zeros.length === 1 ? 'A # dropped.' : zeros.length ? `${zeros.length} #s dropped.` : '',
       ].filter(Boolean).join(' '),
     });
@@ -304,6 +307,7 @@ const Game = () => {
   };
 
   const moves = state?.moves ?? 0;
+  const score = state?.score ?? 0;
   const free = cells.filter(c => c === EMPTY).length;
   let status = state?.message || (moves === 0
     ? `Place the Next letter on an empty ${shapeToPlace(tiles, cells, state?.nextShape ?? null) ?? 'tile'}. ${MIN_GROUP} or more matching tiles merge into the one you placed, a rung higher.`
@@ -317,10 +321,12 @@ const Game = () => {
           ? `You made ${best} in ${moves} moves!`
           : `Board full. Highest tile: ${best} after ${moves} moves.`
         : `Board full before reaching ${targetLabel(options.target)}. Highest tile: ${best}.`;
+    status += ` Score: ${score}.`;
   }
 
   const button = 'px-3 py-1.5 rounded text-sm border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-40';
   const stats: [string, string | number][] = [
+    ['Score', score],
     ['Moves', moves],
     ['Highest', label(highestTile(cells))],
     ['Free', free],
@@ -351,7 +357,7 @@ const Game = () => {
           <NextChip drawn={drawn} label={label(drawn)} shape={state?.nextShape ?? null} moves={moves} />
         </div>
 
-        <dl className={`grid gap-2 ${stats.length === 4 ? 'grid-cols-4' : 'grid-cols-3'}`}>
+        <dl className="grid gap-2 grid-cols-[repeat(auto-fit,minmax(3.5rem,1fr))]">
           {stats.map(([label, value]) => (
             <div key={label} className="rounded-md bg-slate-100 px-2 py-1.5 text-center">
               <dt className="text-xs text-slate-500">{label}</dt>

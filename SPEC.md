@@ -50,7 +50,7 @@ A merging game on a Penrose tiling of kites and darts. Values climb a ladder of 
 
 Each option below is implemented and can be switched during play, in the **Preferences** dialog. The first one listed is the default.
 
-Every question has a permanent number, Q1, Q2 and so on, given in the order the questions were opened. A number never changes and is never reused, so it means the same question here, in **Resolved questions** (section 8), in the Preferences dialog, and in pull requests and commits. The next new question is **Q12**.
+Every question has a permanent number, Q1, Q2 and so on, given in the order the questions were opened. A number never changes and is never reused, so it means the same question here, in **Resolved questions** (section 8), in the Preferences dialog, and in pull requests and commits. The next new question is **Q13**.
 
 ### Q4. What is the goal, and when does the game end?
 
@@ -59,7 +59,7 @@ Every question has a permanent number, Q1, Q2 and so on, given in the order the 
 | Highest tile (`highest`) | No target: the game ends when the board is full, and the result is the highest tile made |
 | Reach a target (`target`) | Make a tile of at least the target, D, E (the default), F or G (`TARGET_OPTIONS`, 27 to 729), to win; filling the board first loses. The win reports how many moves it took, so fewer moves is better |
 
-Still to think about: a scoring system (for example points per merge), a move limit, a time limit, and how the game should push back so the board fills up (Q9 tries some ways).
+Still to think about: a move limit, a time limit, and how the game should push back so the board fills up (Q9 tries some ways).
 
 ### Q8. Wildcards in the deck?
 
@@ -96,6 +96,21 @@ Kites and darts match each other (Q6 decided that), but the two shapes can still
 
 The status line marks a bonus merge ("(bonus on a dart)", "(bonus: all one shape)"). The option keys still say "double" from when values were summed and the bonus doubled them. Still to think about: whether a bonus merge should be marked on the board, and the suns and stars idea (a merge completing five kites or five darts around a point does something special).
 
+### Q12. What does a merge score?
+
+Merges earn points, added up in the **Score** shown in the panel during play (`scoreMerges`). Scores count a letter's **rung**, its place in the alphabet (`rungOf`: A 1, B 2, C 3 ... Z 26), not its value, so the score climbs in even steps rather than threefold like the values. A merge of #s scores 1 per tile merged under every option, so clearing obstacles is worth something. Bonus merges (Q10) and wildcards (Q8) need nothing extra: they make a higher rung, which scores more. Only merges score; nothing else does (`mergePoints`).
+
+| Option | A merge scores | Three As make a B | Five Cs make a D |
+|---|---|---|---|
+| Rung × tiles merged (`rungXTiles`) | the rung made times the tiles in the group | 6 | 20 |
+| Rung made (`rung`) | the rung made, whatever the group size | 2 | 4 |
+| Tiles merged (`tiles`) | the tiles in the group, whatever the rung | 3 | 5 |
+| Rung + 1 per extra tile (`rungPlus`) | the rung made, plus 1 for each tile beyond three | 2 | 6 |
+
+A second choice, the **chain bonus** (`ChainBonus`), is On by default: each merge of a chain reaction scores times its place in the chain, so the first merge of a move ×1, the second ×2, the third ×3. Off, every merge scores ×1. So with the defaults, a move that makes a B from three As and then a C from three Bs scores 6 + 9 × 2 = 24.
+
+Undo takes back a move's points with the move. Changing either choice applies from the next move; points already scored stay. Still to think about: high scores, and whether the end result should be the score or the highest tile.
+
 ## 6. Screen
 
 Everything fits on one screen with no scrolling. The board is square, so the screen is split into a square for the board and a panel in the space left over:
@@ -108,14 +123,14 @@ Rotating a phone moves the panel between the side and the bottom; the game carri
 | Element | Behavior |
 |---|---|
 | Next chip | The next value, at the top of the panel beside the title, drawn as a rounded tile with its letter, in the same colors that value has on the board (fill and number color, from `src/lib/colors.ts`, shared with the board drawing). A wildcard shows ★ on a rainbow gradient, a look no number has. When the value is dealt a shape (Q10), the chip is cut into a kite or a dart instead of a rounded square. Each newly drawn value pops in (a quick grow and settle, 0.25 s), except when the device asks for reduced motion |
-| Panel | From the top: the title and the Next chip; the stats as small cards (moves, highest tile, free (empty) tiles, plus the target under the target goal); **Undo** (disabled with nothing to undo), **New Game ▾** and **Preferences**, wrapping onto more lines if the panel is narrow; then the status line |
+| Panel | From the top: the title and the Next chip; the stats as small cards (the score (Q12), moves, highest tile, free (empty) tiles, plus the target under the target goal); **Undo** (disabled with nothing to undo), **New Game ▾** and **Preferences**, wrapping onto more lines if the panel is narrow; then the status line |
 | New Game menu | Small, Medium and Large, each with its tile count; the current board's size is highlighted. It opens below the button with the panel at the side, and above it with the panel at the bottom, so it stays on screen. Picking one starts a new game on that size and remembers it for next time. Escape or a click outside closes the menu without starting a game |
 | Board | Scaled to fill its square (leaving 8 px around it) and centered. When the window changes size or the screen is rotated, the board is rescaled to fit. Empty tiles white with thin gray edges (one screen pixel wide at any scale), or light gray when the next value was dealt the other shape (Q10); #s slate gray with a gray "#"; lettered tiles colored by value, from pale yellow for A through yellow (B), red (C), purple (D) and blue (E) to green from F up, with the letter on the tile (on a kite at its centroid, on a dart along its axis toward the tip) |
 | Last move | Amber outline |
 | Next spawn | Under the "a # every move" pressure rule, a dashed gray ring on the empty tile where the next # will appear |
 | Hover | The empty tile under the pointer is tinted blue and shows the value it would end up with: the value placed, or the result of its merges (including any chain reaction). The tiles those merges would clear get a blue outline. Occupied tiles show no preview |
-| Status line | Before the first move, a one-line hint on how to play (naming the dealt shape, if any); then what a wildcard became ("Wild played as B.") the last move's merges ("Merged 3 tiles into B, then 3 tiles into C", with "(bonus on a dart)" or "(bonus: all one shape)" after a Q10 bonus merge) and any #s the pressure rule added ("A # dropped."), or the result at the end of the game (including the Z win). It wraps onto as many lines as it needs |
-| Preferences | A dialog over the board: one row of buttons per open question, labeled with its number (Q4, Q8, Q9, Q10), the target choice under the target goal, and how to play. Escape, the ×, **Done** or a click outside closes it |
+| Status line | Before the first move, a one-line hint on how to play (naming the dealt shape, if any); then what a wildcard became ("Wild played as B.") the last move's merges and the points they scored ("Merged 3 tiles into B, then 3 tiles into C (+24)", with "(bonus on a dart)" or "(bonus: all one shape)" after a Q10 bonus merge) and any #s the pressure rule added ("A # dropped."), or the result at the end of the game (including the Z win), followed by the final score ("Score: 120."). It wraps onto as many lines as it needs |
+| Preferences | A dialog over the board: one row of buttons per open question, labeled with its number (Q4, Q8, Q9, Q10, Q12), the target choice under the target goal, the chain bonus under Q12, and how to play. Escape, the ×, **Done** or a click outside closes it |
 
 Pointer and touch both work: a tap or click places on the tile under it.
 

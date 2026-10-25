@@ -7,6 +7,7 @@ import {
   applyPressure, nextSpawn, randomEmpty,
   KITE_CHANCE, canPlaceDealt, dealShape, shapeToPlace,
   TOP_VALUE, floorPow3, mergeResult,
+  type Merge, mergePoints, rungOf, scoreMerges,
 } from './rules';
 
 // A small graph to test on:
@@ -625,4 +626,59 @@ describe('making Z', () => {
     expect(outcome(cellsOf({ 0: TOP_VALUE / 3 }), opts())).toEqual({ over: false });
   });
 
+});
+
+describe('scoring (Q12)', () => {
+  // A merge of `tiles` tiles making `sum`
+  const merge = (tiles: number, sum: number): Merge => ({ into: 0, from: Array.from({ length: tiles - 1 }, (_, i) => i + 1), sum });
+
+  it('a rung is a letter\'s place in the alphabet, 0 for #', () => {
+    expect([0, 1, 3, 9, 27, TOP_VALUE].map(rungOf)).toEqual([0, 1, 2, 3, 4, 26]);
+  });
+
+  it('rungXTiles scores the rung made times the tiles merged', () => {
+    expect(mergePoints(merge(3, 3), 'rungXTiles')).toBe(6); // three As make a B
+    expect(mergePoints(merge(5, 27), 'rungXTiles')).toBe(20); // five Cs make a D
+  });
+
+  it('rung scores the rung made, whatever the group size', () => {
+    expect(mergePoints(merge(3, 3), 'rung')).toBe(2);
+    expect(mergePoints(merge(4, 3), 'rung')).toBe(2);
+    expect(mergePoints(merge(3, 81), 'rung')).toBe(5);
+  });
+
+  it('tiles scores the tiles merged, whatever the rung', () => {
+    expect(mergePoints(merge(3, 3), 'tiles')).toBe(3);
+    expect(mergePoints(merge(3, 81), 'tiles')).toBe(3);
+    expect(mergePoints(merge(6, 9), 'tiles')).toBe(6);
+  });
+
+  it('rungPlus scores the rung made plus 1 per tile beyond three', () => {
+    expect(mergePoints(merge(3, 3), 'rungPlus')).toBe(2);
+    expect(mergePoints(merge(5, 3), 'rungPlus')).toBe(4);
+  });
+
+  it('a merge of #s scores 1 per tile under every rule', () => {
+    for (const rule of ['rungXTiles', 'rung', 'tiles', 'rungPlus'] as const) {
+      expect(mergePoints(merge(3, 0), rule)).toBe(3);
+      expect(mergePoints(merge(4, 0), rule)).toBe(4);
+    }
+  });
+
+  it('with the chain bonus, each merge of a chain scores times its place in it', () => {
+    const chain = [merge(3, 3), merge(3, 9), merge(3, 27)]; // 6, 9, 12 points
+    expect(scoreMerges(chain, opts({ chain: 'on' }))).toBe(6 + 9 * 2 + 12 * 3);
+    expect(scoreMerges(chain, opts({ chain: 'off' }))).toBe(6 + 9 + 12);
+    expect(scoreMerges(chain, opts({ score: 'rung', chain: 'off' }))).toBe(2 + 3 + 4);
+  });
+
+  it('a move without merges scores nothing', () => {
+    expect(scoreMerges([], opts())).toBe(0);
+  });
+
+  it('scores a real chain reaction from place', () => {
+    const star: Tile[] = [{ neighbors: [1, 2, 3, 4] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }];
+    const { merges } = place(star, [EMPTY, 1, 1, 3, 3], 0, 1, opts());
+    expect(scoreMerges(merges, opts())).toBe(2 * 3 + 3 * 3 * 2); // a B, then a C at x2
+  });
 });

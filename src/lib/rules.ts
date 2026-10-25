@@ -38,12 +38,27 @@ export type Shape = 'kite' | 'dart';
 //   sameBonus:  a merge whose tiles are all one shape is a bonus merge
 export type ShapesRule = 'none' | 'dealt' | 'dartDouble' | 'sameBonus';
 
+// What a merge scores (see mergePoints). A letter's rung is its place in
+// the alphabet (see rungOf), so scores grow in even steps as the letters
+// climb, not threefold like the values.
+//   rungXTiles: the rung made times the tiles merged
+//   rung:       the rung made
+//   tiles:      the tiles merged
+//   rungPlus:   the rung made, plus 1 per tile beyond MIN_GROUP
+export type ScoreRule = 'rungXTiles' | 'rung' | 'tiles' | 'rungPlus';
+
+// Whether later merges of a chain reaction score more: the second merge
+// of a move x2, the third x3 and so on.
+export type ChainBonus = 'on' | 'off';
+
 export interface Options {
   goal: GoalRule;
   target: number;
   wild: WildRule;
   pressure: PressureRule;
   shapes: ShapesRule;
+  score: ScoreRule;
+  chain: ChainBonus;
 }
 
 export const DEFAULT_OPTIONS: Options = {
@@ -52,6 +67,8 @@ export const DEFAULT_OPTIONS: Options = {
   wild: 'none',
   pressure: 'none',
   shapes: 'none',
+  score: 'rungXTiles',
+  chain: 'on',
 };
 
 // The targets for the 'target' goal: rungs D, E, F and G
@@ -178,6 +195,34 @@ export const mergeResult = (values: number[], bonus = false) => {
   const made = floorPow3(values.reduce((s, v) => s + v, 0));
   return bonus ? made * 3 : made;
 };
+
+// A value's rung: 1 for A (1), 2 for B (3), 3 for C (9) ... 26 for Z;
+// 0 for #.
+export const rungOf = (value: number) => {
+  if (value < 1) return 0;
+  let rung = 1;
+  for (let p = 3; p <= value; p *= 3) rung++;
+  return rung;
+};
+
+// What one merge scores under `rule` (Q12). A merge of #s scores 1 per
+// tile under every rule, so clearing obstacles is worth something.
+export const mergePoints = (merge: Merge, rule: ScoreRule) => {
+  const tiles = merge.from.length + 1;
+  const rung = rungOf(merge.sum);
+  if (rung === 0) return tiles;
+  switch (rule) {
+    case 'rungXTiles': return rung * tiles;
+    case 'rung': return rung;
+    case 'tiles': return tiles;
+    case 'rungPlus': return rung + tiles - MIN_GROUP;
+  }
+};
+
+// What a move's merges score, in order: each merge's points, times its
+// place in the chain reaction (x1, x2, x3 ...) with the chain bonus on.
+export const scoreMerges = (merges: Merge[], options: Options) =>
+  merges.reduce((total, m, i) => total + mergePoints(m, options.score) * (options.chain === 'on' ? i + 1 : 1), 0);
 
 export type Deck = [number, number][]; // [value, chance], chances adding to 1
 
