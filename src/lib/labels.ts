@@ -1,15 +1,11 @@
-// How values are written. Under the sum merge rule they are plain
-// numbers. Under the power-of-3 rules (Q11) each rung of the ladder gets a
+// How values are written: each rung of the ladder of powers of 3 is a
 // letter, 1 = A, 3 = B, 9 = C ... 3^25 = Z, and 0 is #. A number that isn't
-// a power of 3 (left on the board from before switching rules) stays a
-// number.
+// a power of 3 (none arises in play) would be written as a number.
 
-import { TOP_VALUE, WILD, type Options } from './rules';
+import { TOP_VALUE, WILD } from './rules';
 
 export const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 export const ZERO_LABEL = '#';
-
-export const usesLetters = (options: Options) => options.merge !== 'sum';
 
 // The exponent of `n` if it is a power of 3 (1 -> 0, 3 -> 1, 9 -> 2), else -1.
 const log3 = (n: number) => {
@@ -26,19 +22,16 @@ export const ceilPow3 = (n: number) => {
 };
 
 // How a value (or the wildcard) is written.
-export const valueLabel = (value: number, options: Options) => {
+export const valueLabel = (value: number) => {
   if (value === WILD) return '★';
-  if (!usesLetters(options)) return String(value);
   if (value === 0) return ZERO_LABEL;
   const e = log3(value);
   return e >= 0 && e < LETTERS.length ? LETTERS[e] : String(value);
 };
 
-// How the target goal is written: under letters, the first rung that
-// reaches it (a target of 20 is reached by D, 27).
-export const targetLabel = (target: number, options: Options) =>
-  usesLetters(options) ? valueLabel(ceilPow3(target), options) : String(target);
+// How the target goal is written: the first rung that reaches it.
+export const targetLabel = (target: number) => valueLabel(ceilPow3(target));
 
-// The letter that wins the game under the power-of-3 rules
+// The letter that wins the game
 export const TOP_LABEL = LETTERS[LETTERS.length - 1];
 export { TOP_VALUE };

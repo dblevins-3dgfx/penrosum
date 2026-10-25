@@ -7,12 +7,11 @@ import { parseBoardSize, parseOptions } from './lib/prefs';
 import {
   EMPTY, MIN_GROUP, WILD,
   type Cell, type Merge, type Options, type Shape,
-  SEED_FRACTION, valuesFor,
   applyPressure, canPlaceDealt, dealShape, shapeToPlace, deckFor, drawValue, highestTile, nextSpawn, outcome, place, previewAt, seedBoard,
   valueToPlace,
 } from './lib/rules';
 import { fitView, toBoard } from './lib/view';
-import { TOP_LABEL, TOP_VALUE, targetLabel, usesLetters, valueLabel } from './lib/labels';
+import { TOP_LABEL, TOP_VALUE, targetLabel, valueLabel } from './lib/labels';
 import { EMPTY_FILL, OFF_SHAPE_FILL, colorsFor, fillFor, textFor } from './lib/colors';
 import Preferences from './Preferences';
 
@@ -154,7 +153,7 @@ const Game = () => {
   const newGame = useCallback((newSize: BoardSize) => {
     const tiles = boardFor(newSize);
     setBoard({ size: newSize, tiles, bounds: boardBounds(tiles) });
-    const cells = seedBoard(tiles, Math.random, SEED_FRACTION, valuesFor(options));
+    const cells = seedBoard(tiles);
     setState({
       cells, next: nextValueFor(options), moves: 0, lastMove: null, spawnAt: nextSpawn(cells, options),
       nextShape: dealShape(options), message: '',
@@ -173,7 +172,7 @@ const Game = () => {
     const updated = { ...options, [key]: value };
     setOptions(updated);
     save(OPTIONS_STORAGE_KEY, JSON.stringify(updated));
-    if (key === 'wild' || key === 'merge') setState(s => s && { ...s, next: nextValueFor(updated) });
+    if (key === 'wild') setState(s => s && { ...s, next: nextValueFor(updated) });
     if (key === 'shapes') setState(s => s && { ...s, nextShape: dealShape(updated) });
     if (key === 'pressure') setState(s => s && { ...s, spawnAt: nextSpawn(s.cells, updated) });
   };
@@ -190,8 +189,8 @@ const Game = () => {
   const tiles = board?.tiles ?? [];
   const cells = state?.cells ?? [];
   const result = outcome(cells, options);
-  // How values are written: numbers, or letters under Q11's power-of-3 rules
-  const label = useCallback((v: number) => valueLabel(v, options), [options]);
+  // How values are written: as letters
+  const label = valueLabel;
   const drawn = state?.next ?? 1;
 
   const undoMove = () => {
@@ -216,7 +215,7 @@ const Game = () => {
       message: [
         drawn === WILD ? `Wild played as ${label(value)}.` : '',
         describeMerges(merges, label),
-        zeros.length === 1 ? 'A 0 dropped.' : zeros.length ? `${zeros.length} zeros dropped.` : '',
+        zeros.length === 1 ? 'A # dropped.' : zeros.length ? `${zeros.length} #s dropped.` : '',
       ].filter(Boolean).join(' '),
     });
   };
@@ -307,17 +306,17 @@ const Game = () => {
   const moves = state?.moves ?? 0;
   const free = cells.filter(c => c === EMPTY).length;
   let status = state?.message || (moves === 0
-    ? `Place the Next number on an empty ${shapeToPlace(tiles, cells, state?.nextShape ?? null) ?? 'tile'}. ${MIN_GROUP} or more matching tiles merge into the one you placed.`
+    ? `Place the Next letter on an empty ${shapeToPlace(tiles, cells, state?.nextShape ?? null) ?? 'tile'}. ${MIN_GROUP} or more matching tiles merge into the one you placed, a rung higher.`
     : '');
   if (state && result.over) {
     const best = label(result.highest);
-    status = usesLetters(options) && result.highest >= TOP_VALUE
+    status = result.highest >= TOP_VALUE
       ? `You made ${TOP_LABEL}, the top of the alphabet, in ${moves} moves. You win!`
       : result.won
         ? options.goal === 'target'
           ? `You made ${best} in ${moves} moves!`
           : `Board full. Highest tile: ${best} after ${moves} moves.`
-        : `Board full before reaching ${targetLabel(options.target, options)}. Highest tile: ${best}.`;
+        : `Board full before reaching ${targetLabel(options.target)}. Highest tile: ${best}.`;
   }
 
   const button = 'px-3 py-1.5 rounded text-sm border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-40';
@@ -325,7 +324,7 @@ const Game = () => {
     ['Moves', moves],
     ['Highest', label(highestTile(cells))],
     ['Free', free],
-    ...(options.goal === 'target' ? [['Target', targetLabel(options.target, options)] as [string, string]] : []),
+    ...(options.goal === 'target' ? [['Target', targetLabel(options.target)] as [string, string]] : []),
   ];
 
   // The board takes a square at the start of the screen (left on a wide

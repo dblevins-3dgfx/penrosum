@@ -11,7 +11,6 @@ const ALLOWED: { [K in keyof Options]: readonly Options[K][] } = {
   wild: ['none', 'deck'],
   pressure: ['none', 'mergeZero', 'spawn', 'rubble'],
   shapes: ['none', 'dealt', 'dartDouble', 'sameBonus'],
-  merge: ['sum', 'cap', 'step'],
 };
 
 // The rule options from their saved JSON (or null when nothing is saved).
