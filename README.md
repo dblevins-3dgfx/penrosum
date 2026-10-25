@@ -2,7 +2,7 @@
 
 A merging number game on a Penrose tiling of kites and darts. Place a number (usually 1) on an empty tile. When that makes a group of three or more tiles with the same number, the tile you placed takes their sum and the others are cleared.
 
-The board comes from [Penrogo](https://github.com/dblevins-3dgfx/penrogo). Some rules are still being decided: the game's **Preferences** dialog switches between the options, and [SPEC.md](SPEC.md) lists them as open questions. **New Game** offers three board sizes, and the board is fitted to the screen.
+The board comes from [Penrogo](https://github.com/dblevins-3dgfx/penrogo). Some rules are still being decided: the game's **Preferences** dialog switches between the options, and [SPEC.md](SPEC.md) lists them as open questions. **New Game** offers three square board sizes (about 50, 100 and 200 tiles), fitted to the screen.
 
 ## Running
 
@@ -36,7 +36,7 @@ One-time setup, needed before the first deploy: repository **Settings → Pages 
 ## Layout
 
 - `penrose-board.ts`: Penrose tiling generation and the tile adjacency graph (from Penrogo, unchanged)
-- `src/lib/board.ts`: board sizes, builds this game's board in the shape of the screen, and finds the tile under a point
+- `src/lib/board.ts`: board sizes, builds this game's square boards, and finds the tile under a point
 - `src/lib/view.ts`: fits the board to the space on screen
 - `src/lib/prefs.ts`: reads the saved rule options and board size
 - `src/lib/rules.ts`: the rules, with an option for each open question

@@ -5,28 +5,22 @@ export const PHI = (1 + Math.sqrt(5)) / 2;
 // The kite's long edge, in board units.
 export const TILE_SIZE = 60;
 
-// Board sizes, by playfield area in board units. The playfield's shape
-// follows the screen (see playfieldFor), so the tile counts are approximate.
+// Board sizes. Every board is a square playfield, `side` board units
+// across, so it fits the screen the same way whichever way the screen is
+// turned. The sides are picked for about 50, 100 and 200 tiles; `tiles` is
+// the exact count.
 export type BoardSize = 'small' | 'medium' | 'large';
-export const BOARD_SIZES: { id: BoardSize; name: string; area: number; tiles: number }[] = [
-  { id: 'small', name: 'Small', area: 560 * 420, tiles: 100 },
-  { id: 'medium', name: 'Medium', area: 800 * 600, tiles: 220 },
-  { id: 'large', name: 'Large', area: 1120 * 840, tiles: 450 },
+export const BOARD_SIZES: { id: BoardSize; name: string; side: number; tiles: number }[] = [
+  { id: 'small', name: 'Small', side: 360, tiles: 47 },
+  { id: 'medium', name: 'Medium', side: 485, tiles: 103 },
+  { id: 'large', name: 'Large', side: 660, tiles: 196 },
 ];
 export const DEFAULT_BOARD_SIZE: BoardSize = 'medium';
 
-// The playfield's shape is kept between 1:2 and 2:1, however narrow the
-// screen.
-export const MIN_ASPECT = 0.5;
-export const MAX_ASPECT = 2;
-
-// Playfield width and height for a board size, shaped to `aspect` (the
-// space's width / height, clamped to MIN_ASPECT..MAX_ASPECT) with the
-// size's area.
-export const playfieldFor = (size: BoardSize, aspect: number) => {
-  const { area } = BOARD_SIZES.find(s => s.id === size);
-  const a = Math.min(MAX_ASPECT, Math.max(MIN_ASPECT, aspect || 1));
-  return { width: Math.sqrt(area * a), height: Math.sqrt(area / a) };
+// The board for a size.
+export const boardFor = (size: BoardSize) => {
+  const { side } = BOARD_SIZES.find(s => s.id === size);
+  return makeBoard(side, side);
 };
 
 export interface Point { x: number; y: number }
