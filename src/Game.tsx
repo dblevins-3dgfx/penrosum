@@ -56,7 +56,7 @@ const NextChip = ({ drawn, moves }: { drawn: number; moves: number }) => {
     <b
       key={moves}
       aria-label={`Next: ${drawn === WILD ? 'wildcard' : drawn}`}
-      className="next-chip inline-flex items-center justify-center min-w-7 h-7 px-1.5 rounded-md border border-slate-400/60 shadow-sm text-base"
+      className="next-chip inline-flex items-center justify-center min-w-11 h-11 px-2 rounded-lg border border-slate-400/60 shadow-sm text-2xl"
       style={{ background: fill, color: text, textShadow: drawn === WILD ? '0 1px 2px #0006' : undefined }}
     >
       {showDrawn(drawn)}
@@ -289,33 +289,60 @@ const Game = () => {
       : `Board full before reaching ${options.target}. Highest tile: ${result.highest}.`;
   }
 
-  const button = 'px-3 py-1 rounded text-sm border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-40';
+  const button = 'px-3 py-1.5 rounded text-sm border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-40';
+  const stats: [string, number][] = [
+    ['Moves', moves],
+    ['Highest', highestTile(cells)],
+    ['Free', free],
+    ...(options.goal === 'target' ? [['Target', options.target] as [string, number]] : []),
+  ];
 
+  // The board takes a square at the start of the screen (left on a wide
+  // screen, top on a tall one) and the panel takes the space left over
   return (
-    <div className="h-dvh flex flex-col overflow-hidden bg-slate-100 text-slate-900">
-      <header className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 bg-white shadow-sm z-10">
-        <h1 className="text-xl font-bold text-indigo-700">Penrosum</h1>
-        <div className="flex flex-wrap gap-x-4 text-sm">
-          <span>Moves <b>{moves}</b></span>
-          <span>Highest <b>{highestTile(cells)}</b></span>
-          <span>Free <b>{free}</b></span>
-          {options.goal === 'target' && <span>Target <b>{options.target}</b></span>}
-          <span className="flex items-center gap-1.5">
-            Next
-            <NextChip drawn={drawn} moves={moves} />
-          </span>
+    <div className="h-dvh flex flex-col landscape:flex-row overflow-hidden bg-slate-100 text-slate-900">
+      <main
+        ref={containerRef}
+        className="relative shrink-0 portrait:w-full portrait:aspect-square portrait:max-h-[calc(100dvh-12rem)] landscape:h-full landscape:aspect-square landscape:max-w-[calc(100vw-16rem)]"
+      >
+        <canvas
+          ref={canvasRef}
+          className="absolute inset-0 w-full h-full touch-none cursor-pointer"
+          onPointerMove={e => setHovered(tileFromEvent(e))}
+          onPointerLeave={() => setHovered(-1)}
+          onPointerDown={e => play(tileFromEvent(e))}
+        />
+      </main>
+
+      <aside className="flex-1 min-w-0 min-h-0 flex flex-col gap-3 p-4 bg-white border-slate-200 portrait:border-t landscape:border-l">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-indigo-700 mr-auto">Penrosum</h1>
+          <span className="text-sm text-slate-600">Next</span>
+          <NextChip drawn={drawn} moves={moves} />
         </div>
-        <div className="flex gap-2 ml-auto">
+
+        <dl className={`grid gap-2 ${stats.length === 4 ? 'grid-cols-4' : 'grid-cols-3'}`}>
+          {stats.map(([label, value]) => (
+            <div key={label} className="rounded-md bg-slate-100 px-2 py-1.5 text-center">
+              <dt className="text-xs text-slate-500">{label}</dt>
+              <dd className="text-lg font-bold leading-tight">{value}</dd>
+            </div>
+          ))}
+        </dl>
+
+        <div className="flex flex-wrap gap-2">
           <button onClick={undoMove} disabled={!undo.length} className={button}>Undo</button>
           <div className="relative">
             <button onClick={() => setShowSizes(s => !s)} aria-expanded={showSizes} aria-haspopup="menu"
-              className="px-3 py-1 rounded text-sm bg-indigo-600 text-white">
+              className="px-3 py-1.5 rounded text-sm bg-indigo-600 text-white">
               New Game ▾
             </button>
             {showSizes && (
               <>
                 <div className="fixed inset-0 z-20" onClick={() => setShowSizes(false)} />
-                <div role="menu" className="absolute right-0 mt-1 z-30 w-48 rounded-md bg-white shadow-lg border border-slate-200 py-1">
+                {/* Opens upward when the panel is at the bottom of the screen */}
+                <div role="menu"
+                  className="absolute left-0 z-30 w-48 rounded-md bg-white shadow-lg border border-slate-200 py-1 landscape:top-full landscape:mt-1 portrait:bottom-full portrait:mb-1">
                   {BOARD_SIZES.map(s => (
                     <button key={s.id} role="menuitem"
                       onClick={() => { setShowSizes(false); newGame(s.id); }}
@@ -330,21 +357,9 @@ const Game = () => {
           </div>
           <button onClick={() => setShowPrefs(true)} className={button}>Preferences</button>
         </div>
-      </header>
 
-      <main ref={containerRef} className="relative flex-1 min-h-0">
-        <canvas
-          ref={canvasRef}
-          className="absolute inset-0 w-full h-full touch-none cursor-pointer"
-          onPointerMove={e => setHovered(tileFromEvent(e))}
-          onPointerLeave={() => setHovered(-1)}
-          onPointerDown={e => play(tileFromEvent(e))}
-        />
-      </main>
-
-      <p className="px-3 py-1.5 text-sm font-medium bg-white border-t border-slate-200 truncate" aria-live="polite">
-        {status || ' '}
-      </p>
+        <p className="text-sm font-medium min-h-10" aria-live="polite">{status}</p>
+      </aside>
 
       {showPrefs && <Preferences options={options} setOption={setOption} onClose={closePrefs} />}
     </div>

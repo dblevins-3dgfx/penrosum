@@ -13,7 +13,7 @@ A merging number game on a Penrose tiling of kites and darts. The player places 
 | Framework | React 19 (functional component, hooks) |
 | Build | Vite, TypeScript |
 | Tests | Vitest (`npm test`), for everything in `src/lib` |
-| Rendering | HTML5 Canvas 2D, sized to the space between the header and the status line at the screen's pixel density |
+| Rendering | HTML5 Canvas 2D, sized to the board's square at the screen's pixel density |
 | Styling | Tailwind CSS v4 utility classes |
 | Persistence | The rule options (`penrosum.options`) and board size (`penrosum.boardSize`), in the browser's localStorage. A missing or unrecognized saved value falls back to its default. The game itself is in memory only |
 
@@ -36,7 +36,7 @@ A merging number game on a Penrose tiling of kites and darts. The player places 
 
 - **Start.** Each new game seeds the board: 10% of its tiles (`SEED_FRACTION`, rounded), picked at random, get a random number from 0 to 3 (`SEED_VALUES`), each equally likely. Neighboring seeds never hold the same number, so no group exists before the first move; a picked tile whose neighbors already hold all four numbers is passed over for another. Seeded 0s can't be played on and match only a placed 0, so they act as obstacles; drawn 0s can merge them (see **Merge**). Seeded tiles look the same as placed ones. Undo goes back as far as the seeded board.
 - **Tiles** are either empty or hold a number. A tile can hold 0 (a seed, or a placed 0), which can't be played on and matches only a placed 0.
-- **Next value.** Each move's value is drawn at random from the deck (`DECK`) before the move and shown in advance ("Next" in the header): 0 10% of the time, 1 63%, 2 18% and 3 9% (1, 2 and 3 at 7 : 2 : 1). With wildcards (Q8) the deck can also deal a wildcard, shown as ★.
+- **Next value.** Each move's value is drawn at random from the deck (`DECK`) before the move and shown in advance ("Next" in the panel): 0 10% of the time, 1 63%, 2 18% and 3 9% (1, 2 and 3 at 7 : 2 : 1). With wildcards (Q8) the deck can also deal a wildcard, shown as ★.
 - **A move** places the next value on any empty tile.
 - **Group.** After placing, the group is the placed tile plus every matching tile connected to it through other matching tiles (tiles are connected when they share an edge). So a long chain of matching tiles collapses all at once, even when the placed tile is at its end. Matching tiles hold the same number, and may also need the same shape (Q6). Tiles with a different number never join the group, and the group never passes through them; zeros join only a placed 0.
 - **Merge.** If the group has 3 or more tiles (`MIN_GROUP`), the placed tile takes the sum of their numbers (the number times the group's size) and the other tiles in the group become empty: they leave the board and can be played on again, so free space comes back after every merge. Otherwise nothing else changes. Zeros merge the same way: a 0 placed so that it connects to two or more zeros takes them into one 0 where it was placed, so zero obstacles can be consolidated, moved and reduced (three zeros become one).
@@ -93,18 +93,23 @@ Merged-away tiles become empty, so a careful player can keep space free and the 
 
 ## 6. Screen
 
-Everything fits on one screen with no scrolling: a header, the board filling the space below it, and a status line at the bottom.
+Everything fits on one screen with no scrolling. The board is square, so the screen is split into a square for the board and a panel in the space left over:
+
+- **Wide screens** (landscape): the board fills the height on the left, and the panel takes the rest of the width on the right, at least 16 rem wide (the board's square shrinks if needed to leave that).
+- **Tall screens** (portrait): the board fills the width at the top, and the panel takes the rest of the height below, at least 12 rem tall.
+
+Rotating a phone moves the panel between the side and the bottom; the game carries on.
 
 | Element | Behavior |
 |---|---|
-| Next chip | The next value in the header, drawn as a small rounded tile in the same colors that number has on the board (fill and number color, from `src/lib/colors.ts`, shared with the board drawing). A wildcard shows ★ on a rainbow gradient, a look no number has. Each newly drawn value pops in (a quick grow and settle, 0.25 s), except when the device asks for reduced motion |
-| Header | Title; the stats (moves, highest tile, free (empty) tiles, plus the target under the target goal, and the next value as a chip, below); **Undo** (disabled with nothing to undo), **New Game ▾** and **Preferences**. On a narrow screen it wraps onto two lines |
-| New Game menu | Small, Medium and Large, each with its tile count; the current board's size is highlighted. Picking one starts a new game on that size and remembers it for next time. Escape or a click outside closes the menu without starting a game |
-| Board | Scaled to fill its space (leaving 8 px around it) and centered. When the window changes size or the screen is rotated, the board is rescaled to fit. Empty tiles white with thin gray edges (one screen pixel wide at any scale); zeros slate gray with a gray "0"; numbered tiles colored by value, from pale yellow for 1 through orange, red, pink, purple and blue to green above 100, with the number on the tile (on a kite at its centroid, on a dart along its axis toward the tip) |
+| Next chip | The next value, at the top of the panel beside the title, drawn as a rounded tile in the same colors that number has on the board (fill and number color, from `src/lib/colors.ts`, shared with the board drawing). A wildcard shows ★ on a rainbow gradient, a look no number has. Each newly drawn value pops in (a quick grow and settle, 0.25 s), except when the device asks for reduced motion |
+| Panel | From the top: the title and the Next chip; the stats as small cards (moves, highest tile, free (empty) tiles, plus the target under the target goal); **Undo** (disabled with nothing to undo), **New Game ▾** and **Preferences**, wrapping onto more lines if the panel is narrow; then the status line |
+| New Game menu | Small, Medium and Large, each with its tile count; the current board's size is highlighted. It opens below the button with the panel at the side, and above it with the panel at the bottom, so it stays on screen. Picking one starts a new game on that size and remembers it for next time. Escape or a click outside closes the menu without starting a game |
+| Board | Scaled to fill its square (leaving 8 px around it) and centered. When the window changes size or the screen is rotated, the board is rescaled to fit. Empty tiles white with thin gray edges (one screen pixel wide at any scale); zeros slate gray with a gray "0"; numbered tiles colored by value, from pale yellow for 1 through orange, red, pink, purple and blue to green above 100, with the number on the tile (on a kite at its centroid, on a dart along its axis toward the tip) |
 | Last move | Amber outline |
 | Next spawn | Under the "a 0 every move" pressure rule, a dashed gray ring on the empty tile where the next 0 will appear |
 | Hover | The empty tile under the pointer is tinted blue and shows the number it would end up with: the value placed, or the result of its merges (including any chain reaction). The tiles those merges would clear get a blue outline. Occupied tiles show no preview |
-| Status line | Before the first move, a one-line hint on how to play; then what a wildcard became ("Wild played as 3.") the last move's merges ("Merged 3 tiles into 3, then 3 tiles into 9") and any zeros the pressure rule added ("A 0 dropped."), or the result at the end of the game. Cut off with an ellipsis if too long |
+| Status line | Before the first move, a one-line hint on how to play; then what a wildcard became ("Wild played as 3.") the last move's merges ("Merged 3 tiles into 3, then 3 tiles into 9") and any zeros the pressure rule added ("A 0 dropped."), or the result at the end of the game. It wraps onto as many lines as it needs |
 | Preferences | A dialog over the board: one row of buttons per open question, labeled with its number (Q4, Q6, Q8, Q9), the target choice under the target goal, and how to play. Escape, the ×, **Done** or a click outside closes it |
 
 Pointer and touch both work: a tap or click places on the tile under it.
