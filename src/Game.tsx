@@ -1,30 +1,40 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { BOARD_H, BOARD_W, centroid, makeBoard, tileAtPoint, type BoardTile } from './lib/board';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  CHOOSABLE_VALUES, DEFAULT_OPTIONS, EMPTY, MIN_GROUP, TARGET_OPTIONS,
+  BOARD_SIZES, boardBounds, centroid, makeBoard, playfieldFor, tileAtPoint,
+  type BoardSize, type BoardTile,
+} from './lib/board';
+import { parseBoardSize, parseOptions } from './lib/prefs';
+import {
+  CHOOSABLE_VALUES, EMPTY, MIN_GROUP,
   type Cell, type Merge, type Options,
   canPlace, drawValue, highestTile, outcome, place, previewAt,
 } from './lib/rules';
+import { fitView, toBoard } from './lib/view';
+import Preferences from './Preferences';
 
-// The chosen rule options are remembered in this browser (localStorage).
+// The rule options and board size are remembered in this browser
+// (localStorage).
 const OPTIONS_STORAGE_KEY = 'penrosum.options';
+const SIZE_STORAGE_KEY = 'penrosum.boardSize';
 
-const loadOptions = (): Options => {
+const load = <T,>(key: string, parse: (raw: string | null) => T): T => {
   try {
-    const saved = JSON.parse(localStorage.getItem(OPTIONS_STORAGE_KEY) || '{}');
-    return { ...DEFAULT_OPTIONS, ...saved };
+    return parse(localStorage.getItem(key));
   } catch {
-    return DEFAULT_OPTIONS;
+    return parse(null);
   }
 };
 
-const saveOptions = (options: Options) => {
+const save = (key: string, value: string) => {
   try {
-    localStorage.setItem(OPTIONS_STORAGE_KEY, JSON.stringify(options));
+    localStorage.setItem(key, value);
   } catch {
     // Storage unavailable (e.g. private mode): the choice lasts this visit
   }
 };
+
+// Space kept clear around the board, in screen pixels.
+const BOARD_MARGIN = 8;
 
 // The value for the next move under the 'random' rule; under the others it
 // is decided at the move (always 1, or the player's pick).
@@ -33,6 +43,12 @@ const nextValueFor = (options: Options) => (options.values === 'random' ? drawVa
 // "Merged 3 tiles into 3, then 3 tiles into 9"
 const describeMerges = (merges: Merge[]) =>
   merges.length ? `Merged ${merges.map(m => `${m.from.length + 1} tiles into ${m.sum}`).join(', then ')}` : '';
+
+interface Board {
+  size: BoardSize;
+  tiles: BoardTile[];
+  bounds: ReturnType<typeof boardBounds>;
+}
 
 interface Snapshot {
   cells: Cell[];
@@ -81,64 +97,69 @@ const drawNumber = (ctx: CanvasRenderingContext2D, t: BoardTile, text: string, c
   ctx.fillText(text, c.x, c.y);
 };
 
-interface ChoiceProps<T extends string | number> {
-  label: string;
-  value: T;
-  options: [T, string][];
-  onChange: (v: T) => void;
-}
-
-const Choice = <T extends string | number>({ label, value, options, onChange }: ChoiceProps<T>) => (
-  <fieldset className="mb-3">
-    <legend className="text-sm font-semibold text-slate-700 mb-1">{label}</legend>
-    <div className="flex flex-wrap gap-1">
-      {options.map(([v, text]) => (
-        <button
-          key={String(v)}
-          onClick={() => onChange(v)}
-          className={`px-2 py-1 rounded text-sm border ${
-            v === value
-              ? 'bg-indigo-600 text-white border-indigo-600'
-              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-          }`}
-        >
-          {text}
-        </button>
-      ))}
-    </div>
-  </fieldset>
-);
-
 const Game = () => {
-  const tiles = useMemo(makeBoard, []);
+  const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [options, setOptions] = useState(loadOptions);
-  const [state, setState] = useState<Snapshot>(() => ({
-    cells: tiles.map(() => EMPTY),
-    next: nextValueFor(options),
-    moves: 0,
-    lastMove: null,
-    message: '',
-  }));
+  const [options, setOptions] = useState(() => load(OPTIONS_STORAGE_KEY, parseOptions));
+  const [size, setSize] = useState(() => load(SIZE_STORAGE_KEY, parseBoardSize));
+  // The space for the board, in CSS pixels; measured before the first paint
+  const [space, setSpace] = useState({ width: 0, height: 0 });
+  // Made once the space is known, since its shape follows the space
+  const [board, setBoard] = useState<Board | null>(null);
+  const [state, setState] = useState<Snapshot | null>(null);
   const [undo, setUndo] = useState<Snapshot[]>([]);
   const [chosen, setChosen] = useState(1); // the player's pick under 'choose'
   const [hovered, setHovered] = useState(-1);
+  const [showPrefs, setShowPrefs] = useState(false);
+  const [showSizes, setShowSizes] = useState(false);
 
-  const { cells, next, moves, lastMove, message } = state;
-  const result = outcome(cells, options);
-  const moveValue = options.values === 'choose' ? chosen : options.values === 'ones' ? 1 : next;
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const measure = () => setSpace({ width: el.clientWidth, height: el.clientHeight });
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Starts a new game on a board of `newSize`, shaped to the space now
+  const newGame = useCallback((newSize: BoardSize) => {
+    if (!space.width || !space.height) return;
+    const { width, height } = playfieldFor(newSize, space.width / space.height);
+    const tiles = makeBoard(width, height);
+    setBoard({ size: newSize, tiles, bounds: boardBounds(tiles) });
+    setState({ cells: tiles.map(() => EMPTY), next: nextValueFor(options), moves: 0, lastMove: null, message: '' });
+    setUndo([]);
+    setHovered(-1);
+    setSize(newSize);
+    save(SIZE_STORAGE_KEY, newSize);
+  }, [space, options]);
+
+  useEffect(() => {
+    if (!board && space.width && space.height) newGame(size);
+  }, [board, space, size, newGame]);
 
   const setOption = <K extends keyof Options>(key: K, value: Options[K]) => {
     const updated = { ...options, [key]: value };
     setOptions(updated);
-    saveOptions(updated);
-    if (key === 'values') setState(s => ({ ...s, next: nextValueFor(updated) }));
+    save(OPTIONS_STORAGE_KEY, JSON.stringify(updated));
+    if (key === 'values') setState(s => s && { ...s, next: nextValueFor(updated) });
   };
+  const closePrefs = useCallback(() => setShowPrefs(false), []);
 
-  const newGame = () => {
-    setUndo([]);
-    setState({ cells: tiles.map(() => EMPTY), next: nextValueFor(options), moves: 0, lastMove: null, message: '' });
-  };
+  // Escape closes the board-size menu
+  useEffect(() => {
+    if (!showSizes) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setShowSizes(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showSizes]);
+
+  const tiles = board?.tiles ?? [];
+  const cells = state?.cells ?? [];
+  const result = outcome(cells, options);
+  const moveValue = options.values === 'choose' ? chosen : options.values === 'ones' ? 1 : (state?.next ?? 1);
 
   const undoMove = () => {
     if (!undo.length) return;
@@ -147,38 +168,51 @@ const Game = () => {
   };
 
   const play = (id: number) => {
-    if (result.over || id < 0 || !canPlace(cells, id)) return;
+    if (!state || result.over || id < 0 || !canPlace(cells, id)) return;
     const { cells: after, merges } = place(tiles, cells, id, moveValue, options);
     setUndo([...undo, state]);
     setState({
       cells: after,
       next: nextValueFor(options),
-      moves: moves + 1,
+      moves: state.moves + 1,
       lastMove: id,
       message: describeMerges(merges),
     });
   };
 
-  // The merge the hovered tile would make, for the preview
+  // What the hovered tile would do, for the preview
   const preview = useMemo(() => {
     if (hovered < 0 || result.over || !canPlace(cells, hovered)) return null;
     return previewAt(tiles, cells, hovered, moveValue, options);
   }, [hovered, cells, moveValue, options, result.over, tiles]);
 
+  const view = useMemo(
+    () => board && fitView(board.bounds, space.width, space.height, BOARD_MARGIN),
+    [board, space],
+  );
+
   useEffect(() => {
-    const ctx = canvasRef.current?.getContext('2d');
-    if (!ctx) return;
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, BOARD_W, BOARD_H);
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!ctx || !view || !state) return;
+    // Sharp on high-density screens: the canvas has a pixel per device pixel
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(space.width * dpr);
+    canvas.height = Math.round(space.height * dpr);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Draw in board units from here on
+    ctx.setTransform(dpr * view.scale, 0, 0, dpr * view.scale, dpr * view.offsetX, dpr * view.offsetY);
+    const px = 1 / view.scale; // one screen pixel, in board units
 
     const inGroup = new Set(preview?.merging);
     for (const t of tiles) {
       const v = cells[t.id];
       tracePath(ctx, t);
-      ctx.fillStyle = v === EMPTY ? '#f1f5f9' : fillFor(v);
+      ctx.fillStyle = v === EMPTY ? '#ffffff' : fillFor(v);
       ctx.fill();
       ctx.strokeStyle = '#94a3b8';
-      ctx.lineWidth = 1;
+      ctx.lineWidth = px;
       ctx.stroke();
       if (v !== EMPTY) drawNumber(ctx, t, String(v), v === 0 ? '#64748b' : '#1e293b');
     }
@@ -191,8 +225,8 @@ const Game = () => {
       ctx.stroke();
     }
 
-    if (lastMove !== null) {
-      tracePath(ctx, tiles[lastMove]);
+    if (state.lastMove !== null) {
+      tracePath(ctx, tiles[state.lastMove]);
       ctx.strokeStyle = '#d97706';
       ctx.lineWidth = 3;
       ctx.stroke();
@@ -208,18 +242,21 @@ const Game = () => {
       ctx.stroke();
       drawNumber(ctx, t, String(preview.value), '#3730a3');
     }
-  }, [tiles, cells, lastMove, hovered, preview]);
+  }, [tiles, cells, state, hovered, preview, view, space]);
 
   const tileFromEvent = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!view) return -1;
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * BOARD_W;
-    const y = ((e.clientY - rect.top) / rect.height) * BOARD_H;
-    return tileAtPoint(tiles, x, y);
+    const p = toBoard(view, e.clientX - rect.left, e.clientY - rect.top);
+    return tileAtPoint(tiles, p.x, p.y);
   };
 
+  const moves = state?.moves ?? 0;
   const free = cells.filter(c => c === EMPTY).length;
-  let status = message;
-  if (result.over) {
+  let status = state?.message || (moves === 0
+    ? `Place a number on an empty tile. ${MIN_GROUP} or more matching tiles merge into the one you placed.`
+    : '');
+  if (state && result.over) {
     status = result.won
       ? options.goal === 'target'
         ? `You made ${result.highest} in ${moves} moves!`
@@ -227,106 +264,74 @@ const Game = () => {
       : `Board full before reaching ${options.target}. Highest tile: ${result.highest}.`;
   }
 
+  const button = 'px-3 py-1 rounded text-sm border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-40';
+
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 p-4">
-      <div className="max-w-6xl mx-auto">
-        <header className="flex flex-wrap items-center gap-3 mb-3">
-          <h1 className="text-2xl font-bold text-indigo-700 mr-auto">Penrosum</h1>
-          <button onClick={undoMove} disabled={!undo.length}
-            className="px-3 py-1 rounded bg-white border border-slate-300 text-sm disabled:opacity-40">
-            Undo
-          </button>
-          <button onClick={newGame} className="px-3 py-1 rounded bg-indigo-600 text-white text-sm">
-            New Game
-          </button>
-        </header>
-
-        <div className="flex flex-col lg:flex-row gap-4">
-          <main className="flex-1 min-w-0">
-            <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm mb-2">
-              <span>Moves: <b>{moves}</b></span>
-              <span>Highest: <b>{highestTile(cells)}</b></span>
-              <span>Free tiles: <b>{free}</b></span>
-              {options.goal === 'target' && <span>Target: <b>{options.target}</b></span>}
-              {options.values === 'random' && <span>Next: <b>{next}</b></span>}
-            </div>
-            {options.values === 'choose' && (
-              <div className="flex items-center gap-2 text-sm mb-2">
-                Place:
-                {CHOOSABLE_VALUES.map(v => (
-                  <button key={v} onClick={() => setChosen(v)}
-                    className={`w-8 h-8 rounded font-bold border ${
-                      v === chosen ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-slate-300'
-                    }`}>
-                    {v}
-                  </button>
-                ))}
-              </div>
-            )}
-            <canvas
-              ref={canvasRef}
-              width={BOARD_W}
-              height={BOARD_H}
-              className="w-full h-auto rounded shadow bg-white touch-none cursor-pointer"
-              onPointerMove={e => setHovered(tileFromEvent(e))}
-              onPointerLeave={() => setHovered(-1)}
-              onPointerDown={e => play(tileFromEvent(e))}
-            />
-            <p className="min-h-6 mt-2 text-sm font-medium" aria-live="polite">{status}</p>
-          </main>
-
-          <aside className="lg:w-80 bg-white rounded shadow p-4">
-            <h2 className="font-bold mb-1">Rules to try</h2>
-            <p className="text-xs text-slate-500 mb-3">
-              These are the open questions in the spec. Changes apply from the next move.
-            </p>
-            <Choice
-              label="1. Which tiles count as adjacent?"
-              value={options.group}
-              options={[['connected', 'Whole connected group'], ['neighbors', 'Direct neighbors only']]}
-              onChange={v => setOption('group', v)}
-            />
-            <Choice
-              label="2. Merged-away tiles become"
-              value={options.clear}
-              options={[['empty', 'Empty'], ['zero', 'Zero (stays on the board)']]}
-              onChange={v => setOption('clear', v)}
-            />
-            <Choice
-              label="3. The value you place"
-              value={options.values}
-              options={[['ones', 'Always 1'], ['random', 'Random 1–3'], ['choose', 'You pick 1–3']]}
-              onChange={v => setOption('values', v)}
-            />
-            <Choice
-              label="4. Goal"
-              value={options.goal}
-              options={[['highest', 'Highest tile'], ['target', 'Reach a target']]}
-              onChange={v => setOption('goal', v)}
-            />
-            {options.goal === 'target' && (
-              <Choice
-                label="Target"
-                value={options.target}
-                options={TARGET_OPTIONS.map(t => [t, String(t)] as [number, string])}
-                onChange={v => setOption('target', v)}
-              />
-            )}
-            <Choice
-              label="5. Which tiles can match?"
-              value={options.shape}
-              options={[['any', 'Any shape'], ['same', 'Same shape only']]}
-              onChange={v => setOption('shape', v)}
-            />
-            <p className="text-xs text-slate-500 mt-2">
-              Place a number on any empty tile. When it makes a group of {MIN_GROUP} or more tiles
-              with the same number, the tile you placed takes their sum and the others are cleared.
-              If the new number then makes a group too, it merges again. Hover a tile to see what
-              would merge.
-            </p>
-          </aside>
+    <div className="h-dvh flex flex-col overflow-hidden bg-slate-100 text-slate-900">
+      <header className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2 bg-white shadow-sm z-10">
+        <h1 className="text-xl font-bold text-indigo-700">Penrosum</h1>
+        <div className="flex flex-wrap gap-x-4 text-sm">
+          <span>Moves <b>{moves}</b></span>
+          <span>Highest <b>{highestTile(cells)}</b></span>
+          <span>Free <b>{free}</b></span>
+          {options.goal === 'target' && <span>Target <b>{options.target}</b></span>}
+          {options.values === 'random' && <span>Next <b>{state?.next}</b></span>}
         </div>
-      </div>
+        {options.values === 'choose' && (
+          <div className="flex items-center gap-1 text-sm" role="group" aria-label="Value to place">
+            Place
+            {CHOOSABLE_VALUES.map(v => (
+              <button key={v} onClick={() => setChosen(v)} aria-pressed={v === chosen}
+                className={`w-7 h-7 rounded font-bold border ${
+                  v === chosen ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-slate-300'
+                }`}>
+                {v}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2 ml-auto">
+          <button onClick={undoMove} disabled={!undo.length} className={button}>Undo</button>
+          <div className="relative">
+            <button onClick={() => setShowSizes(s => !s)} aria-expanded={showSizes} aria-haspopup="menu"
+              className="px-3 py-1 rounded text-sm bg-indigo-600 text-white">
+              New Game ▾
+            </button>
+            {showSizes && (
+              <>
+                <div className="fixed inset-0 z-20" onClick={() => setShowSizes(false)} />
+                <div role="menu" className="absolute right-0 mt-1 z-30 w-48 rounded-md bg-white shadow-lg border border-slate-200 py-1">
+                  {BOARD_SIZES.map(s => (
+                    <button key={s.id} role="menuitem"
+                      onClick={() => { setShowSizes(false); newGame(s.id); }}
+                      className="w-full text-left px-3 py-1.5 text-sm hover:bg-indigo-50 flex justify-between">
+                      <span className={s.id === board?.size ? 'font-semibold text-indigo-700' : ''}>{s.name}</span>
+                      <span className="text-slate-500">~{s.tiles} tiles</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+          <button onClick={() => setShowPrefs(true)} className={button}>Preferences</button>
+        </div>
+      </header>
+
+      <main ref={containerRef} className="relative flex-1 min-h-0">
+        <canvas
+          ref={canvasRef}
+          className="absolute inset-0 w-full h-full touch-none cursor-pointer"
+          onPointerMove={e => setHovered(tileFromEvent(e))}
+          onPointerLeave={() => setHovered(-1)}
+          onPointerDown={e => play(tileFromEvent(e))}
+        />
+      </main>
+
+      <p className="px-3 py-1.5 text-sm font-medium bg-white border-t border-slate-200 truncate" aria-live="polite">
+        {status || ' '}
+      </p>
+
+      {showPrefs && <Preferences options={options} setOption={setOption} onClose={closePrefs} />}
     </div>
   );
 };
