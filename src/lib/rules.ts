@@ -36,9 +36,6 @@ export interface Options {
   values: ValueRule;
   goal: GoalRule;
   target: number;
-  // Chain reactions: after a merge, the placed tile's new number may match
-  // the tiles around it; when true, it merges again, as often as it can
-  cascade: boolean;
 }
 
 export const DEFAULT_OPTIONS: Options = {
@@ -47,7 +44,6 @@ export const DEFAULT_OPTIONS: Options = {
   values: 'ones',
   goal: 'highest',
   target: 50,
-  cascade: false,
 };
 
 export const TARGET_OPTIONS = [20, 50, 100, 200];
@@ -98,11 +94,11 @@ export interface Merge {
 
 export interface PlaceResult {
   cells: Cell[];
-  merges: Merge[]; // in order; more than one only with chain reactions
+  merges: Merge[]; // in order; more than one when a chain reaction follows
 }
 
-// Places `value` on tile `id` and applies a merge if one forms, then, with
-// chain reactions on, merges again while the new number makes a group.
+// Places `value` on tile `id` and applies a merge if one forms, then merges
+// again while the tile's new number makes a group (a chain reaction).
 // Each merge at least triples the placed tile's number, so chains end.
 // Assumes the move is legal (see canPlace). Returns new cells; the input is
 // unchanged.
@@ -118,7 +114,6 @@ export const place = (tiles: Tile[], cells: Cell[], id: number, value: number, o
     for (const t of from) next[t] = options.clear === 'zero' ? 0 : EMPTY;
     next[id] = sum;
     merges.push({ into: id, from, sum });
-    if (!options.cascade) break;
   }
   return { cells: next, merges };
 };

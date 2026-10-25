@@ -28,7 +28,8 @@ A merging number game on a Penrose tiling of kites and darts. The player places 
 - **Tiles** are either empty or hold a number. Under the "zero" clearing option (open question 2) a tile can hold 0, which can't be played on and matches nothing.
 - **A move** places the value for this move (open question 3) on any empty tile.
 - **Group.** After placing, the group is the placed tile plus the tiles holding the same number that count as adjacent to it (open question 1). Tiles with a different number, zeros included, never join the group.
-- **Merge.** If the group has 3 or more tiles (`MIN_GROUP`), the placed tile takes the sum of their numbers (the number times the group's size) and the other tiles in the group are cleared (open question 2). Otherwise nothing else changes. Whether the new number can merge again in the same move is open question 5.
+- **Merge.** If the group has 3 or more tiles (`MIN_GROUP`), the placed tile takes the sum of their numbers (the number times the group's size) and the other tiles in the group are cleared (open question 2). Otherwise nothing else changes.
+- **Chain reaction.** After a merge, the placed tile's new number may match the tiles around it: three 1s make a 3 next to two other 3s. If its new number makes a group of 3 or more, it merges again, and keeps going as long as it can, so one move can make 3, then 9, then 27. Each merge at least triples the number, so a chain always ends.
 - **End.** The game ends when no empty tile is left, or when the goal is reached (open question 4).
 - **Undo** steps back one move at a time, as far as the start of the game. **New Game** clears the board. Changing a rule option takes effect from the next move and does not restart the game.
 
@@ -68,15 +69,6 @@ Still to think about: whether other values (bigger numbers, negatives, a "wild" 
 | Reach a target (`target`) | Make a tile of at least the target (20, 50, 100 or 200) to win; filling the board first loses. The win reports how many moves it took, so fewer moves is better |
 
 Still to think about: a scoring system (for example points per merge), a move limit, a time limit, and whether the game should push back somehow (for example new tiles appearing) when merged-away tiles become empty and the board can't fill up.
-
-### 5. Chain reactions?
-
-After a merge, the placed tile's new number may match tiles around it: three 1s make a 3 next to two other 3s.
-
-| Option | Behavior |
-|---|---|
-| Off (`false`) | One merge per move. The new 3 stays beside the other 3s until the player places next to them |
-| On (`true`) | The placed tile merges again whenever its new number makes a group, as many times as it can, so one move can make 3, then 9, then 27. Each merge at least triples the number, so a chain always ends |
 
 ## 6. Screen
 
