@@ -101,7 +101,7 @@ const Preferences = ({ options, setOption, onClose }: PreferencesProps) => {
           onChange={v => setOption('pressure', v)}
         />
         <p className="text-xs text-slate-500 mt-2">
-          How to play: place the next number (shown in the header) on any empty tile. When it makes a group of {MIN_GROUP} or more
+          How to play: place the Next number (beside the title) on any empty tile. When it makes a group of {MIN_GROUP} or more
           tiles with the same number, the tile you placed takes their sum and the others are cleared.
           If the new number then makes a group too, it merges again. Hover a tile to see what would
           merge.
