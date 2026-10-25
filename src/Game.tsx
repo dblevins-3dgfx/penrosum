@@ -11,6 +11,7 @@ import {
   valueToPlace,
 } from './lib/rules';
 import { fitView, toBoard } from './lib/view';
+import { EMPTY_FILL, colorsFor, fillFor, textFor } from './lib/colors';
 import Preferences from './Preferences';
 
 // The rule options and board size are remembered in this browser
@@ -47,6 +48,22 @@ const showDrawn = (drawn: number) => (drawn === WILD ? '★' : String(drawn));
 const describeMerges = (merges: Merge[]) =>
   merges.length ? `Merged ${merges.map(m => `${m.from.length + 1} tiles into ${m.sum}`).join(', then ')}` : '';
 
+// The next value as a chip in the tile's own colors (the wildcard in its
+// rainbow). Keyed by the move count, so each new draw pops in.
+const NextChip = ({ drawn, moves }: { drawn: number; moves: number }) => {
+  const { fill, text } = colorsFor(drawn);
+  return (
+    <b
+      key={moves}
+      aria-label={`Next: ${drawn === WILD ? 'wildcard' : drawn}`}
+      className="next-chip inline-flex items-center justify-center min-w-7 h-7 px-1.5 rounded-md border border-slate-400/60 shadow-sm text-base"
+      style={{ background: fill, color: text, textShadow: drawn === WILD ? '0 1px 2px #0006' : undefined }}
+    >
+      {showDrawn(drawn)}
+    </b>
+  );
+};
+
 interface Board {
   size: BoardSize;
   tiles: BoardTile[];
@@ -62,20 +79,6 @@ interface Snapshot {
   message: string;
 }
 
-// Tile fill by value: warmer and then cooler as numbers grow.
-const fillFor = (value: number) => {
-  if (value === 0) return '#cbd5e1';
-  if (value === 1) return '#fef3c7';
-  if (value === 2) return '#fde68a';
-  if (value <= 4) return '#fcd34d';
-  if (value <= 7) return '#fb923c';
-  if (value <= 12) return '#f87171';
-  if (value <= 20) return '#f472b6';
-  if (value <= 35) return '#c084fc';
-  if (value <= 60) return '#818cf8';
-  if (value <= 100) return '#38bdf8';
-  return '#34d399';
-};
 
 const tracePath = (ctx: CanvasRenderingContext2D, t: BoardTile) => {
   ctx.beginPath();
@@ -221,12 +224,12 @@ const Game = () => {
     for (const t of tiles) {
       const v = cells[t.id];
       tracePath(ctx, t);
-      ctx.fillStyle = v === EMPTY ? '#ffffff' : fillFor(v);
+      ctx.fillStyle = v === EMPTY ? EMPTY_FILL : fillFor(v);
       ctx.fill();
       ctx.strokeStyle = '#94a3b8';
       ctx.lineWidth = px;
       ctx.stroke();
-      if (v !== EMPTY) drawNumber(ctx, t, String(v), v === 0 ? '#64748b' : '#1e293b');
+      if (v !== EMPTY) drawNumber(ctx, t, String(v), textFor(v));
     }
 
     // Tiles the hovered move would merge
@@ -297,7 +300,10 @@ const Game = () => {
           <span>Highest <b>{highestTile(cells)}</b></span>
           <span>Free <b>{free}</b></span>
           {options.goal === 'target' && <span>Target <b>{options.target}</b></span>}
-          <span>Next <b>{showDrawn(drawn)}</b></span>
+          <span className="flex items-center gap-1.5">
+            Next
+            <NextChip drawn={drawn} moves={moves} />
+          </span>
         </div>
         <div className="flex gap-2 ml-auto">
           <button onClick={undoMove} disabled={!undo.length} className={button}>Undo</button>

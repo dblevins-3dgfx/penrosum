@@ -1,1 +1,11 @@
 @import "tailwindcss";
+
+/* The "Next" chip pops in when a new value is drawn */
+@keyframes next-pop {
+  from { transform: scale(0.6); opacity: 0.4; }
+  60% { transform: scale(1.15); }
+  to { transform: scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .next-chip { animation: next-pop 0.25s ease-out; }
+}
