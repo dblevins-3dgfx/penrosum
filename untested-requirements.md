@@ -11,5 +11,5 @@ The tests only reach plain functions in `src/lib`. Code inside a React component
 | Technology | The rule options are remembered in localStorage | `loadOptions` / `saveOptions` in `src/Game.tsx` | Browser storage. Merging saved options with the defaults could move into `src/lib`. |
 | Rules | Undo steps back one move, as far as the start; New Game clears the board | `undoMove` / `newGame` in `src/Game.tsx` | Component state. |
 | Rules | Changing a rule option takes effect from the next move and does not restart the game | `setOption` in `src/Game.tsx` | Component state. |
-| Screen | Hover preview: the value or sum the tile would take, and the tiles that would merge | `preview` in `src/Game.tsx` | Pointer events and drawing. The group itself comes from `groupAt`, tested in `rules.test.ts`. |
+| Screen | Hover preview: shown only on an empty tile while the game is on, drawn as a blue tint and outlines | `preview` and the drawing effect in `src/Game.tsx` | Pointer events and drawing. What it shows (the final number and the cleared tiles) comes from `previewAt`, tested in `rules.test.ts`. |
 | Screen | Tile colors and labels, the last-move outline, the status line | `fillFor`, `labelPoint` and the drawing effect in `src/Game.tsx` | Canvas drawing and layout. |

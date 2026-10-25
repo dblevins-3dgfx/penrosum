@@ -6,15 +6,16 @@
 // be tried side by side.
 
 // Which tiles count as "adjacent" when deciding whether a placement merges.
-//   connected: every numbered tile connected to the placed one through
-//              other numbered tiles
-//   neighbors: the placed tile and its numbered direct neighbors only
+// Only tiles holding the same number as the placed tile ever count.
+//   connected: every matching tile connected to the placed one through
+//              other matching tiles
+//   neighbors: the placed tile and its matching direct neighbors only
 export type GroupRule = 'connected' | 'neighbors';
 
 // What a merged-away tile becomes.
 //   empty: un-numbered; it can be played again and never counts toward a group
-//   zero:  holds a 0; it counts toward groups (adding nothing to the sum)
-//          and can't be played on, so the board slowly fills up
+//   zero:  holds a 0, which can't be played on and matches nothing that is
+//          placed, so it blocks groups and the board slowly fills up
 export type ClearRule = 'empty' | 'zero';
 
 // Where the value to place comes from.
@@ -35,6 +36,9 @@ export interface Options {
   values: ValueRule;
   goal: GoalRule;
   target: number;
+  // Chain reactions: after a merge, the placed tile's new number may match
+  // the tiles around it; when true, it merges again, as often as it can
+  cascade: boolean;
 }
 
 export const DEFAULT_OPTIONS: Options = {
@@ -43,12 +47,13 @@ export const DEFAULT_OPTIONS: Options = {
   values: 'ones',
   goal: 'highest',
   target: 50,
+  cascade: false,
 };
 
 export const TARGET_OPTIONS = [20, 50, 100, 200];
 export const CHOOSABLE_VALUES = [1, 2, 3];
 
-// A merge needs this many tiles, counting the one just placed.
+// A merge needs this many matching tiles, counting the one just placed.
 export const MIN_GROUP = 3;
 
 // No number on the tile. A cleared tile under the 'zero' rule holds 0
@@ -61,22 +66,22 @@ export interface Tile {
   neighbors: number[];
 }
 
-export const isNumbered = (cell: Cell) => cell !== EMPTY;
-
 // A move is legal on an un-numbered tile.
 export const canPlace = (cells: Cell[], id: number) => cells[id] === EMPTY;
 
-// The tiles that would merge if `id` were numbered: the placed tile first,
-// then the others in the group. Fewer than MIN_GROUP tiles means no merge.
+// The group for numbered tile `id`: it first, then the tiles holding the
+// same number that count as adjacent to it. Fewer than MIN_GROUP tiles
+// means no merge.
 export const groupAt = (tiles: Tile[], cells: Cell[], id: number, rule: GroupRule): number[] => {
+  const matches = (n: number) => cells[n] === cells[id];
   if (rule === 'neighbors') {
-    return [id, ...tiles[id].neighbors.filter(n => isNumbered(cells[n]))];
+    return [id, ...tiles[id].neighbors.filter(matches)];
   }
   const group = [id];
   const seen = new Set(group);
   for (let i = 0; i < group.length; i++) {
     for (const n of tiles[group[i]].neighbors) {
-      if (!seen.has(n) && isNumbered(cells[n])) {
+      if (!seen.has(n) && matches(n)) {
         seen.add(n);
         group.push(n);
       }
@@ -93,22 +98,36 @@ export interface Merge {
 
 export interface PlaceResult {
   cells: Cell[];
-  merge: Merge | null;
+  merges: Merge[]; // in order; more than one only with chain reactions
 }
 
-// Places `value` on tile `id` and applies a merge if one forms. Assumes the
-// move is legal (see canPlace). Returns new cells; the input is unchanged.
+// Places `value` on tile `id` and applies a merge if one forms, then, with
+// chain reactions on, merges again while the new number makes a group.
+// Each merge at least triples the placed tile's number, so chains end.
+// Assumes the move is legal (see canPlace). Returns new cells; the input is
+// unchanged.
 export const place = (tiles: Tile[], cells: Cell[], id: number, value: number, options: Options): PlaceResult => {
   const next = cells.slice();
   next[id] = value;
-  const group = groupAt(tiles, next, id, options.group);
-  if (group.length < MIN_GROUP) return { cells: next, merge: null };
+  const merges: Merge[] = [];
+  for (;;) {
+    const group = groupAt(tiles, next, id, options.group);
+    if (group.length < MIN_GROUP) break;
+    const sum = group.reduce((s, t) => s + next[t], 0);
+    const from = group.slice(1);
+    for (const t of from) next[t] = options.clear === 'zero' ? 0 : EMPTY;
+    next[id] = sum;
+    merges.push({ into: id, from, sum });
+    if (!options.cascade) break;
+  }
+  return { cells: next, merges };
+};
 
-  const sum = group.reduce((s, t) => s + next[t], 0);
-  const from = group.slice(1);
-  for (const t of from) next[t] = options.clear === 'zero' ? 0 : EMPTY;
-  next[id] = sum;
-  return { cells: next, merge: { into: id, from, sum } };
+// What placing on `id` would do, for the hover preview: the number the tile
+// would end up with, and every tile its merges would clear.
+export const previewAt = (tiles: Tile[], cells: Cell[], id: number, value: number, options: Options) => {
+  const { cells: after, merges } = place(tiles, cells, id, value, options);
+  return { value: after[id], merging: merges.flatMap(m => m.from) };
 };
 
 // Chance of each value under the 'random' rule.

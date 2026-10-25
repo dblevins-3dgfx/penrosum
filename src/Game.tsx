@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { BOARD_H, BOARD_W, centroid, makeBoard, tileAtPoint, type BoardTile } from './lib/board';
 import {
   CHOOSABLE_VALUES, DEFAULT_OPTIONS, EMPTY, MIN_GROUP, TARGET_OPTIONS,
-  type Cell, type Options,
-  canPlace, drawValue, groupAt, highestTile, outcome, place,
+  type Cell, type Merge, type Options,
+  canPlace, drawValue, highestTile, outcome, place, previewAt,
 } from './lib/rules';
 
 // The chosen rule options are remembered in this browser (localStorage).
@@ -29,6 +29,10 @@ const saveOptions = (options: Options) => {
 // The value for the next move under the 'random' rule; under the others it
 // is decided at the move (always 1, or the player's pick).
 const nextValueFor = (options: Options) => (options.values === 'random' ? drawValue() : 1);
+
+// "Merged 3 tiles into 3, then 3 tiles into 9"
+const describeMerges = (merges: Merge[]) =>
+  merges.length ? `Merged ${merges.map(m => `${m.from.length + 1} tiles into ${m.sum}`).join(', then ')}` : '';
 
 interface Snapshot {
   cells: Cell[];
@@ -77,14 +81,14 @@ const drawNumber = (ctx: CanvasRenderingContext2D, t: BoardTile, text: string, c
   ctx.fillText(text, c.x, c.y);
 };
 
-interface ChoiceProps<T extends string | number> {
+interface ChoiceProps<T extends string | number | boolean> {
   label: string;
   value: T;
   options: [T, string][];
   onChange: (v: T) => void;
 }
 
-const Choice = <T extends string | number>({ label, value, options, onChange }: ChoiceProps<T>) => (
+const Choice = <T extends string | number | boolean>({ label, value, options, onChange }: ChoiceProps<T>) => (
   <fieldset className="mb-3">
     <legend className="text-sm font-semibold text-slate-700 mb-1">{label}</legend>
     <div className="flex flex-wrap gap-1">
@@ -144,26 +148,22 @@ const Game = () => {
 
   const play = (id: number) => {
     if (result.over || id < 0 || !canPlace(cells, id)) return;
-    const { cells: after, merge } = place(tiles, cells, id, moveValue, options);
+    const { cells: after, merges } = place(tiles, cells, id, moveValue, options);
     setUndo([...undo, state]);
     setState({
       cells: after,
       next: nextValueFor(options),
       moves: moves + 1,
       lastMove: id,
-      message: merge ? `Merged ${merge.from.length + 1} tiles into ${merge.sum}` : '',
+      message: describeMerges(merges),
     });
   };
 
   // The merge the hovered tile would make, for the preview
   const preview = useMemo(() => {
     if (hovered < 0 || result.over || !canPlace(cells, hovered)) return null;
-    const trial = cells.slice();
-    trial[hovered] = moveValue;
-    const group = groupAt(tiles, trial, hovered, options.group);
-    if (group.length < MIN_GROUP) return { group: [], sum: moveValue };
-    return { group, sum: group.reduce((s, t) => s + trial[t], 0) };
-  }, [hovered, cells, moveValue, options.group, result.over, tiles]);
+    return previewAt(tiles, cells, hovered, moveValue, options);
+  }, [hovered, cells, moveValue, options, result.over, tiles]);
 
   useEffect(() => {
     const ctx = canvasRef.current?.getContext('2d');
@@ -171,7 +171,7 @@ const Game = () => {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, BOARD_W, BOARD_H);
 
-    const inGroup = new Set(preview?.group);
+    const inGroup = new Set(preview?.merging);
     for (const t of tiles) {
       const v = cells[t.id];
       tracePath(ctx, t);
@@ -185,7 +185,6 @@ const Game = () => {
 
     // Tiles the hovered move would merge
     for (const id of inGroup) {
-      if (id === hovered) continue;
       tracePath(ctx, tiles[id]);
       ctx.strokeStyle = '#4f46e5';
       ctx.lineWidth = 3;
@@ -207,9 +206,9 @@ const Game = () => {
       ctx.strokeStyle = '#4f46e5';
       ctx.lineWidth = 3;
       ctx.stroke();
-      drawNumber(ctx, t, inGroup.size ? String(preview.sum) : String(moveValue), '#3730a3');
+      drawNumber(ctx, t, String(preview.value), '#3730a3');
     }
-  }, [tiles, cells, lastMove, hovered, preview, moveValue]);
+  }, [tiles, cells, lastMove, hovered, preview]);
 
   const tileFromEvent = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -313,10 +312,16 @@ const Game = () => {
                 onChange={v => setOption('target', v)}
               />
             )}
+            <Choice
+              label="5. Chain reactions"
+              value={options.cascade}
+              options={[[false, 'Off'], [true, 'On']]}
+              onChange={v => setOption('cascade', v)}
+            />
             <p className="text-xs text-slate-500 mt-2">
-              Place a number on any empty tile. When it makes a group of {MIN_GROUP} or more numbered
-              tiles, the tile you placed takes their sum and the others are cleared. Hover a tile to
-              see what would merge.
+              Place a number on any empty tile. When it makes a group of {MIN_GROUP} or more tiles
+              with the same number, the tile you placed takes their sum and the others are cleared.
+              Hover a tile to see what would merge.
             </p>
           </aside>
         </div>

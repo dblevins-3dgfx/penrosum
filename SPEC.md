@@ -4,7 +4,7 @@ Status: an experimental prototype. This describes the game as currently implemen
 
 ## 1. Overview
 
-A merging number game on a Penrose tiling of kites and darts. The player places a number, usually 1, on an empty tile. When that makes a group of three or more numbered tiles, the tile just placed takes the sum of the group and the other tiles in it are cleared.
+A merging number game on a Penrose tiling of kites and darts. The player places a number, usually 1, on an empty tile. When that makes a group of three or more tiles holding the same number, the tile just placed takes the sum of the group and the other tiles in it are cleared. Three 1s make a 3, three 3s make a 9, and so on.
 
 ## 2. Technology
 
@@ -25,10 +25,10 @@ A merging number game on a Penrose tiling of kites and darts. The player places 
 
 ## 4. Rules
 
-- **Tiles** are either empty or hold a number. Under the "zero" clearing option (open question 2) a tile can hold 0, which counts as numbered.
+- **Tiles** are either empty or hold a number. Under the "zero" clearing option (open question 2) a tile can hold 0, which can't be played on and matches nothing.
 - **A move** places the value for this move (open question 3) on any empty tile.
-- **Group.** After placing, the group is the placed tile plus the numbered tiles counted as adjacent to it (open question 1).
-- **Merge.** If the group has 3 or more tiles (`MIN_GROUP`), the placed tile takes the sum of all their values and the other tiles in the group are cleared (open question 2). Otherwise nothing else changes. A merge never triggers another: under either group rule, the placed tile has no numbered neighbors left after its group is cleared (see open question 1).
+- **Group.** After placing, the group is the placed tile plus the tiles holding the same number that count as adjacent to it (open question 1). Tiles with a different number, zeros included, never join the group.
+- **Merge.** If the group has 3 or more tiles (`MIN_GROUP`), the placed tile takes the sum of their numbers (the number times the group's size) and the other tiles in the group are cleared (open question 2). Otherwise nothing else changes. Whether the new number can merge again in the same move is open question 5.
 - **End.** The game ends when no empty tile is left, or when the goal is reached (open question 4).
 - **Undo** steps back one move at a time, as far as the start of the game. **New Game** clears the board. Changing a rule option takes effect from the next move and does not restart the game.
 
@@ -40,15 +40,15 @@ Each option below is implemented and can be switched during play. The first one 
 
 | Option | Behavior |
 |---|---|
-| Whole connected group (`connected`) | Every numbered tile reachable from the placed tile through other numbered tiles. A long chain collapses all at once |
-| Direct neighbors only (`neighbors`) | The placed tile and its numbered direct neighbors (at most four). Tiles further along a chain are left alone, and the end of a chain does not merge with only one neighbor |
+| Whole connected group (`connected`) | Every tile with the same number reachable from the placed tile through other tiles with that number. A long chain of matching tiles collapses all at once |
+| Direct neighbors only (`neighbors`) | The placed tile and its direct neighbors with the same number (at most four). Tiles further along a chain are left alone, and the end of a chain does not merge with only one matching neighbor |
 
 ### 2. What do merged-away tiles become?
 
 | Option | Behavior |
 |---|---|
-| Empty (`empty`) | Un-numbered: they can be played on again and don't count toward groups. Free space comes back after every merge, so the board may never fill up |
-| Zero (`zero`) | They hold 0: they can't be played on, and they still count toward groups (adding nothing to the sum). Every move uses up a tile for good, so the board fills up and the game always ends. Under the connected rule, zeros link groups together, so merges reach further over time |
+| Empty (`empty`) | Un-numbered: they can be played on again. Free space comes back after every merge, so the board may never fill up |
+| Zero (`zero`) | They hold 0: they can't be played on, and they never match a placed number, so they block groups like walls. Every move uses up a tile for good, so the board fills up and the game always ends |
 
 ### 3. What value is placed?
 
@@ -69,6 +69,15 @@ Still to think about: whether other values (bigger numbers, negatives, a "wild" 
 
 Still to think about: a scoring system (for example points per merge), a move limit, a time limit, and whether the game should push back somehow (for example new tiles appearing) when merged-away tiles become empty and the board can't fill up.
 
+### 5. Chain reactions?
+
+After a merge, the placed tile's new number may match tiles around it: three 1s make a 3 next to two other 3s.
+
+| Option | Behavior |
+|---|---|
+| Off (`false`) | One merge per move. The new 3 stays beside the other 3s until the player places next to them |
+| On (`true`) | The placed tile merges again whenever its new number makes a group, as many times as it can, so one move can make 3, then 9, then 27. Each merge at least triples the number, so a chain always ends |
+
 ## 6. Screen
 
 | Element | Behavior |
@@ -78,8 +87,8 @@ Still to think about: a scoring system (for example points per merge), a move li
 | Value picker | Buttons 1, 2, 3, shown only under the "player picks" value rule |
 | Board | Empty tiles light gray; zeros slate gray with a gray "0"; numbered tiles colored by value, from pale yellow for 1 through orange, red, pink, purple and blue to green above 100, with the number on the tile (on a kite at its centroid, on a dart along its axis toward the tip) |
 | Last move | Amber outline |
-| Hover | The empty tile under the pointer is tinted blue and shows the value it would take: the value placed, or the sum if it would merge. The other tiles that would merge get a blue outline. Occupied tiles show no preview |
-| Status line | The last merge ("Merged 4 tiles into 7"), or the result at the end of the game |
+| Hover | The empty tile under the pointer is tinted blue and shows the number it would end up with: the value placed, or the result of its merges (including any chain reaction). The tiles those merges would clear get a blue outline. Occupied tiles show no preview |
+| Status line | The last move's merges ("Merged 3 tiles into 3, then 3 tiles into 9"), or the result at the end of the game |
 | Rules to try | One row of buttons per open question, plus the target choice under the target goal |
 
 Pointer and touch both work: a tap or click places on the tile under it.
