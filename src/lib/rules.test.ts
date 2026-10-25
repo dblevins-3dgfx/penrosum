@@ -5,7 +5,7 @@ import {
   DECK, NUMBERS, SEED_FRACTION, SEED_VALUES, WILD, WILD_CHANCE,
   boardFull, canPlace, drawValue, groupAt, highestTile, outcome, place, previewAt, resolveWild, seedBoard, valueToPlace,
   dropRubble,
-  KITE_CHANCE, canPlaceDealt, dealShape, shapeToPlace,
+  KITE_CHANCE, canPlaceDealt, dealShape, kiteChance, shapeToPlace,
   TOP_VALUE, floorPow3, mergeResult,
   type Merge, mergePoints, rungOf, scoreMerges, scoreRubble,
 } from './rules';
@@ -455,16 +455,49 @@ describe('shapes: the next value comes with a shape', () => {
 
   it('deals a kite KITE_CHANCE of the time, otherwise a dart', () => {
     const c: Cell[] = [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY];
-    expect(dealShape(hub, c, () => 0)).toBe('kite');
-    expect(dealShape(hub, c, () => KITE_CHANCE - 0.001)).toBe('kite');
-    expect(dealShape(hub, c, () => KITE_CHANCE)).toBe('dart');
+    const fixed = { deal: 'fixed' } as const;
+    expect(dealShape(hub, c, fixed, () => 0)).toBe('kite');
+    expect(dealShape(hub, c, fixed, () => KITE_CHANCE - 0.001)).toBe('kite');
+    expect(dealShape(hub, c, fixed, () => KITE_CHANCE)).toBe('dart');
   });
 
-  it('never deals a shape with no empty tile left', () => {
-    // Both darts (3, 4) taken: always a kite, whatever the draw
-    expect(dealShape(hub, [EMPTY, EMPTY, 1, 1, 3], () => 0.99)).toBe('kite');
-    // All three kites (0, 1, 2) taken: always a dart
-    expect(dealShape(hub, [1, 3, 9, EMPTY, EMPTY], () => 0)).toBe('dart');
+  it('never deals a shape with no empty tile left, under any deal rule (Q13)', () => {
+    for (const deal of ['fixed', 'free', 'blend'] as const) {
+      // Both darts (3, 4) taken: always a kite, whatever the draw
+      expect(kiteChance(hub, [EMPTY, EMPTY, 1, 1, 3], deal)).toBe(1);
+      expect(dealShape(hub, [EMPTY, EMPTY, 1, 1, 3], { deal }, () => 0.99)).toBe('kite');
+      // All three kites (0, 1, 2) taken: always a dart
+      expect(kiteChance(hub, [1, 3, 9, EMPTY, EMPTY], deal)).toBe(0);
+      expect(dealShape(hub, [1, 3, 9, EMPTY, EMPTY], { deal }, () => 0)).toBe('dart');
+    }
+  });
+
+  describe('deal rules (Q13)', () => {
+    // Empty: kites 0 and 1, darts 3 and 4 (2 is taken), so kites hold half
+    // the empty tiles
+    const c: Cell[] = [EMPTY, EMPTY, 1, EMPTY, EMPTY];
+    // Empty: kites 0, 1 and 2 and dart 3, so kites hold three quarters
+    const kiteHeavy: Cell[] = [EMPTY, EMPTY, EMPTY, EMPTY, 9];
+
+    it('fixed: KITE_CHANCE whatever the board', () => {
+      expect(kiteChance(hub, c, 'fixed')).toBe(KITE_CHANCE);
+      expect(kiteChance(hub, kiteHeavy, 'fixed')).toBe(KITE_CHANCE);
+    });
+
+    it('free: the kites\' share of the empty tiles', () => {
+      expect(kiteChance(hub, c, 'free')).toBe(0.5);
+      expect(kiteChance(hub, kiteHeavy, 'free')).toBe(0.75);
+    });
+
+    it('blend: halfway between the two', () => {
+      expect(kiteChance(hub, c, 'blend')).toBeCloseTo((KITE_CHANCE + 0.5) / 2, 12);
+      expect(kiteChance(hub, kiteHeavy, 'blend')).toBeCloseTo((KITE_CHANCE + 0.75) / 2, 12);
+    });
+
+    it('dealShape draws against the chance', () => {
+      expect(dealShape(hub, kiteHeavy, { deal: 'free' }, () => 0.74)).toBe('kite');
+      expect(dealShape(hub, kiteHeavy, { deal: 'free' }, () => 0.75)).toBe('dart');
+    });
   });
 
   it('the value must go on an empty tile of the dealt shape', () => {

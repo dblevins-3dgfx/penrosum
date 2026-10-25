@@ -3,11 +3,11 @@ import {
   BOARD_SIZES, boardBounds, boardFor, centroid, tileAtPoint,
   type BoardSize, type BoardTile,
 } from './lib/board';
-import { parseBoardSize } from './lib/prefs';
+import { parseBoardSize, parseOptions } from './lib/prefs';
 import { addScore, parseScores } from './lib/scores';
 import {
   EMPTY, MIN_GROUP, WILD,
-  type Cell, type Merge, type Shape,
+  type Cell, type Merge, type Options, type Shape,
   canPlaceDealt, dealShape, dropRubble, shapeToPlace, drawValue, highestTile, outcome, place, previewAt, scoreMerges, scoreRubble, seedBoard,
   valueToPlace,
 } from './lib/rules';
@@ -17,8 +17,9 @@ import { EMPTY_FILL, OFF_SHAPE_FILL, colorsFor, fillFor, textFor } from './lib/c
 import HowToPlay from './HowToPlay';
 import Scoreboard from './Scoreboard';
 
-// The board size and the scoreboards are remembered in this browser
-// (localStorage).
+// The rule options, the board size and the scoreboards are remembered in
+// this browser (localStorage).
+const OPTIONS_STORAGE_KEY = 'penrosum.options';
 const SIZE_STORAGE_KEY = 'penrosum.boardSize';
 const SCORES_STORAGE_KEY = 'penrosum.scores';
 
@@ -128,6 +129,7 @@ const drawNumber = (ctx: CanvasRenderingContext2D, t: BoardTile, text: string, c
 const Game = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [options, setOptions] = useState(() => load(OPTIONS_STORAGE_KEY, parseOptions));
   const [size, setSize] = useState(() => load(SIZE_STORAGE_KEY, parseBoardSize));
   // The space for the board, in CSS pixels; measured before the first paint
   const [space, setSpace] = useState({ width: 0, height: 0 });
@@ -164,7 +166,7 @@ const Game = () => {
     const cells = seedBoard(tiles);
     setState({
       cells, next: nextValue(), moves: 0, score: 0, lastMove: null,
-      nextShape: dealShape(tiles, cells), message: '',
+      nextShape: dealShape(tiles, cells, options), message: '',
     });
     setUndo([]);
     setHovered(-1);
@@ -172,12 +174,18 @@ const Game = () => {
     setLatest(null);
     setSize(newSize);
     save(SIZE_STORAGE_KEY, newSize);
-  }, []);
+  }, [options]);
 
   useEffect(() => {
     if (!board) newGame(size);
   }, [board, size, newGame]);
 
+  // A changed option applies from the next deal; the game carries on
+  const setOption = <K extends keyof Options>(key: K, value: Options[K]) => {
+    const updated = { ...options, [key]: value };
+    setOptions(updated);
+    save(OPTIONS_STORAGE_KEY, JSON.stringify(updated));
+  };
   const closeHelp = useCallback(() => setShowHelp(false), []);
   const closeScores = useCallback(() => setShowScores(false), []);
 
@@ -216,7 +224,7 @@ const Game = () => {
       moves: state.moves + 1,
       score: state.score + gained + rubbleGained,
       lastMove: id,
-      nextShape: dealShape(tiles, after),
+      nextShape: dealShape(tiles, after, options),
       message: [
         drawn === WILD ? `Wild played as ${label(value)}.` : '',
         describeMerges(merges, label) + (gained ? ` (+${gained}).` : ''),
@@ -418,7 +426,7 @@ const Game = () => {
         <p className="text-sm font-medium min-h-10" aria-live="polite">{status}</p>
       </aside>
 
-      {showHelp && <HowToPlay onClose={closeHelp} />}
+      {showHelp && <HowToPlay options={options} setOption={setOption} onClose={closeHelp} />}
       {showScores && <Scoreboard scores={scores} size={board?.size ?? size} latest={latest} onClose={closeScores} />}
     </div>
   );
