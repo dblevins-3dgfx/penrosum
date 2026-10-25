@@ -5,9 +5,9 @@ import {
 } from './lib/board';
 import { parseBoardSize, parseOptions } from './lib/prefs';
 import {
-  CHOOSABLE_VALUES, EMPTY, MIN_GROUP,
+  EMPTY, MIN_GROUP,
   type Cell, type Merge, type Options,
-  canPlace, drawValue, highestTile, outcome, place, previewAt, seedBoard,
+  canPlace, choosableValues, deckFor, drawValue, highestTile, outcome, place, previewAt, seedBoard,
 } from './lib/rules';
 import { fitView, toBoard } from './lib/view';
 import Preferences from './Preferences';
@@ -38,7 +38,10 @@ const BOARD_MARGIN = 8;
 
 // The value for the next move under the 'random' rule; under the others it
 // is decided at the move (always 1, or the player's pick).
-const nextValueFor = (options: Options) => (options.values === 'random' ? drawValue() : 1);
+const nextValueFor = (options: Options) => {
+  const deck = deckFor(options);
+  return deck.length ? drawValue(Math.random, deck) : 1;
+};
 
 // "Merged 3 tiles into 3, then 3 tiles into 9"
 const describeMerges = (merges: Merge[]) =>
@@ -144,7 +147,7 @@ const Game = () => {
     const updated = { ...options, [key]: value };
     setOptions(updated);
     save(OPTIONS_STORAGE_KEY, JSON.stringify(updated));
-    if (key === 'values') setState(s => s && { ...s, next: nextValueFor(updated) });
+    if (key === 'values' || key === 'zeros') setState(s => s && { ...s, next: nextValueFor(updated) });
   };
   const closePrefs = useCallback(() => setShowPrefs(false), []);
 
@@ -159,7 +162,10 @@ const Game = () => {
   const tiles = board?.tiles ?? [];
   const cells = state?.cells ?? [];
   const result = outcome(cells, options);
-  const moveValue = options.values === 'choose' ? chosen : options.values === 'ones' ? 1 : (state?.next ?? 1);
+  const pickable = choosableValues(options);
+  const moveValue = options.values === 'choose'
+    ? (pickable.includes(chosen) ? chosen : 1) // a picked 0 lapses when zeros leave the deck
+    : (state?.next ?? 1);
 
   const undoMove = () => {
     if (!undo.length) return;
@@ -275,15 +281,15 @@ const Game = () => {
           <span>Highest <b>{highestTile(cells)}</b></span>
           <span>Free <b>{free}</b></span>
           {options.goal === 'target' && <span>Target <b>{options.target}</b></span>}
-          {options.values === 'random' && <span>Next <b>{state?.next}</b></span>}
+          {deckFor(options).length > 1 && <span>Next <b>{state?.next}</b></span>}
         </div>
         {options.values === 'choose' && (
           <div className="flex items-center gap-1 text-sm" role="group" aria-label="Value to place">
             Place
-            {CHOOSABLE_VALUES.map(v => (
-              <button key={v} onClick={() => setChosen(v)} aria-pressed={v === chosen}
+            {pickable.map(v => (
+              <button key={v} onClick={() => setChosen(v)} aria-pressed={v === moveValue}
                 className={`w-7 h-7 rounded font-bold border ${
-                  v === chosen ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-slate-300'
+                  v === moveValue ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-slate-300'
                 }`}>
                 {v}
               </button>

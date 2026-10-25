@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { makeBoard } from './board';
 import {
   DEFAULT_OPTIONS, EMPTY, type Cell, type Options, type Tile,
-  SEED_FRACTION, SEED_VALUES,
-  boardFull, canPlace, drawValue, groupAt, highestTile, outcome, place, previewAt, seedBoard,
+  SEED_FRACTION, SEED_VALUES, ZERO_CHANCE,
+  boardFull, canPlace, choosableValues, deckFor, drawValue, groupAt, highestTile, outcome, place, previewAt, seedBoard,
 } from './rules';
 
 // A small graph to test on:
@@ -220,6 +220,76 @@ describe('previewAt', () => {
     const star: Tile[] = [{ neighbors: [1, 2, 3, 4] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }];
     expect(previewAt(star, [EMPTY, 1, 1, 3, 3], 0, 1, opts()))
       .toEqual({ value: 9, merging: [1, 2, 3, 4] });
+  });
+});
+
+describe('zeros in the deck', () => {
+  // A star: 0 in the middle, touching 1 to 4
+  const star: Tile[] = [
+    { neighbors: [1, 2, 3, 4] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] },
+  ];
+
+  it('a placed 0 merges neighboring zeros into one, where it was placed', () => {
+    const { cells, merges } = place(star, [EMPTY, 0, 0, 0, 1], 0, 0, opts());
+    expect(merges).toEqual([{ into: 0, from: [1, 2, 3], sum: 0 }]);
+    expect(cells).toEqual([0, EMPTY, EMPTY, EMPTY, 1]);
+  });
+
+  it('a placed 0 follows connected zeros like any other number', () => {
+    const { cells } = place(tiles, cellsOf({ 0: 0, 1: 0, 2: 0 }), 3, 0, opts({ group: 'connected' }));
+    expect(cells).toEqual(cellsOf({ 3: 0 }));
+  });
+
+  it('a placed 0 does not match other numbers, and zeros still do not match placed 1s', () => {
+    expect(place(star, [EMPTY, 1, 1, 0, EMPTY], 0, 0, opts()).merges).toEqual([]);
+    expect(place(star, [EMPTY, 0, 0, 1, EMPTY], 0, 1, opts()).merges).toEqual([]);
+  });
+
+  it('clear zero: merging zeros changes nothing but the placed tile, and stops', () => {
+    // Without the "number must grow" stop, this would merge forever
+    const { cells, merges } = place(star, [EMPTY, 0, 0, 0, 1], 0, 0, opts({ clear: 'zero' }));
+    expect(merges).toHaveLength(1);
+    expect(cells).toEqual([0, 0, 0, 0, 1]);
+  });
+
+  it('a merge of zeros leaves a 0 that stays put', () => {
+    // The zeros merge into the middle; the 0 left there touches only 1s
+    const { cells, merges } = place(star, [EMPTY, 0, 0, 1, 1], 0, 0, opts());
+    expect(merges).toHaveLength(1);
+    expect(cells).toEqual([0, EMPTY, EMPTY, 1, 1]);
+  });
+
+  it('positive chains still run to the end', () => {
+    expect(place(star, [EMPTY, 1, 1, 3, 3], 0, 1, opts({ clear: 'zero' })).cells).toEqual([9, 0, 0, 0, 0]);
+  });
+
+  it('decks: what each value rule draws, with and without zeros', () => {
+    expect(deckFor(opts({ values: 'ones' }))).toEqual([[1, 1]]);
+    expect(deckFor(opts({ values: 'ones', zeros: 'deck' }))).toEqual([[0, ZERO_CHANCE], [1, 1 - ZERO_CHANCE]]);
+    expect(deckFor(opts({ values: 'choose', zeros: 'deck' }))).toEqual([]);
+    const random = deckFor(opts({ values: 'random', zeros: 'deck' }));
+    expect(random.map(([v]) => v)).toEqual([0, 1, 2, 3]);
+    expect(random.reduce((s, [, w]) => s + w, 0)).toBeCloseTo(1, 12);
+    expect(random[0][1]).toBe(ZERO_CHANCE);
+    // 1, 2 and 3 keep their proportions (7 : 2 : 1)
+    expect(random[1][1] / random[3][1]).toBeCloseTo(7, 9);
+  });
+
+  it('draws a 0 ZERO_CHANCE of the time', () => {
+    const deck = deckFor(opts({ values: 'ones', zeros: 'deck' }));
+    expect(drawValue(() => 0, deck)).toBe(0);
+    expect(drawValue(() => ZERO_CHANCE - 0.001, deck)).toBe(0);
+    expect(drawValue(() => ZERO_CHANCE, deck)).toBe(1);
+    expect(drawValue(() => 0.999, deck)).toBe(1);
+  });
+
+  it('the player can pick 0 only with zeros in the deck', () => {
+    expect(choosableValues(opts())).toEqual([1, 2, 3]);
+    expect(choosableValues(opts({ zeros: 'deck' }))).toEqual([0, 1, 2, 3]);
+  });
+
+  it('the preview shows a placed 0 and the zeros it would clear', () => {
+    expect(previewAt(star, [EMPTY, 0, 0, 1, EMPTY], 0, 0, opts())).toEqual({ value: 0, merging: [1, 2] });
   });
 });
 

@@ -101,6 +101,12 @@ const Preferences = ({ options, setOption, onClose }: PreferencesProps) => {
           options={[['any', 'Any shape'], ['same', 'Same shape only']]}
           onChange={v => setOption('shape', v)}
         />
+        <Choice
+          label="6. Zeros in your deck?"
+          value={options.zeros}
+          options={[['none', 'No'], ['deck', 'Yes']]}
+          onChange={v => setOption('zeros', v)}
+        />
         <p className="text-xs text-slate-500 mt-2">
           How to play: place a number on any empty tile. When it makes a group of {MIN_GROUP} or more
           tiles with the same number, the tile you placed takes their sum and the others are cleared.

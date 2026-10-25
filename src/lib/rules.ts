@@ -14,8 +14,8 @@ export type GroupRule = 'connected' | 'neighbors';
 
 // What a merged-away tile becomes.
 //   empty: un-numbered; it can be played again and never counts toward a group
-//   zero:  holds a 0, which can't be played on and matches nothing that is
-//          placed, so it blocks groups and the board slowly fills up
+//   zero:  holds a 0, which can't be played on and matches only a placed
+//          0, so it blocks groups and the board slowly fills up
 export type ClearRule = 'empty' | 'zero';
 
 // Where the value to place comes from.
@@ -35,6 +35,12 @@ export type GoalRule = 'highest' | 'target';
 //   same: they must also be the same shape, kite with kite, dart with dart
 export type ShapeRule = 'any' | 'same';
 
+// Whether 0 can come up as the value to place.
+//   none: never; zeros on the board are fixed obstacles
+//   deck: a drawn value is 0 ZERO_CHANCE of the time, and the player can
+//         pick 0; placing a 0 next to zeros merges them into one
+export type ZeroRule = 'none' | 'deck';
+
 export interface Options {
   group: GroupRule;
   clear: ClearRule;
@@ -42,6 +48,7 @@ export interface Options {
   goal: GoalRule;
   target: number;
   shape: ShapeRule;
+  zeros: ZeroRule;
 }
 
 export const DEFAULT_OPTIONS: Options = {
@@ -51,10 +58,14 @@ export const DEFAULT_OPTIONS: Options = {
   goal: 'highest',
   target: 50,
   shape: 'any',
+  zeros: 'none',
 };
 
 export const TARGET_OPTIONS = [20, 50, 100, 200];
-export const CHOOSABLE_VALUES = [1, 2, 3];
+
+// The values the player can pick under the 'choose' rule.
+export const choosableValues = (options: Options) =>
+  options.zeros === 'deck' ? [0, 1, 2, 3] : [1, 2, 3];
 
 // A merge needs this many matching tiles, counting the one just placed.
 export const MIN_GROUP = 3;
@@ -107,8 +118,10 @@ export interface PlaceResult {
 }
 
 // Places `value` on tile `id` and applies a merge if one forms, then merges
-// again while the tile's new number makes a group (a chain reaction).
-// Each merge at least triples the placed tile's number, so chains end.
+// again while the tile's new number makes a group and is bigger than before
+// (a chain reaction). A merge of 1s or more at least triples the number, so
+// chains end; a merge of zeros leaves 0, which ends the chain at once
+// (otherwise, with cleared tiles becoming zeros, it would repeat forever).
 // Assumes the move is legal (see canPlace). Returns new cells; the input is
 // unchanged.
 export const place = (tiles: Tile[], cells: Cell[], id: number, value: number, options: Options): PlaceResult => {
@@ -118,11 +131,13 @@ export const place = (tiles: Tile[], cells: Cell[], id: number, value: number, o
   for (;;) {
     const group = groupAt(tiles, next, id, options.group, options.shape);
     if (group.length < MIN_GROUP) break;
+    const before = next[id];
     const sum = group.reduce((s, t) => s + next[t], 0);
     const from = group.slice(1);
     for (const t of from) next[t] = options.clear === 'zero' ? 0 : EMPTY;
     next[id] = sum;
     merges.push({ into: id, from, sum });
+    if (sum <= before) break;
   }
   return { cells: next, merges };
 };
@@ -137,19 +152,36 @@ export const previewAt = (tiles: Tile[], cells: Cell[], id: number, value: numbe
 // Chance of each value under the 'random' rule.
 export const RANDOM_WEIGHTS: [number, number][] = [[1, 0.7], [2, 0.2], [3, 0.1]];
 
-// Draws a value under the 'random' rule. `rand` returns a number in [0, 1).
-export const drawValue = (rand: () => number = Math.random) => {
+// With zeros in the deck, how often a drawn value is 0.
+export const ZERO_CHANCE = 0.1;
+
+export type Deck = [number, number][]; // [value, chance], chances adding to 1
+
+// The values a move can draw, and their chances. Empty under 'choose',
+// where the player picks. With zeros in the deck, 0 takes ZERO_CHANCE and
+// the rest share what is left in the same proportions as without.
+export const deckFor = (options: Options): Deck => {
+  if (options.values === 'choose') return [];
+  const base: Deck = options.values === 'random' ? RANDOM_WEIGHTS : [[1, 1]];
+  if (options.zeros === 'none') return base;
+  return [[0, ZERO_CHANCE], ...base.map(([v, w]) => [v, w * (1 - ZERO_CHANCE)] as [number, number])];
+};
+
+// Draws a value from `deck` (by default the 'random' rule's). `rand`
+// returns a number in [0, 1).
+export const drawValue = (rand: () => number = Math.random, deck: Deck = RANDOM_WEIGHTS) => {
   let r = rand();
-  for (const [value, weight] of RANDOM_WEIGHTS) {
+  for (const [value, weight] of deck) {
     if (r < weight) return value;
     r -= weight;
   }
-  return RANDOM_WEIGHTS[RANDOM_WEIGHTS.length - 1][0];
+  return deck[deck.length - 1][0];
 };
 
 // The starting board: `fraction` of the tiles (SEED_FRACTION in play),
-// picked at random, hold a random number from SEED_VALUES. Neighboring seeds never hold the
-// same number, so no group exists before the first move under any option.
+// picked at random, hold a random number from SEED_VALUES. Neighboring
+// seeds never hold the same number, so no group exists before the first
+// move under any option.
 // A tile whose neighbors already hold every value stays empty.
 export const SEED_FRACTION = 0.1;
 export const SEED_VALUES = [0, 1, 2, 3];

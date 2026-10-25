@@ -12,6 +12,7 @@ const ALLOWED: { [K in keyof Options]: readonly Options[K][] } = {
   goal: ['highest', 'target'],
   target: TARGET_OPTIONS,
   shape: ['any', 'same'],
+  zeros: ['none', 'deck'],
 };
 
 // The rule options from their saved JSON (or null when nothing is saved).
