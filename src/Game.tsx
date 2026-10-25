@@ -5,9 +5,9 @@ import {
 } from './lib/board';
 import { parseBoardSize, parseOptions } from './lib/prefs';
 import {
-  EMPTY, MIN_GROUP,
+  EMPTY, MIN_GROUP, WILD,
   type Cell, type Merge, type Options,
-  canPlace, choosableValues, deckFor, drawValue, highestTile, outcome, place, previewAt, seedBoard,
+  canPlace, deckFor, drawValue, highestTile, outcome, place, previewAt, seedBoard, valueToPlace,
 } from './lib/rules';
 import { fitView, toBoard } from './lib/view';
 import Preferences from './Preferences';
@@ -36,12 +36,11 @@ const save = (key: string, value: string) => {
 // Space kept clear around the board, in screen pixels.
 const BOARD_MARGIN = 8;
 
-// The value for the next move under the 'random' rule; under the others it
-// is decided at the move (always 1, or the player's pick).
-const nextValueFor = (options: Options) => {
-  const deck = deckFor(options);
-  return deck.length ? drawValue(Math.random, deck) : 1;
-};
+// The value for the next move, drawn in advance so it can be shown
+const nextValueFor = (options: Options) => drawValue(Math.random, deckFor(options));
+
+// How a drawn value is shown: the wildcard as a star
+const showDrawn = (drawn: number) => (drawn === WILD ? '★' : String(drawn));
 
 // "Merged 3 tiles into 3, then 3 tiles into 9"
 const describeMerges = (merges: Merge[]) =>
@@ -111,7 +110,6 @@ const Game = () => {
   const [board, setBoard] = useState<Board | null>(null);
   const [state, setState] = useState<Snapshot | null>(null);
   const [undo, setUndo] = useState<Snapshot[]>([]);
-  const [chosen, setChosen] = useState(1); // the player's pick under 'choose'
   const [hovered, setHovered] = useState(-1);
   const [showPrefs, setShowPrefs] = useState(false);
   const [showSizes, setShowSizes] = useState(false);
@@ -145,7 +143,7 @@ const Game = () => {
     const updated = { ...options, [key]: value };
     setOptions(updated);
     save(OPTIONS_STORAGE_KEY, JSON.stringify(updated));
-    if (key === 'values' || key === 'zeros') setState(s => s && { ...s, next: nextValueFor(updated) });
+    if (key === 'wild') setState(s => s && { ...s, next: nextValueFor(updated) });
   };
   const closePrefs = useCallback(() => setShowPrefs(false), []);
 
@@ -160,10 +158,7 @@ const Game = () => {
   const tiles = board?.tiles ?? [];
   const cells = state?.cells ?? [];
   const result = outcome(cells, options);
-  const pickable = choosableValues(options);
-  const moveValue = options.values === 'choose'
-    ? (pickable.includes(chosen) ? chosen : 1) // a picked 0 lapses when zeros leave the deck
-    : (state?.next ?? 1);
+  const drawn = state?.next ?? 1;
 
   const undoMove = () => {
     if (!undo.length) return;
@@ -173,22 +168,23 @@ const Game = () => {
 
   const play = (id: number) => {
     if (!state || result.over || id < 0 || !canPlace(cells, id)) return;
-    const { cells: after, merges } = place(tiles, cells, id, moveValue, options);
+    const value = valueToPlace(tiles, cells, id, drawn, options);
+    const { cells: after, merges } = place(tiles, cells, id, value, options);
     setUndo([...undo, state]);
     setState({
       cells: after,
       next: nextValueFor(options),
       moves: state.moves + 1,
       lastMove: id,
-      message: describeMerges(merges),
+      message: [drawn === WILD ? `Wild played as ${value}.` : '', describeMerges(merges)].filter(Boolean).join(' '),
     });
   };
 
   // What the hovered tile would do, for the preview
   const preview = useMemo(() => {
     if (hovered < 0 || result.over || !canPlace(cells, hovered)) return null;
-    return previewAt(tiles, cells, hovered, moveValue, options);
-  }, [hovered, cells, moveValue, options, result.over, tiles]);
+    return previewAt(tiles, cells, hovered, drawn, options);
+  }, [hovered, cells, drawn, options, result.over, tiles]);
 
   const view = useMemo(
     () => board && fitView(board.bounds, space.width, space.height, BOARD_MARGIN),
@@ -258,7 +254,7 @@ const Game = () => {
   const moves = state?.moves ?? 0;
   const free = cells.filter(c => c === EMPTY).length;
   let status = state?.message || (moves === 0
-    ? `Place a number on an empty tile. ${MIN_GROUP} or more matching tiles merge into the one you placed.`
+    ? `Place the Next number on an empty tile. ${MIN_GROUP} or more matching tiles merge into the one you placed.`
     : '');
   if (state && result.over) {
     status = result.won
@@ -279,21 +275,8 @@ const Game = () => {
           <span>Highest <b>{highestTile(cells)}</b></span>
           <span>Free <b>{free}</b></span>
           {options.goal === 'target' && <span>Target <b>{options.target}</b></span>}
-          {deckFor(options).length > 1 && <span>Next <b>{state?.next}</b></span>}
+          <span>Next <b>{showDrawn(drawn)}</b></span>
         </div>
-        {options.values === 'choose' && (
-          <div className="flex items-center gap-1 text-sm" role="group" aria-label="Value to place">
-            Place
-            {pickable.map(v => (
-              <button key={v} onClick={() => setChosen(v)} aria-pressed={v === moveValue}
-                className={`w-7 h-7 rounded font-bold border ${
-                  v === moveValue ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-slate-300'
-                }`}>
-                {v}
-              </button>
-            ))}
-          </div>
-        )}
         <div className="flex gap-2 ml-auto">
           <button onClick={undoMove} disabled={!undo.length} className={button}>Undo</button>
           <div className="relative">

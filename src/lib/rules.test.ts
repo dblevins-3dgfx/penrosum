@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { makeBoard } from './board';
 import {
   DEFAULT_OPTIONS, EMPTY, type Cell, type Options, type Tile,
-  SEED_FRACTION, SEED_VALUES, ZERO_CHANCE,
-  boardFull, canPlace, choosableValues, deckFor, drawValue, groupAt, highestTile, outcome, place, previewAt, seedBoard,
+  DECK, SEED_FRACTION, SEED_VALUES, WILD, WILD_CHANCE,
+  boardFull, canPlace, deckFor, drawValue, groupAt, highestTile, outcome, place, previewAt, resolveWild, seedBoard, valueToPlace,
 } from './rules';
 
 // A small graph to test on:
@@ -197,7 +197,7 @@ describe('previewAt', () => {
   });
 });
 
-describe('zeros in the deck', () => {
+describe('placing zeros', () => {
   // A star: 0 in the middle, touching 1 to 4
   const star: Tile[] = [
     { neighbors: [1, 2, 3, 4] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] },
@@ -226,44 +226,94 @@ describe('zeros in the deck', () => {
     expect(cells).toEqual([0, EMPTY, EMPTY, 1, 1]);
   });
 
-  it('decks: what each value rule draws, with and without zeros', () => {
-    expect(deckFor(opts({ values: 'ones' }))).toEqual([[1, 1]]);
-    expect(deckFor(opts({ values: 'ones', zeros: 'deck' }))).toEqual([[0, ZERO_CHANCE], [1, 1 - ZERO_CHANCE]]);
-    expect(deckFor(opts({ values: 'choose', zeros: 'deck' }))).toEqual([]);
-    const random = deckFor(opts({ values: 'random', zeros: 'deck' }));
-    expect(random.map(([v]) => v)).toEqual([0, 1, 2, 3]);
-    expect(random.reduce((s, [, w]) => s + w, 0)).toBeCloseTo(1, 12);
-    expect(random[0][1]).toBe(ZERO_CHANCE);
-    // 1, 2 and 3 keep their proportions (7 : 2 : 1)
-    expect(random[1][1] / random[3][1]).toBeCloseTo(7, 9);
-  });
-
-  it('draws a 0 ZERO_CHANCE of the time', () => {
-    const deck = deckFor(opts({ values: 'ones', zeros: 'deck' }));
-    expect(drawValue(() => 0, deck)).toBe(0);
-    expect(drawValue(() => ZERO_CHANCE - 0.001, deck)).toBe(0);
-    expect(drawValue(() => ZERO_CHANCE, deck)).toBe(1);
-    expect(drawValue(() => 0.999, deck)).toBe(1);
-  });
-
-  it('the player can pick 0 only with zeros in the deck', () => {
-    expect(choosableValues(opts())).toEqual([1, 2, 3]);
-    expect(choosableValues(opts({ zeros: 'deck' }))).toEqual([0, 1, 2, 3]);
-  });
-
   it('the preview shows a placed 0 and the zeros it would clear', () => {
     expect(previewAt(star, [EMPTY, 0, 0, 1, EMPTY], 0, 0, opts())).toEqual({ value: 0, merging: [1, 2] });
   });
 });
 
-describe('drawValue', () => {
-  it('draws 1 70% of the time, 2 20% and 3 10%', () => {
-    expect(drawValue(() => 0)).toBe(1);
-    expect(drawValue(() => 0.69)).toBe(1);
-    expect(drawValue(() => 0.7)).toBe(2);
-    expect(drawValue(() => 0.89)).toBe(2);
-    expect(drawValue(() => 0.9)).toBe(3);
+describe('the deck', () => {
+  it('draws 0 10% of the time, then 1, 2 and 3 as 63%, 18% and 9%', () => {
+    expect(DECK.reduce((t, [, w]) => t + w, 0)).toBeCloseTo(1, 12);
+    expect(drawValue(() => 0)).toBe(0);
+    expect(drawValue(() => 0.099)).toBe(0);
+    expect(drawValue(() => 0.1)).toBe(1);
+    expect(drawValue(() => 0.729)).toBe(1);
+    expect(drawValue(() => 0.73)).toBe(2);
+    expect(drawValue(() => 0.909)).toBe(2);
+    expect(drawValue(() => 0.91)).toBe(3);
     expect(drawValue(() => 0.999)).toBe(3);
+  });
+
+  it('is the same deck in play without wildcards', () => {
+    expect(deckFor(opts())).toEqual(DECK);
+  });
+
+  it('with wildcards, a draw is wild WILD_CHANCE of the time and the numbers keep their proportions', () => {
+    const deck = deckFor(opts({ wild: 'deck' }));
+    expect(deck[0]).toEqual([WILD, WILD_CHANCE]);
+    expect(deck.reduce((t, [, w]) => t + w, 0)).toBeCloseTo(1, 12);
+    expect(deck.slice(1).map(([v]) => v)).toEqual([0, 1, 2, 3]);
+    expect(deck[2][1] / deck[1][1]).toBeCloseTo(6.3, 9);
+    expect(drawValue(() => 0, deck)).toBe(WILD);
+    expect(drawValue(() => WILD_CHANCE, deck)).toBe(0);
+  });
+});
+
+describe('wildcards', () => {
+  // A star: 0 in the middle, touching 1 to 4
+  const star: Tile[] = [
+    { neighbors: [1, 2, 3, 4] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] },
+  ];
+  const wild = opts({ wild: 'deck' });
+
+  it('becomes the number that merges', () => {
+    expect(resolveWild(star, [EMPTY, 2, 2, 1, EMPTY], 0, wild)).toBe(2);
+  });
+
+  it('prefers the merge that leaves the biggest number', () => {
+    // As 1 it makes 3; as 2 it makes 6
+    expect(resolveWild(star, [EMPTY, 1, 1, 2, 2], 0, wild)).toBe(2);
+  });
+
+  it('counts chain reactions when judging a merge', () => {
+    // As 1: 1+1+1 = 3, which then merges with the two 3s into 9.
+    // As 2: no merge (one 2). So 1 wins, through its chain.
+    const cells: Cell[] = [EMPTY, 1, 1, 3, 3];
+    const chain: Tile[] = [
+      { neighbors: [1, 2, 3, 4, 5] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] },
+    ];
+    expect(resolveWild(chain, [...cells, 2], 0, wild)).toBe(1);
+    expect(place(chain, [...cells, 2], 0, 1, wild).cells[0]).toBe(9);
+  });
+
+  it('prefers any merge to none, even a merge of zeros', () => {
+    // As 0 it merges two zeros (leaving 0); as 1 nothing merges
+    expect(resolveWild(star, [EMPTY, 0, 0, 1, EMPTY], 0, wild)).toBe(0);
+  });
+
+  it('when two merges leave the same number, prefers the one clearing more tiles', () => {
+    // A hub touching five 1s and two 2s: as 1 it makes 6 clearing five
+    // tiles; as 2 it also makes 6 but clears two
+    const hub: Tile[] = [{ neighbors: [1, 2, 3, 4, 5, 6, 7] }, ...Array.from({ length: 7 }, () => ({ neighbors: [0] }))];
+    expect(resolveWild(hub, [EMPTY, 1, 1, 1, 1, 1, 2, 2], 0, wild)).toBe(1);
+  });
+
+  it('is a 1 when no number would merge', () => {
+    expect(resolveWild(star, [EMPTY, 2, 3, 0, EMPTY], 0, wild)).toBe(1);
+    expect(resolveWild(star, [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY], 0, wild)).toBe(1);
+  });
+
+  it('can join numbers bigger than the deck holds', () => {
+    expect(resolveWild(star, [EMPTY, 27, 27, EMPTY, EMPTY], 0, wild)).toBe(27);
+  });
+
+  it('only a drawn wildcard is resolved; numbers place as themselves', () => {
+    expect(valueToPlace(star, [EMPTY, 2, 2, EMPTY, EMPTY], 0, WILD, wild)).toBe(2);
+    expect(valueToPlace(star, [EMPTY, 2, 2, EMPTY, EMPTY], 0, 1, wild)).toBe(1);
+  });
+
+  it('the preview shows what the wildcard would make', () => {
+    expect(previewAt(star, [EMPTY, 3, 3, EMPTY, EMPTY], 0, WILD, wild)).toEqual({ value: 9, merging: [1, 2] });
   });
 });
 

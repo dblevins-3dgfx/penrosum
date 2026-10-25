@@ -64,13 +64,7 @@ const Preferences = ({ options, setOption, onClose }: PreferencesProps) => {
           Rules to try: these are the open questions in the spec. Changes apply from the next move.
         </p>
         <Choice
-          label="1. The value you place"
-          value={options.values}
-          options={[['ones', 'Always 1'], ['random', 'Random 1–3'], ['choose', 'You pick 1–3']]}
-          onChange={v => setOption('values', v)}
-        />
-        <Choice
-          label="2. Goal"
+          label="1. Goal"
           value={options.goal}
           options={[['highest', 'Highest tile'], ['target', 'Reach a target']]}
           onChange={v => setOption('goal', v)}
@@ -84,19 +78,19 @@ const Preferences = ({ options, setOption, onClose }: PreferencesProps) => {
           />
         )}
         <Choice
-          label="3. Which tiles can match?"
+          label="2. Which tiles can match?"
           value={options.shape}
           options={[['any', 'Any shape'], ['same', 'Same shape only']]}
           onChange={v => setOption('shape', v)}
         />
         <Choice
-          label="4. Zeros in your deck?"
-          value={options.zeros}
+          label="3. Wildcards (★) in your deck?"
+          value={options.wild}
           options={[['none', 'No'], ['deck', 'Yes']]}
-          onChange={v => setOption('zeros', v)}
+          onChange={v => setOption('wild', v)}
         />
         <p className="text-xs text-slate-500 mt-2">
-          How to play: place a number on any empty tile. When it makes a group of {MIN_GROUP} or more
+          How to play: place the next number (shown in the header) on any empty tile. When it makes a group of {MIN_GROUP} or more
           tiles with the same number, the tile you placed takes their sum and the others are cleared.
           If the new number then makes a group too, it merges again. Hover a tile to see what would
           merge.

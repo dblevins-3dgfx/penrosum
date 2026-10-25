@@ -5,12 +5,6 @@
 // questions (SPEC.md, "Open questions"); each is an option here so they can
 // be tried side by side.
 
-// Where the value to place comes from.
-//   ones:   always 1
-//   random: drawn at random (mostly 1, sometimes 2 or 3) and shown in advance
-//   choose: the player picks 1, 2 or 3 each move
-export type ValueRule = 'ones' | 'random' | 'choose';
-
 // What the player is aiming for.
 //   highest: no target; play until the board is full, aiming for the
 //            highest tile
@@ -22,33 +16,27 @@ export type GoalRule = 'highest' | 'target';
 //   same: they must also be the same shape, kite with kite, dart with dart
 export type ShapeRule = 'any' | 'same';
 
-// Whether 0 can come up as the value to place.
-//   none: never; zeros on the board are fixed obstacles
-//   deck: a drawn value is 0 ZERO_CHANCE of the time, and the player can
-//         pick 0; placing a 0 next to zeros merges them into one
-export type ZeroRule = 'none' | 'deck';
+// Whether a wildcard can come up as the value to place.
+//   none: never
+//   deck: a drawn value is WILD WILD_CHANCE of the time; when placed it
+//         becomes the number that does best there (see resolveWild)
+export type WildRule = 'none' | 'deck';
 
 export interface Options {
-  values: ValueRule;
   goal: GoalRule;
   target: number;
   shape: ShapeRule;
-  zeros: ZeroRule;
+  wild: WildRule;
 }
 
 export const DEFAULT_OPTIONS: Options = {
-  values: 'ones',
   goal: 'highest',
   target: 50,
   shape: 'any',
-  zeros: 'none',
+  wild: 'none',
 };
 
 export const TARGET_OPTIONS = [20, 50, 100, 200];
-
-// The values the player can pick under the 'choose' rule.
-export const choosableValues = (options: Options) =>
-  options.zeros === 'deck' ? [0, 1, 2, 3] : [1, 2, 3];
 
 // A merge needs this many matching tiles, counting the one just placed.
 export const MIN_GROUP = 3;
@@ -120,34 +108,61 @@ export const place = (tiles: Tile[], cells: Cell[], id: number, value: number, o
   return { cells: next, merges };
 };
 
-// What placing on `id` would do, for the hover preview: the number the tile
-// would end up with, and every tile its merges would clear.
-export const previewAt = (tiles: Tile[], cells: Cell[], id: number, value: number, options: Options) => {
+// What placing the drawn value on `id` would do, for the hover preview: the
+// number the tile would end up with, and every tile its merges would clear.
+export const previewAt = (tiles: Tile[], cells: Cell[], id: number, drawn: number, options: Options) => {
+  const value = valueToPlace(tiles, cells, id, drawn, options);
   const { cells: after, merges } = place(tiles, cells, id, value, options);
   return { value: after[id], merging: merges.flatMap(m => m.from) };
 };
 
-// Chance of each value under the 'random' rule.
-export const RANDOM_WEIGHTS: [number, number][] = [[1, 0.7], [2, 0.2], [3, 0.1]];
-
-// With zeros in the deck, how often a drawn value is 0.
-export const ZERO_CHANCE = 0.1;
-
 export type Deck = [number, number][]; // [value, chance], chances adding to 1
 
-// The values a move can draw, and their chances. Empty under 'choose',
-// where the player picks. With zeros in the deck, 0 takes ZERO_CHANCE and
-// the rest share what is left in the same proportions as without.
-export const deckFor = (options: Options): Deck => {
-  if (options.values === 'choose') return [];
-  const base: Deck = options.values === 'random' ? RANDOM_WEIGHTS : [[1, 1]];
-  if (options.zeros === 'none') return base;
-  return [[0, ZERO_CHANCE], ...base.map(([v, w]) => [v, w * (1 - ZERO_CHANCE)] as [number, number])];
+// The value for each move is drawn at random from DECK and shown in
+// advance: 0 a tenth of the time, then 1, 2 and 3 at 7 : 2 : 1.
+export const DECK: Deck = [[0, 0.1], [1, 0.63], [2, 0.18], [3, 0.09]];
+
+// The wildcard, as a drawn value. It never sits on the board: placing it
+// places the number resolveWild picks.
+export const WILD = -1;
+
+// With the wildcard in the deck, how often a drawn value is WILD.
+export const WILD_CHANCE = 0.05;
+
+// The deck in play. With the wildcard, it takes WILD_CHANCE and the numbers
+// share what is left in the same proportions as without.
+export const deckFor = (options: Options): Deck =>
+  options.wild === 'deck'
+    ? [[WILD, WILD_CHANCE], ...DECK.map(([v, w]) => [v, w * (1 - WILD_CHANCE)] as [number, number])]
+    : DECK;
+
+// What a wildcard placed on `id` becomes: the number that does best there.
+// It tries each number held by a neighbor and keeps the one whose move
+// (chain reactions included) merges rather than not, then leaves the
+// biggest number, then clears the most tiles; on a tie, the smaller
+// number. If none of them merges, it is a 1.
+export const resolveWild = (tiles: Tile[], cells: Cell[], id: number, options: Options) => {
+  const tried = [...new Set(tiles[id].neighbors.map(n => cells[n]).filter(c => c !== EMPTY))].sort((a, b) => a - b);
+  let best = { value: 1, result: -1, cleared: 0 };
+  for (const value of tried) {
+    const { cells: after, merges } = place(tiles, cells, id, value, options);
+    if (!merges.length) continue;
+    const result = after[id];
+    const cleared = merges.reduce((s, m) => s + m.from.length, 0);
+    if (result > best.result || (result === best.result && cleared > best.cleared)) {
+      best = { value, result, cleared };
+    }
+  }
+  return best.value;
 };
 
-// Draws a value from `deck` (by default the 'random' rule's). `rand`
-// returns a number in [0, 1).
-export const drawValue = (rand: () => number = Math.random, deck: Deck = RANDOM_WEIGHTS) => {
+// The number a drawn value places on `id`: itself, or for a wildcard the
+// number it resolves to.
+export const valueToPlace = (tiles: Tile[], cells: Cell[], id: number, drawn: number, options: Options) =>
+  drawn === WILD ? resolveWild(tiles, cells, id, options) : drawn;
+
+// Draws a value from `deck`. `rand` returns a number in [0, 1).
+export const drawValue = (rand: () => number = Math.random, deck: Deck = DECK) => {
   let r = rand();
   for (const [value, weight] of deck) {
     if (r < weight) return value;
