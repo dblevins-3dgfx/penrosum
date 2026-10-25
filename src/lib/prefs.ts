@@ -6,11 +6,10 @@ import { BOARD_SIZES, DEFAULT_BOARD_SIZE, type BoardSize } from './board';
 import { DEFAULT_OPTIONS, TARGET_OPTIONS, type Options } from './rules';
 
 const ALLOWED: { [K in keyof Options]: readonly Options[K][] } = {
-  values: ['ones', 'random', 'choose'],
   goal: ['highest', 'target'],
   target: TARGET_OPTIONS,
   shape: ['any', 'same'],
-  zeros: ['none', 'deck'],
+  wild: ['none', 'deck'],
 };
 
 // The rule options from their saved JSON (or null when nothing is saved).
