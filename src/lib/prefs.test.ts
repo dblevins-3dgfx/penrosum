@@ -8,17 +8,17 @@ describe('parseOptions', () => {
   });
 
   it('keeps saved values that are allowed', () => {
-    const saved = { goal: 'target', target: 243, wild: 'deck', score: 'tiles', chain: 'off' };
+    const saved = { goal: 'target', target: 243 };
     expect(parseOptions(JSON.stringify(saved))).toEqual(saved);
   });
 
   it('fills in options saved before they existed', () => {
-    expect(parseOptions(JSON.stringify({ wild: 'deck' }))).toEqual({ ...DEFAULT_OPTIONS, wild: 'deck' });
+    expect(parseOptions(JSON.stringify({ goal: 'target' }))).toEqual({ ...DEFAULT_OPTIONS, goal: 'target' });
   });
 
   it('drops unknown keys and values that are not allowed', () => {
-    const saved = { group: 'neighbors', values: 'choose', zeros: 'none', target: 50, cascade: true, shape: 'same', merge: 'step', pressure: 'spawn', shapes: 'dealt', wild: 'deck', score: 'sum', chain: true };
-    expect(parseOptions(JSON.stringify(saved))).toEqual({ ...DEFAULT_OPTIONS, wild: 'deck' });
+    const saved = { group: 'neighbors', values: 'choose', zeros: 'none', target: 50, cascade: true, shape: 'same', merge: 'step', pressure: 'spawn', shapes: 'dealt', wild: 'deck', score: 'sum', chain: true, goal: 'target' };
+    expect(parseOptions(JSON.stringify(saved))).toEqual({ ...DEFAULT_OPTIONS, goal: 'target' });
   });
 
   it('survives damaged storage', () => {

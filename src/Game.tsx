@@ -7,7 +7,7 @@ import { parseBoardSize, parseOptions } from './lib/prefs';
 import {
   EMPTY, MIN_GROUP, WILD,
   type Cell, type Merge, type Options, type Shape,
-  canPlaceDealt, dealShape, dropRubble, shapeToPlace, deckFor, drawValue, highestTile, outcome, place, previewAt, scoreMerges, scoreRubble, seedBoard,
+  canPlaceDealt, dealShape, dropRubble, shapeToPlace, drawValue, highestTile, outcome, place, previewAt, scoreMerges, scoreRubble, seedBoard,
   valueToPlace,
 } from './lib/rules';
 import { fitView, toBoard } from './lib/view';
@@ -40,7 +40,7 @@ const save = (key: string, value: string) => {
 const BOARD_MARGIN = 8;
 
 // The value for the next move, drawn in advance so it can be shown
-const nextValueFor = (options: Options) => drawValue(Math.random, deckFor(options));
+const nextValue = () => drawValue();
 
 // "Merged 3 tiles into B, then 3 tiles into C", with values written by
 // `label`
@@ -92,7 +92,7 @@ interface Snapshot {
   cells: Cell[];
   next: number;
   moves: number;
-  score: number; // points from merges so far (Q12)
+  score: number; // points from merges so far
   lastMove: number | null;
   nextShape: Shape; // the shape dealt with the next value
   message: string;
@@ -154,7 +154,7 @@ const Game = () => {
     setBoard({ size: newSize, tiles, bounds: boardBounds(tiles) });
     const cells = seedBoard(tiles);
     setState({
-      cells, next: nextValueFor(options), moves: 0, score: 0, lastMove: null,
+      cells, next: nextValue(), moves: 0, score: 0, lastMove: null,
       nextShape: dealShape(), message: '',
     });
     setUndo([]);
@@ -171,7 +171,6 @@ const Game = () => {
     const updated = { ...options, [key]: value };
     setOptions(updated);
     save(OPTIONS_STORAGE_KEY, JSON.stringify(updated));
-    if (key === 'wild') setState(s => s && { ...s, next: nextValueFor(updated) });
   };
   const closePrefs = useCallback(() => setShowPrefs(false), []);
 
@@ -201,12 +200,12 @@ const Game = () => {
     const value = valueToPlace(tiles, cells, id, drawn, options);
     const { cells: placed, merges } = place(tiles, cells, id, value, options);
     const { cells: after, zeros, rubbleMerges } = dropRubble(tiles, placed, merges);
-    const gained = scoreMerges(merges, options);
-    const rubbleGained = scoreRubble(rubbleMerges, options);
+    const gained = scoreMerges(merges);
+    const rubbleGained = scoreRubble(rubbleMerges);
     setUndo([...undo, state]);
     setState({
       cells: after,
-      next: nextValueFor(options),
+      next: nextValue(),
       moves: state.moves + 1,
       score: state.score + gained + rubbleGained,
       lastMove: id,
@@ -215,7 +214,7 @@ const Game = () => {
         drawn === WILD ? `Wild played as ${label(value)}.` : '',
         describeMerges(merges, label) + (gained ? ` (+${gained}).` : ''),
         zeros.length === 1 ? 'Rubble dropped a #.' : zeros.length ? `Rubble dropped ${zeros.length} #s.` : '',
-        ...rubbleMerges.map(m => `Rubble merged ${m.from.length + 1} #s into one (+${scoreRubble([m], options)}).`),
+        ...rubbleMerges.map(m => `Rubble merged ${m.from.length + 1} #s into one (+${scoreRubble([m])}).`),
       ].filter(Boolean).join(' '),
     });
   };

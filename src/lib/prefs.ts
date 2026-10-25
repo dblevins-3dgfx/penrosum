@@ -8,9 +8,6 @@ import { DEFAULT_OPTIONS, TARGET_OPTIONS, type Options } from './rules';
 const ALLOWED: { [K in keyof Options]: readonly Options[K][] } = {
   goal: ['highest', 'target'],
   target: TARGET_OPTIONS,
-  wild: ['none', 'deck'],
-  score: ['rungXTiles', 'rung', 'tiles', 'rungPlus'],
-  chain: ['on', 'off'],
 };
 
 // The rule options from their saved JSON (or null when nothing is saved).
