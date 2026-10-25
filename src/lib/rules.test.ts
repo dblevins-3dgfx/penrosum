@@ -454,9 +454,17 @@ describe('shapes: the next value comes with a shape', () => {
   ];
 
   it('deals a kite KITE_CHANCE of the time, otherwise a dart', () => {
-    expect(dealShape(() => 0)).toBe('kite');
-    expect(dealShape(() => KITE_CHANCE - 0.001)).toBe('kite');
-    expect(dealShape(() => KITE_CHANCE)).toBe('dart');
+    const c: Cell[] = [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY];
+    expect(dealShape(hub, c, () => 0)).toBe('kite');
+    expect(dealShape(hub, c, () => KITE_CHANCE - 0.001)).toBe('kite');
+    expect(dealShape(hub, c, () => KITE_CHANCE)).toBe('dart');
+  });
+
+  it('never deals a shape with no empty tile left', () => {
+    // Both darts (3, 4) taken: always a kite, whatever the draw
+    expect(dealShape(hub, [EMPTY, EMPTY, 1, 1, 3], () => 0.99)).toBe('kite');
+    // All three kites (0, 1, 2) taken: always a dart
+    expect(dealShape(hub, [1, 3, 9, EMPTY, EMPTY], () => 0)).toBe('dart');
   });
 
   it('the value must go on an empty tile of the dealt shape', () => {
