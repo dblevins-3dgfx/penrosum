@@ -81,14 +81,14 @@ const drawNumber = (ctx: CanvasRenderingContext2D, t: BoardTile, text: string, c
   ctx.fillText(text, c.x, c.y);
 };
 
-interface ChoiceProps<T extends string | number | boolean> {
+interface ChoiceProps<T extends string | number> {
   label: string;
   value: T;
   options: [T, string][];
   onChange: (v: T) => void;
 }
 
-const Choice = <T extends string | number | boolean>({ label, value, options, onChange }: ChoiceProps<T>) => (
+const Choice = <T extends string | number>({ label, value, options, onChange }: ChoiceProps<T>) => (
   <fieldset className="mb-3">
     <legend className="text-sm font-semibold text-slate-700 mb-1">{label}</legend>
     <div className="flex flex-wrap gap-1">
@@ -312,16 +312,11 @@ const Game = () => {
                 onChange={v => setOption('target', v)}
               />
             )}
-            <Choice
-              label="5. Chain reactions"
-              value={options.cascade}
-              options={[[false, 'Off'], [true, 'On']]}
-              onChange={v => setOption('cascade', v)}
-            />
             <p className="text-xs text-slate-500 mt-2">
               Place a number on any empty tile. When it makes a group of {MIN_GROUP} or more tiles
               with the same number, the tile you placed takes their sum and the others are cleared.
-              Hover a tile to see what would merge.
+              If the new number then makes a group too, it merges again. Hover a tile to see what
+              would merge.
             </p>
           </aside>
         </div>

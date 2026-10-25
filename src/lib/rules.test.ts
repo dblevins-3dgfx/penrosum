@@ -143,14 +143,8 @@ describe('chain reactions', () => {
   // Two 1s and two 3s around the middle; placing a 1 there makes a 3
   const start: Cell[] = [EMPTY, 1, 1, 3, 3];
 
-  it('off: one merge per move, even if the new number matches its neighbors', () => {
-    const { cells, merges } = place(star, start, 0, 1, opts({ cascade: false }));
-    expect(merges).toHaveLength(1);
-    expect(cells).toEqual([3, EMPTY, EMPTY, 3, 3]);
-  });
-
-  it('on: the new number merges again with matching tiles', () => {
-    const { cells, merges } = place(star, start, 0, 1, opts({ cascade: true }));
+  it('the new number merges again with matching tiles', () => {
+    const { cells, merges } = place(star, start, 0, 1, opts());
     expect(merges).toEqual([
       { into: 0, from: [1, 2], sum: 3 },
       { into: 0, from: [3, 4], sum: 9 },
@@ -158,8 +152,12 @@ describe('chain reactions', () => {
     expect(cells).toEqual([9, EMPTY, EMPTY, EMPTY, EMPTY]);
   });
 
-  it('on: stops when the new number makes no group', () => {
-    const { merges } = place(star, [EMPTY, 1, 1, 3, 4], 0, 1, opts({ cascade: true }));
+  it('happens under either adjacency rule', () => {
+    expect(place(star, start, 0, 1, opts({ group: 'neighbors' })).cells).toEqual([9, EMPTY, EMPTY, EMPTY, EMPTY]);
+  });
+
+  it('stops when the new number makes no group', () => {
+    const { merges } = place(star, [EMPTY, 1, 1, 3, 4], 0, 1, opts());
     expect(merges).toHaveLength(1);
   });
 });
@@ -171,7 +169,7 @@ describe('previewAt', () => {
 
   it('shows the final number and every tile that would be cleared', () => {
     const star: Tile[] = [{ neighbors: [1, 2, 3, 4] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }];
-    expect(previewAt(star, [EMPTY, 1, 1, 3, 3], 0, 1, opts({ cascade: true })))
+    expect(previewAt(star, [EMPTY, 1, 1, 3, 3], 0, 1, opts()))
       .toEqual({ value: 9, merging: [1, 2, 3, 4] });
   });
 });
