@@ -1,6 +1,6 @@
 # Penrosum: Specification
 
-Status: an experimental prototype. This describes the game as currently implemented (`Game` in `src/Game.tsx`, the Preferences dialog in `src/Preferences.tsx`, rules in `src/lib/rules.ts`, board in `src/lib/board.ts` and `penrose-board.ts`, fitting it to the screen in `src/lib/view.ts`, saved choices in `src/lib/prefs.ts`). Several rules are not decided yet; they are listed under [Open questions](#5-open-questions), and each option is playable from the **Preferences** dialog.
+Status: an experimental prototype. This describes the game as currently implemented (`Game` in `src/Game.tsx`, the Preferences dialog in `src/Preferences.tsx`, rules in `src/lib/rules.ts`, board in `src/lib/board.ts` and `penrose-board.ts`, fitting it to the screen in `src/lib/view.ts`, saved choices in `src/lib/prefs.ts`). Several rules are not decided yet; they are listed under [Open questions](#5-open-questions), and each option is playable from the **Preferences** dialog. Questions already decided are recorded under [Resolved questions](#8-resolved-questions).
 
 ## 1. Overview
 
@@ -111,3 +111,15 @@ Pointer and touch both work: a tap or click places on the tile under it.
 - No sound, animation or skins yet (Penrogo's skin system could be brought over).
 - No high scores or saved games.
 - Not yet tested on a physical touch device. On touch screens there is no hover, so the merge preview isn't seen before a move.
+
+## 8. Resolved questions
+
+Open questions that have been decided, oldest first. The decision itself now lives in the Rules (section 4), and the options that lost were removed from the game, the code and the tests. Numbers in parentheses are the question's number when it was decided; questions were renumbered as others were resolved. Reasons are recorded where they were given.
+
+| Decided | Question | Options tried | Decision | What changed | Pull request |
+|---|---|---|---|---|---|
+| 2026-10-25 | Chain reactions? (5) | Off; On | **On** | A merged tile merges again while its new number makes a group (Rules: **Chain reaction**). Reason: the game felt better with it on | [#2](https://github.com/dblevins-3dgfx/penrosum/pull/2) |
+| 2026-10-25 | What do merged-away tiles become? (2) | Empty; Zero (stays on the board as an obstacle) | **Empty** | Merged-away tiles leave the board and can be played on again (Rules: **Merge**). Every merge now frees space, which is what later raised the need for pressure (open question 4) | [#5](https://github.com/dblevins-3dgfx/penrosum/pull/5) |
+| 2026-10-25 | Which tiles count as adjacent? (1) | Whole connected group; Direct neighbors only | **Whole connected group** | A group follows matching tiles through each other, so a chain collapses even from its end (Rules: **Group**) | [#7](https://github.com/dblevins-3dgfx/penrosum/pull/7) |
+| 2026-10-25 | What value is placed? (1) | Always 1; Random 1 to 3 (7 : 2 : 1); Player picks 1 to 3 | **Random** | Every move is dealt from one deck and shown in advance (Rules: **Next value**). Raised a new question: wildcards (open question 3) | [#8](https://github.com/dblevins-3dgfx/penrosum/pull/8) |
+| 2026-10-25 | Zeros in the deck? (4) | No; Yes (0 on 10% of draws) | **Yes** | The deck is 0 10%, 1 63%, 2 18%, 3 9%, so drawn 0s can merge seeded zero obstacles away (Rules: **Next value**, **Merge**) | [#8](https://github.com/dblevins-3dgfx/penrosum/pull/8) |

@@ -2,7 +2,7 @@
 
 `SPEC.md` describes the game as it is implemented. Any change the player can see, or that changes what is stored (play, the board, the screen, the rule options), updates `SPEC.md` in the same pull request. The PR description names the spec sections that changed, or says why none needed to.
 
-When an open question in `SPEC.md` is decided, move the answer into the Rules section and remove the options that lost, from the spec, the code and the tests.
+When an open question in `SPEC.md` is decided, move the answer into the Rules section and remove the options that lost, from the spec, the code and the tests. Then add a row to the spec's **Resolved questions** section: the date, the question (with its number at the time), the options tried, the decision, what changed, the reason if one was given, and the pull request.
 
 # Test every spec rule
 
