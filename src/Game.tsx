@@ -20,7 +20,16 @@ import Scoreboard from './Scoreboard';
 // The board size and the scoreboards are remembered in this browser
 // (localStorage).
 const SIZE_STORAGE_KEY = 'penrosum.boardSize';
-const SCORES_STORAGE_KEY = 'penrosum.scores';
+const SCORES_STORAGE_KEY = 'penrosum.topTen';
+// Stored data no longer used: the top 10 from the fixed boards (scored on
+// different tilings, so cleared when boards became random) and the rule
+// options of decided questions. Removed once, at load.
+const RETIRED_STORAGE_KEYS = ['penrosum.scores', 'penrosum.options'];
+try {
+  for (const key of RETIRED_STORAGE_KEYS) localStorage.removeItem(key);
+} catch {
+  // Storage unavailable: nothing to clear
+}
 
 const load = <T,>(key: string, parse: (raw: string | null) => T): T => {
   try {
