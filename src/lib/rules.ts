@@ -22,11 +22,22 @@ export type ShapeRule = 'any' | 'same';
 //         becomes the number that does best there (see resolveWild)
 export type WildRule = 'none' | 'deck';
 
+// What adds zeros to the board after a move, so it fills up (see
+// applyPressure). A merge of zeros never counts as a merge here.
+//   none:      nothing
+//   mergeZero: after a move that merges, a 0 lands on a random empty tile
+//   spawn:     after every move, a 0 appears on a tile announced one move
+//              ahead; playing on that tile blocks it for that move
+//   rubble:    each 3-tile merge leaves a 0 on its cleared tile farthest
+//              from the placed tile
+export type PressureRule = 'none' | 'mergeZero' | 'spawn' | 'rubble';
+
 export interface Options {
   goal: GoalRule;
   target: number;
   shape: ShapeRule;
   wild: WildRule;
+  pressure: PressureRule;
 }
 
 export const DEFAULT_OPTIONS: Options = {
@@ -34,6 +45,7 @@ export const DEFAULT_OPTIONS: Options = {
   target: 50,
   shape: 'any',
   wild: 'none',
+  pressure: 'none',
 };
 
 export const TARGET_OPTIONS = [20, 50, 100, 200];
@@ -160,6 +172,49 @@ export const resolveWild = (tiles: Tile[], cells: Cell[], id: number, options: O
 // number it resolves to.
 export const valueToPlace = (tiles: Tile[], cells: Cell[], id: number, drawn: number, options: Options) =>
   drawn === WILD ? resolveWild(tiles, cells, id, options) : drawn;
+
+// A random empty tile, or null when the board is full. `rand` returns a
+// number in [0, 1).
+export const randomEmpty = (cells: Cell[], rand: () => number = Math.random) => {
+  const free = cells.flatMap((c, i) => (c === EMPTY ? [i] : []));
+  return free.length ? free[Math.floor(rand() * free.length)] : null;
+};
+
+// Where the 'spawn' rule's next 0 will appear (null under the other rules).
+export const nextSpawn = (cells: Cell[], options: Options, rand: () => number = Math.random) =>
+  options.pressure === 'spawn' ? randomEmpty(cells, rand) : null;
+
+export interface PressureResult {
+  cells: Cell[];
+  zeros: number[]; // the tiles that just got a 0
+  spawnAt: number | null; // where the next 'spawn' 0 will appear
+}
+
+// Adds the pressure rule's zeros to `cells`, the board just after a move
+// that made `merges`. `spawnAt` is the tile announced for this move's
+// spawn. Merges of zeros (sum 0) don't count as merges.
+export const applyPressure = (
+  cells: Cell[], merges: Merge[], options: Options, spawnAt: number | null,
+  rand: () => number = Math.random,
+): PressureResult => {
+  const next = cells.slice();
+  const zeros: number[] = [];
+  const drop = (t: number | null) => {
+    if (t !== null && next[t] === EMPTY) {
+      next[t] = 0;
+      zeros.push(t);
+    }
+  };
+  const scoring = merges.filter(m => m.sum > 0);
+  if (options.pressure === 'mergeZero' && scoring.length) drop(randomEmpty(next, rand));
+  if (options.pressure === 'rubble') {
+    // A group lists its tiles outward from the placed one, so the last
+    // cleared tile is the farthest
+    for (const m of scoring) if (m.from.length + 1 === MIN_GROUP) drop(m.from[m.from.length - 1]);
+  }
+  if (options.pressure === 'spawn') drop(spawnAt); // a tile played on blocks it
+  return { cells: next, zeros, spawnAt: nextSpawn(next, options, rand) };
+};
 
 // Draws a value from `deck`. `rand` returns a number in [0, 1).
 export const drawValue = (rand: () => number = Math.random, deck: Deck = DECK) => {

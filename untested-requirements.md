@@ -10,8 +10,8 @@ The tests only reach plain functions in `src/lib`. Code inside a React component
 | --- | --- | --- | --- |
 | Technology | The rule options and board size are saved to and read from localStorage | `load` / `save` in `src/Game.tsx` | Browser storage. Making sense of what was read is `parseOptions` / `parseBoardSize`, tested in `prefs.test.ts`. |
 | Rules | Undo steps back one move, as far as the start; New Game starts over on the size picked | `undoMove` / `newGame` in `src/Game.tsx` | Component state. |
-| Rules | Changing a rule option takes effect from the next move and does not restart the game | `setOption` in `src/Game.tsx` | Component state. |
+| Rules | Changing a rule option takes effect from the next move and does not restart the game (switching to "a 0 every move" announces a spawn tile at once) | `setOption` in `src/Game.tsx` | Component state. The announcement itself is `nextSpawn`, tested in `rules.test.ts`. |
 | Screen | Hover preview: shown only on an empty tile while the game is on, drawn as a blue tint and outlines | `preview` and the drawing effect in `src/Game.tsx` | Pointer events and drawing. What it shows (the final number and the cleared tiles) comes from `previewAt`, tested in `rules.test.ts`. |
-| Screen | Tile colors and labels, the last-move outline, the status line | `fillFor`, `labelPoint` and the drawing effect in `src/Game.tsx` | Canvas drawing and layout. |
+| Screen | Tile colors and labels, the last-move outline, the next-spawn ring, the status line | `fillFor`, `labelPoint` and the drawing effect in `src/Game.tsx` | Canvas drawing and layout. |
 | Board, Screen | The board is rescaled to fit when the window changes size or the screen is rotated | The size measurement and `view` in `src/Game.tsx` | Layout and resize events. The fit itself is `fitView`, tested in `view.test.ts`; the square boards are tested in `board.test.ts`. |
 | Screen | One screen with no scrolling; the header wraps on narrow screens; the New Game menu and Preferences dialog open, close (Escape, outside click) and act as described | `src/Game.tsx`, `src/Preferences.tsx` | Layout and page events. |

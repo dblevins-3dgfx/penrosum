@@ -89,6 +89,17 @@ const Preferences = ({ options, setOption, onClose }: PreferencesProps) => {
           options={[['none', 'No'], ['deck', 'Yes']]}
           onChange={v => setOption('wild', v)}
         />
+        <Choice
+          label="4. Pressure"
+          value={options.pressure}
+          options={[
+            ['none', 'Off'],
+            ['mergeZero', 'A random 0 after each merge'],
+            ['spawn', 'A 0 every move (ringed in advance)'],
+            ['rubble', 'Rubble from 3-tile merges'],
+          ]}
+          onChange={v => setOption('pressure', v)}
+        />
         <p className="text-xs text-slate-500 mt-2">
           How to play: place the next number (shown in the header) on any empty tile. When it makes a group of {MIN_GROUP} or more
           tiles with the same number, the tile you placed takes their sum and the others are cleared.

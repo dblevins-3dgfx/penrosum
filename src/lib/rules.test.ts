@@ -4,6 +4,7 @@ import {
   DEFAULT_OPTIONS, EMPTY, type Cell, type Options, type Tile,
   DECK, SEED_FRACTION, SEED_VALUES, WILD, WILD_CHANCE,
   boardFull, canPlace, deckFor, drawValue, groupAt, highestTile, outcome, place, previewAt, resolveWild, seedBoard, valueToPlace,
+  applyPressure, nextSpawn, randomEmpty,
 } from './rules';
 
 // A small graph to test on:
@@ -395,5 +396,98 @@ describe('seedBoard', () => {
     let i = 0;
     const cells = seedBoard(star, () => draws[i++], 1);
     expect(cells).toEqual([EMPTY, 1, 2, 3, 0]);
+  });
+});
+
+describe('pressure', () => {
+  // Fixed draws from a list, for predictable picks
+  const draws = (...rs: number[]) => { let i = 0; return () => rs[i++] ?? 0; };
+  // A merge of three 1s into tile 1 of the line graph, clearing 0 and 2
+  const merged = () => place(tiles, cellsOf({ 0: 1, 2: 1 }), 1, 1, opts());
+
+  it('randomEmpty picks among the empty tiles, or null on a full board', () => {
+    const c = cellsOf({ 0: 1, 2: 0 });
+    expect(randomEmpty(c, () => 0)).toBe(1);
+    expect(randomEmpty(c, () => 0.999)).toBe(5);
+    expect(randomEmpty([1, 0, 2], () => 0)).toBeNull();
+  });
+
+  it('none: adds nothing', () => {
+    const { cells, merges } = merged();
+    expect(applyPressure(cells, merges, opts(), null)).toEqual({ cells, zeros: [], spawnAt: null });
+  });
+
+  it('mergeZero: a merge drops a 0 on a random empty tile', () => {
+    const { cells, merges } = merged();
+    // Empty after the merge: 0, 2, 3, 4, 5; the draw picks the first
+    const r = applyPressure(cells, merges, opts({ pressure: 'mergeZero' }), null, () => 0);
+    expect(r.zeros).toEqual([0]);
+    expect(r.cells).toEqual(cellsOf({ 0: 0, 1: 3 }));
+  });
+
+  it('mergeZero: a move without a merge drops nothing', () => {
+    const { cells, merges } = place(tiles, cellsOf({ 0: 1 }), 1, 1, opts());
+    expect(applyPressure(cells, merges, opts({ pressure: 'mergeZero' }), null).zeros).toEqual([]);
+  });
+
+  it('a merge of zeros never adds pressure', () => {
+    const { cells, merges } = place(tiles, cellsOf({ 0: 0, 2: 0 }), 1, 0, opts());
+    expect(merges).toHaveLength(1);
+    for (const pressure of ['mergeZero', 'rubble'] as const) {
+      expect(applyPressure(cells, merges, opts({ pressure }), null).zeros).toEqual([]);
+    }
+  });
+
+  it('rubble: a 3-tile merge leaves a 0 on its cleared tile farthest from the placed one', () => {
+    // Placing at 2 merges the chain 2-1-0; tile 0 is the farthest
+    const { cells, merges } = place(tiles, cellsOf({ 0: 1, 1: 1 }), 2, 1, opts());
+    expect(merges[0].from).toEqual([1, 0]);
+    const r = applyPressure(cells, merges, opts({ pressure: 'rubble' }), null);
+    expect(r.zeros).toEqual([0]);
+    expect(r.cells).toEqual(cellsOf({ 0: 0, 2: 3 }));
+  });
+
+  it('rubble: bigger merges leave none', () => {
+    const { cells, merges } = place(tiles, cellsOf({ 0: 1, 1: 1, 2: 1 }), 3, 1, opts());
+    expect(merges[0].from).toHaveLength(3);
+    expect(applyPressure(cells, merges, opts({ pressure: 'rubble' }), null).zeros).toEqual([]);
+  });
+
+  it('rubble: each 3-tile merge in a chain leaves its own', () => {
+    // A star: 1s at 1 and 2, 3s at 3 and 4; both merges are 3 tiles
+    const star: Tile[] = [
+      { neighbors: [1, 2, 3, 4] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] },
+    ];
+    const { cells, merges } = place(star, [EMPTY, 1, 1, 3, 3], 0, 1, opts());
+    expect(applyPressure(cells, merges, opts({ pressure: 'rubble' }), null).cells).toEqual([9, EMPTY, 0, EMPTY, 0]);
+  });
+
+  it('spawn: a 0 appears on the announced tile, and the next one is announced', () => {
+    const c = cellsOf({ 0: 1 });
+    // Announced: 4. After it fills, empty are 1, 2, 3, 5; the draw picks 3
+    const r = applyPressure(c, [], opts({ pressure: 'spawn' }), 4, draws(0.5));
+    expect(r.cells).toEqual(cellsOf({ 0: 1, 4: 0 }));
+    expect(r.zeros).toEqual([4]);
+    expect(r.spawnAt).toBe(3);
+  });
+
+  it('spawn: playing on the announced tile blocks that spawn', () => {
+    const c = cellsOf({ 0: 1, 4: 2 }); // the player just played on 4
+    const r = applyPressure(c, [], opts({ pressure: 'spawn' }), 4, () => 0);
+    expect(r.zeros).toEqual([]);
+    expect(r.spawnAt).toBe(1);
+  });
+
+  it('spawn: nothing is announced on a full board, or under the other rules', () => {
+    expect(nextSpawn([1, 0, 2], opts({ pressure: 'spawn' }))).toBeNull();
+    expect(nextSpawn(cellsOf({}), opts({ pressure: 'rubble' }))).toBeNull();
+    expect(nextSpawn(cellsOf({}), opts({ pressure: 'spawn' }), () => 0)).toBe(0);
+  });
+
+  it('does not change the input', () => {
+    const { cells, merges } = merged();
+    const copy = cells.slice();
+    applyPressure(cells, merges, opts({ pressure: 'mergeZero' }), null, () => 0);
+    expect(cells).toEqual(copy);
   });
 });

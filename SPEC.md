@@ -41,6 +41,7 @@ A merging number game on a Penrose tiling of kites and darts. The player places 
 - **Group.** After placing, the group is the placed tile plus every matching tile connected to it through other matching tiles (tiles are connected when they share an edge). So a long chain of matching tiles collapses all at once, even when the placed tile is at its end. Matching tiles hold the same number, and may also need the same shape (open question 2). Tiles with a different number never join the group, and the group never passes through them; zeros join only a placed 0.
 - **Merge.** If the group has 3 or more tiles (`MIN_GROUP`), the placed tile takes the sum of their numbers (the number times the group's size) and the other tiles in the group become empty: they leave the board and can be played on again, so free space comes back after every merge. Otherwise nothing else changes. Zeros merge the same way: a 0 placed so that it connects to two or more zeros takes them into one 0 where it was placed, so zero obstacles can be consolidated, moved and reduced (three zeros become one).
 - **Chain reaction.** After a merge, the placed tile's new number may match the tiles around it: three 1s make a 3 next to two other 3s. If its new number makes a group of 3 or more, it merges again, and keeps going as long as it can, so one move can make 3, then 9, then 27. Every merge empties at least two numbered tiles and numbers none, so a chain always ends.
+- **Pressure.** After the move (and any chain reaction), the pressure rule may add zeros to the board (open question 4).
 - **End.** The game ends when no empty tile is left, or when the goal is reached (open question 1).
 - **Undo** steps back one move at a time, as far as the start of the game. **New Game** starts over on a new board of the size picked from its menu. Changing a rule option takes effect from the next move and does not restart the game.
 
@@ -55,7 +56,7 @@ Each option below is implemented and can be switched during play, in the **Prefe
 | Highest tile (`highest`) | No target: the game ends when the board is full, and the result is the highest tile made |
 | Reach a target (`target`) | Make a tile of at least the target (20, 50, 100 or 200) to win; filling the board first loses. The win reports how many moves it took, so fewer moves is better |
 
-Still to think about: a scoring system (for example points per merge), a move limit, a time limit, and whether the game should push back somehow (for example new tiles appearing) since merged-away tiles become empty and the board may never fill up.
+Still to think about: a scoring system (for example points per merge), a move limit, a time limit, and how the game should push back so the board fills up (open question 4 tries some ways).
 
 ### 2. Which tiles can match?
 
@@ -77,6 +78,17 @@ A wildcard (★) is placed like a number, on any empty tile, and becomes whichev
 
 Still to think about: how often wildcards should come up, whether the player should choose what a wildcard becomes instead of it choosing the best, and other special values (bigger numbers, negatives).
 
+### 4. Pressure
+
+Merged-away tiles become empty, so a careful player can keep space free and the board may never fill. Each option below adds zeros (obstacles that only drawn 0s can merge away) after a move (`applyPressure`). A merge of zeros never counts as a merge for pressure, so cleaning up zeros never makes more.
+
+| Option | Behavior |
+|---|---|
+| Off (`none`) | Nothing is added |
+| A random 0 after each merge (`mergeZero`) | After a move that merges, a 0 lands on a random empty tile. It costs a tile per merging move, but a 3-tile merge still frees two, so merging still gains space overall |
+| A 0 every move, ringed in advance (`spawn`) | After every move, a 0 appears on a tile announced a move ahead, shown with a dashed gray ring. Playing on the ringed tile blocks that move's 0. Then the next tile is announced, picked at random from the empty ones. The board fills steadily whatever the player does, and only merging keeps pace, as in Threes and 2048 |
+| Rubble from 3-tile merges (`rubble`) | Each merge of exactly 3 tiles (in a chain reaction too) leaves a 0 on its cleared tile farthest from the placed one. Bigger merges leave none, so it pays to build bigger groups |
+
 ## 6. Screen
 
 Everything fits on one screen with no scrolling: a header, the board filling the space below it, and a status line at the bottom.
@@ -87,8 +99,9 @@ Everything fits on one screen with no scrolling: a header, the board filling the
 | New Game menu | Small, Medium and Large, each with its tile count; the current board's size is highlighted. Picking one starts a new game on that size and remembers it for next time. Escape or a click outside closes the menu without starting a game |
 | Board | Scaled to fill its space (leaving 8 px around it) and centered. When the window changes size or the screen is rotated, the board is rescaled to fit. Empty tiles white with thin gray edges (one screen pixel wide at any scale); zeros slate gray with a gray "0"; numbered tiles colored by value, from pale yellow for 1 through orange, red, pink, purple and blue to green above 100, with the number on the tile (on a kite at its centroid, on a dart along its axis toward the tip) |
 | Last move | Amber outline |
+| Next spawn | Under the "a 0 every move" pressure rule, a dashed gray ring on the empty tile where the next 0 will appear |
 | Hover | The empty tile under the pointer is tinted blue and shows the number it would end up with: the value placed, or the result of its merges (including any chain reaction). The tiles those merges would clear get a blue outline. Occupied tiles show no preview |
-| Status line | Before the first move, a one-line hint on how to play; then what a wildcard became ("Wild played as 3.") and the last move's merges ("Merged 3 tiles into 3, then 3 tiles into 9"), or the result at the end of the game. Cut off with an ellipsis if too long |
+| Status line | Before the first move, a one-line hint on how to play; then what a wildcard became ("Wild played as 3.") the last move's merges ("Merged 3 tiles into 3, then 3 tiles into 9") and any zeros the pressure rule added ("A 0 dropped."), or the result at the end of the game. Cut off with an ellipsis if too long |
 | Preferences | A dialog over the board: one row of buttons per open question, the target choice under the target goal, and how to play. Escape, the ×, **Done** or a click outside closes it |
 
 Pointer and touch both work: a tap or click places on the tile under it.
