@@ -8,9 +8,9 @@ import { DEFAULT_OPTIONS, TARGET_OPTIONS, type Options } from './rules';
 const ALLOWED: { [K in keyof Options]: readonly Options[K][] } = {
   goal: ['highest', 'target'],
   target: TARGET_OPTIONS,
-  shape: ['any', 'same'],
   wild: ['none', 'deck'],
   pressure: ['none', 'mergeZero', 'spawn', 'rubble'],
+  shapes: ['none', 'dealt', 'dartDouble', 'sameBonus'],
 };
 
 // The rule options from their saved JSON (or null when nothing is saved).

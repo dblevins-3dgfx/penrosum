@@ -5,6 +5,7 @@ import {
   DECK, SEED_FRACTION, SEED_VALUES, WILD, WILD_CHANCE,
   boardFull, canPlace, deckFor, drawValue, groupAt, highestTile, outcome, place, previewAt, resolveWild, seedBoard, valueToPlace,
   applyPressure, nextSpawn, randomEmpty,
+  KITE_CHANCE, canPlaceDealt, dealShape, shapeToPlace,
 } from './rules';
 
 // A small graph to test on:
@@ -69,12 +70,9 @@ describe('groupAt', () => {
     expect(groupAt(tiles, c, 1).sort()).toEqual([0, 1, 4]);
   });
 
-  it('same shape: only kites match kites and darts match darts', () => {
+  it('matches across shapes: kites and darts with the same number group together', () => {
     const c: Cell[] = [1, 1, 1, 1, 1];
-    expect(groupAt(shaped, c, 0, 'same')).toEqual([0, 1, 3]);
-    expect(groupAt(shaped, c, 2, 'same')).toEqual([2]);
-    // Any shape: everything connected matches
-    expect(groupAt(shaped, c, 0, 'any').sort()).toEqual([0, 1, 2, 3, 4]);
+    expect(groupAt(shaped, c, 0).sort()).toEqual([0, 1, 2, 3, 4]);
   });
 
   it('lists the placed tile first', () => {
@@ -126,30 +124,6 @@ describe('place', () => {
 
   it('zeros never match a placed 1, so a 1 between two zeros does not merge', () => {
     expect(place(tiles, cellsOf({ 0: 0, 2: 0 }), 1, 1, opts()).merges).toEqual([]);
-  });
-
-  it('same shape: a mixed-shape group does not merge', () => {
-    const start: Cell[] = [EMPTY, 1, 1, EMPTY, EMPTY];
-    expect(place(shaped, start, 0, 1, opts({ shape: 'any' })).cells).toEqual([3, EMPTY, EMPTY, EMPTY, EMPTY]);
-    const { cells, merges } = place(shaped, start, 0, 1, opts({ shape: 'same' }));
-    expect(merges).toEqual([]);
-    expect(cells).toEqual([1, 1, 1, EMPTY, EMPTY]);
-  });
-
-  it('same shape: a chain reaction only continues with tiles of the placed shape', () => {
-    // A kite in the middle touching kites 1 and 2 (1s) and darts 3 and 4 (3s)
-    const star: Tile[] = [
-      { neighbors: [1, 2, 3, 4], type: 'kite' },
-      { neighbors: [0], type: 'kite' },
-      { neighbors: [0], type: 'kite' },
-      { neighbors: [0], type: 'dart' },
-      { neighbors: [0], type: 'dart' },
-    ];
-    const start: Cell[] = [EMPTY, 1, 1, 3, 3];
-    expect(place(star, start, 0, 1, opts({ shape: 'any' })).cells).toEqual([9, EMPTY, EMPTY, EMPTY, EMPTY]);
-    const { cells, merges } = place(star, start, 0, 1, opts({ shape: 'same' }));
-    expect(merges).toHaveLength(1);
-    expect(cells).toEqual([3, EMPTY, EMPTY, 3, 3]);
   });
 
   it('does not change the input', () => {
@@ -489,5 +463,95 @@ describe('pressure', () => {
     const copy = cells.slice();
     applyPressure(cells, merges, opts({ pressure: 'mergeZero' }), null, () => 0);
     expect(cells).toEqual(copy);
+  });
+});
+
+describe('shapes (Q10)', () => {
+  // A kite in the middle touching kites 1 and 2 and darts 3 and 4
+  const hub: Tile[] = [
+    { neighbors: [1, 2, 3, 4], type: 'kite' },
+    { neighbors: [0], type: 'kite' },
+    { neighbors: [0], type: 'kite' },
+    { neighbors: [0], type: 'dart' },
+    { neighbors: [0], type: 'dart' },
+  ];
+  // The same, with a dart in the middle
+  const dartHub: Tile[] = [{ ...hub[0], type: 'dart' }, ...hub.slice(1)];
+
+  describe('dealt', () => {
+    it('deals a kite KITE_CHANCE of the time, and nothing under the other rules', () => {
+      const dealt = opts({ shapes: 'dealt' });
+      expect(dealShape(dealt, () => 0)).toBe('kite');
+      expect(dealShape(dealt, () => KITE_CHANCE - 0.001)).toBe('kite');
+      expect(dealShape(dealt, () => KITE_CHANCE)).toBe('dart');
+      expect(dealShape(opts(), () => 0)).toBeNull();
+      expect(dealShape(opts({ shapes: 'dartDouble' }), () => 0)).toBeNull();
+    });
+
+    it('the value must go on an empty tile of the dealt shape', () => {
+      const c: Cell[] = [EMPTY, EMPTY, 1, EMPTY, EMPTY];
+      expect(shapeToPlace(hub, c, 'dart')).toBe('dart');
+      expect(canPlaceDealt(hub, c, 3, 'dart')).toBe(true);
+      expect(canPlaceDealt(hub, c, 0, 'dart')).toBe(false);
+      expect(canPlaceDealt(hub, c, 1, 'kite')).toBe(true);
+      expect(canPlaceDealt(hub, c, 2, 'kite')).toBe(false); // taken
+    });
+
+    it('with no empty tile of the dealt shape left, any empty tile will do', () => {
+      const c: Cell[] = [EMPTY, EMPTY, 1, 2, 3]; // both darts are taken
+      expect(shapeToPlace(hub, c, 'dart')).toBeNull();
+      expect(canPlaceDealt(hub, c, 0, 'dart')).toBe(true);
+    });
+
+    it('without a dealt shape, any empty tile will do', () => {
+      expect(canPlaceDealt(hub, [EMPTY, EMPTY, 1, EMPTY, EMPTY], 0, null)).toBe(true);
+    });
+  });
+
+  describe('dartDouble', () => {
+    const rule = opts({ shapes: 'dartDouble' });
+
+    it('a merge into a dart is worth double', () => {
+      const { cells, merges } = place(dartHub, [EMPTY, 1, 1, EMPTY, EMPTY], 0, 1, rule);
+      expect(merges).toEqual([{ into: 0, from: [1, 2], sum: 6, doubled: 'dart' }]);
+      expect(cells[0]).toBe(6);
+    });
+
+    it('a merge into a kite is not', () => {
+      expect(place(hub, [EMPTY, 1, 1, EMPTY, EMPTY], 0, 1, rule).cells[0]).toBe(3);
+    });
+
+    it('each merge of a chain into a dart doubles', () => {
+      // 1+1+1 = 3, doubled 6; then 6+6+6 = 18, doubled 36
+      const { cells, merges } = place(dartHub, [EMPTY, 1, 1, 6, 6], 0, 1, rule);
+      expect(merges.map(m => m.sum)).toEqual([6, 36]);
+      expect(cells).toEqual([36, EMPTY, EMPTY, EMPTY, EMPTY]);
+    });
+  });
+
+  describe('sameBonus', () => {
+    const rule = opts({ shapes: 'sameBonus' });
+
+    it('a merge whose tiles are all one shape is worth double', () => {
+      const { merges } = place(hub, [EMPTY, 1, 1, EMPTY, EMPTY], 0, 1, rule);
+      expect(merges).toEqual([{ into: 0, from: [1, 2], sum: 6, doubled: 'shape' }]);
+    });
+
+    it('a mixed-shape merge is not, but still merges', () => {
+      const { merges } = place(hub, [EMPTY, 1, EMPTY, 1, EMPTY], 0, 1, rule);
+      expect(merges).toEqual([{ into: 0, from: [1, 3], sum: 3 }]);
+    });
+
+    it('all darts counts too', () => {
+      expect(place(dartHub, [EMPTY, EMPTY, EMPTY, 2, 2], 0, 2, rule).cells[0]).toBe(12);
+    });
+  });
+
+  it('Off: no shape changes anything', () => {
+    expect(place(dartHub, [EMPTY, 1, 1, EMPTY, EMPTY], 0, 1, opts()).merges).toEqual([{ into: 0, from: [1, 2], sum: 3 }]);
+  });
+
+  it('the preview shows a doubled result', () => {
+    expect(previewAt(dartHub, [EMPTY, 2, 2, EMPTY, EMPTY], 0, 2, opts({ shapes: 'dartDouble' }))).toEqual({ value: 12, merging: [1, 2] });
   });
 });
