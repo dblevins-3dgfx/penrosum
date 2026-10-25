@@ -15,7 +15,7 @@ A merging game on a Penrose tiling of kites and darts. Values climb a ladder of 
 | Tests | Vitest (`npm test`), for everything in `src/lib` |
 | Rendering | HTML5 Canvas 2D, sized to the board's square at the screen's pixel density |
 | Styling | Tailwind CSS v4 utility classes |
-| Persistence | The board size (`penrosum.boardSize`) and the top 10 for each board size (`penrosum.scores`), in the browser's localStorage. A missing or unrecognized saved value falls back to its default, and a damaged or nonsensical top 10 entry is dropped (`parseScores`). The game in progress is in memory only. Rule options saved by earlier versions (`penrosum.options`) are no longer read |
+| Persistence | The rule options for open questions (`penrosum.options`), the board size (`penrosum.boardSize`) and the top 10 for each board size (`penrosum.scores`), in the browser's localStorage. A missing or unrecognized saved value falls back to its default (so options of questions since decided are ignored, `parseOptions`), and a damaged or nonsensical top 10 entry is dropped (`parseScores`). The game in progress is in memory only |
 
 ## 3. Board
 
@@ -39,7 +39,7 @@ A merging game on a Penrose tiling of kites and darts. Values climb a ladder of 
 - **Tiles** are either empty or hold a value. A tile can hold # (a seed, or a placed #), which can't be played on and matches only a placed #.
 - **Next value.** Each move's value is drawn at random from the deck (`DECK`) before the move and shown in advance ("Next" in the panel). A draw is a wildcard, shown as ★, 5% of the time (`WILD_CHANCE`); otherwise it is a number (`NUMBERS`): # 10% of the time, A 63%, B 18% and C 9% (A, B and C at 7 : 2 : 1).
 - **Wildcard.** A ★ is placed like a number and becomes whichever value does best there (`resolveWild`). It tries each value held by a neighbor, plays out the move with it (chain reactions included), and keeps the one that merges rather than not; among merges, the one leaving the highest value; then the one clearing the most tiles. If no neighbor's value would merge, it is placed as an A. So a wildcard can complete any group, including values higher than the deck ever deals (two Ds and a wildcard make an E). The status line says what it became ("Wild played as B."), and the hover preview shows the result before the move.
-- **Shape.** Each value is dealt with a shape too (`dealShape`), on the board it will be played on: a kite 60% of the time (`KITE_CHANCE`, about the board's own share), otherwise a dart. Only a shape that still has an empty tile is dealt, so once one shape's empty tiles are all filled, every value comes with the other. The medium board, before seeding, has 60 kites and 43 darts; the kites mostly link into one large region, while the darts sit in small clusters (at most five-dart stars), so darts are the scarcer, more scattered spots.
+- **Shape.** Each value is dealt with a shape too (`dealShape`), a kite or a dart, on the board it will be played on. How likely a kite is depends on the deal rule (Q13, `kiteChance`). Under every option, only a shape that still has an empty tile is dealt, so once one shape's empty tiles are all filled, every value comes with the other. The medium board, before seeding, has 60 kites and 43 darts; the kites mostly link into one large region, while the darts sit in small clusters (at most five-dart stars), so darts are the scarcer, more scattered spots.
 - **A move** places the next value on an empty tile of its shape (`canPlaceDealt`). As a safeguard, if no empty tile of that shape were left, any empty tile would do (`shapeToPlace`); the deal above never lets that happen.
 - **Group.** After placing, the group is the placed tile plus every matching tile connected to it through other matching tiles (tiles are connected when they share an edge). So a long chain of matching tiles collapses all at once, even when the placed tile is at its end. Matching tiles hold the same value; shape doesn't matter, so kites and darts match each other. Tiles with a different value never join the group, and the group never passes through them; #s join only a placed #.
 - **Merge.** If the group has 3 or more tiles (`MIN_GROUP`), the placed tile takes the sum of their values **rounded down to a power of 3** (`mergeResult`, `floorPow3`), and the other tiles in the group become empty: they leave the board and can be played on again, so free space comes back after every merge. Three or four As make a B (3 or 4, rounded down to 3), five Bs make a C (15 to 9), and nine As make a C, so a big enough group can climb more than one rung; whatever doesn't make a full rung is lost. Shape never changes what a merge makes. Otherwise nothing else changes. #s merge the same way: a # placed so that it connects to two or more #s takes them into one # where it was placed, so # obstacles can be consolidated, moved and reduced (three #s become one).
@@ -52,9 +52,19 @@ A merging game on a Penrose tiling of kites and darts. Values climb a ladder of 
 
 ## 5. Open questions
 
-None right now. When a rule is undecided, each of its options is implemented, listed here with the first one as the default, and can be switched during play from the **How to play** dialog.
+Each option below is implemented, and can be switched during play from the **How to play** dialog; a change applies from the next deal, without restarting the game. The first one listed is the default.
 
-Every question has a permanent number, Q1, Q2 and so on, given in the order the questions were opened. A number never changes and is never reused, so it means the same question here, in **Resolved questions** (section 8), in the game, and in pull requests and commits. The next new question is **Q13**.
+Every question has a permanent number, Q1, Q2 and so on, given in the order the questions were opened. A number never changes and is never reused, so it means the same question here, in **Resolved questions** (section 8), in the game, and in pull requests and commits. The next new question is **Q14**.
+
+### Q13. How are shapes dealt?
+
+Kites and darts aren't equally common or equally placed. The medium board, before seeding, has 60 kites and 43 darts; the kites mostly link into one large region, while the darts sit in small clusters (at most five-dart stars), so darts are the scarcer, more scattered spots. With a fixed chance, darts tend to fill up first, and late in a game a dart is often dealt with few places to put it. These options set the chance of a kite while both shapes have an empty tile (`DealRule`):
+
+| Option | Chance of a kite | Feel |
+|---|---|---|
+| Kite 60% of the time (`fixed`) | 60% (`KITE_CHANCE`, about the board's own share), whatever the board | The most squeeze: darts run short late in a game |
+| By free tiles (`free`) | The kites' share of the empty tiles: with 30 empty kites and 10 empty darts, 75% | The gentlest: both shapes tend to run out together, and the deal follows the board the player is making |
+| Halfway between (`blend`) | Halfway between the two: with 30 empty kites and 10 empty darts, 67.5% | Some squeeze, without the dart droughts |
 
 Still to think about: a move limit and a time limit.
 
@@ -77,7 +87,7 @@ Rotating a phone moves the panel between the side and the bottom; the game carri
 | Hover | The empty tile under the pointer is tinted blue and shows the value it would end up with: the value placed, or the result of its merges (including any chain reaction). The tiles those merges would clear get a blue outline. The tiles where the move's rubble would land show a gray # with a blue outline, and the #s that rubble would merge are outlined too. Occupied tiles show no preview |
 | Status line | Before the first move, a one-line hint on how to play (naming the dealt shape); then what a wildcard became ("Wild played as B.") the last move's merges and the points they scored ("Merged 3 tiles into B, then 3 tiles into C (+24).") any rubble dropped ("Rubble dropped a #.") and any rubble merges ("Rubble merged 3 #s into one (+3)."), or the result at the end of the game, with the score (see Rules: **End**) and, if the game made the top 10, its place ("#3 on the medium board!"). It wraps onto as many lines as it needs |
 | Top 10 | A dialog over the board, opened by **Top 10** and opened by itself when a game ends. A button for each board size (Small, Medium, Large) switches between their lists, starting on the current board's size. Each row shows the place, score, highest tile (with 🏆 for a Z win), moves and date; the game that just ended, if it made the list, is highlighted. An empty list says no game on that board has finished yet. A note says the lists are kept in this browser |
-| How to play | A dialog over the board: how to play, in a few short paragraphs. While a rule is an open question, its options appear here too, one row of buttons per question labeled with its number (none now) |
+| How to play | A dialog over the board: first the rules to try, one row of buttons per open question labeled with its number (now Q13), then how to play in a few short paragraphs |
 | Dialogs | Escape, the ×, **Done** or a click outside closes a dialog |
 
 Pointer and touch both work: a tap or click places on the tile under it.

@@ -1,11 +1,25 @@
 // Penrosum rules, as plain functions over the tile graph.
 //
 // The board is a list of tiles with neighbor lists (see penrose-board.ts).
-// The game state is one number per tile. No rules are open questions
-// right now (SPEC.md, "Open questions"); when one is, it gets an option
-// here so its choices can be tried side by side.
+// The game state is one number per tile. Rules that are still open
+// questions (SPEC.md, "Open questions") get an option here, so their
+// choices can be tried side by side.
 
 export type Shape = 'kite' | 'dart';
+
+// Q13: how likely the dealt shape is to be a kite (see kiteChance).
+//   fixed: KITE_CHANCE, whatever the board
+//   free:  the kites' share of the empty tiles
+//   blend: halfway between the two
+export type DealRule = 'fixed' | 'free' | 'blend';
+
+export interface Options {
+  deal: DealRule;
+}
+
+export const DEFAULT_OPTIONS: Options = {
+  deal: 'fixed',
+};
 
 // A merge needs this many matching tiles, counting the one just placed.
 export const MIN_GROUP = 3;
@@ -41,16 +55,31 @@ export const canPlaceDealt = (tiles: Tile[], cells: Cell[], id: number, dealt: S
 // kites (60 of 103 on the medium board).
 export const KITE_CHANCE = 0.6;
 
-// The shape dealt with the next value, on `cells`, the board it will be
-// played on: only a shape that still has an empty tile, so once one shape's
-// empty tiles are all filled, every value comes with the other. While both
-// have one, a kite KITE_CHANCE of the time. `rand` returns a number in [0, 1).
-export const dealShape = (tiles: Tile[], cells: Cell[], rand: () => number = Math.random): Shape => {
-  const free = (shape: Shape) => tiles.some((t, i) => t.type === shape && cells[i] === EMPTY);
-  if (!free('dart')) return 'kite';
-  if (!free('kite')) return 'dart';
-  return rand() < KITE_CHANCE ? 'kite' : 'dart';
+// The chance that the next value is dealt a kite, on `cells`, the board it
+// will be played on, under the Q13 deal rule. A shape with no empty tile is
+// never dealt (chance 0 or 1), so once one shape's empty tiles are all
+// filled, every value comes with the other. While both have one, it is
+// KITE_CHANCE ('fixed'), the kites' share of the empty tiles ('free'), or
+// halfway between ('blend').
+export const kiteChance = (tiles: Tile[], cells: Cell[], rule: DealRule) => {
+  let kites = 0;
+  let darts = 0;
+  tiles.forEach((t, i) => {
+    if (cells[i] !== EMPTY) return;
+    if (t.type === 'kite') kites++;
+    else if (t.type === 'dart') darts++;
+  });
+  if (!darts) return 1;
+  if (!kites) return 0;
+  const share = kites / (kites + darts);
+  return rule === 'fixed' ? KITE_CHANCE : rule === 'free' ? share : (KITE_CHANCE + share) / 2;
 };
+
+// The shape dealt with the next value (see kiteChance). `rand` returns a
+// number in [0, 1).
+export const dealShape = (
+  tiles: Tile[], cells: Cell[], options: Options, rand: () => number = Math.random,
+): Shape => (rand() < kiteChance(tiles, cells, options.deal) ? 'kite' : 'dart');
 
 // The group for numbered tile `id`: it first, then every tile with the same
 // number connected to it through other such tiles. Fewer than MIN_GROUP

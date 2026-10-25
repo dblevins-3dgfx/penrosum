@@ -1,10 +1,60 @@
 import Dialog from './Dialog';
-import { MIN_GROUP } from './lib/rules';
+import { MIN_GROUP, type Options } from './lib/rules';
 
-// How to play, in a dialog over the board. (While a rule is an open
-// question in the spec, its options are offered here too; none are now.)
-const HowToPlay = ({ onClose }: { onClose: () => void }) => (
+interface ChoiceProps<T extends string> {
+  label: string;
+  value: T;
+  options: [T, string][];
+  onChange: (v: T) => void;
+}
+
+const Choice = <T extends string>({ label, value, options, onChange }: ChoiceProps<T>) => (
+  <fieldset className="mb-3">
+    <legend className="text-sm font-semibold text-slate-700 mb-1">{label}</legend>
+    <div className="flex flex-wrap gap-1">
+      {options.map(([v, text]) => (
+        <button
+          key={v}
+          onClick={() => onChange(v)}
+          aria-pressed={v === value}
+          className={`px-2 py-1 rounded text-sm border ${
+            v === value
+              ? 'bg-indigo-600 text-white border-indigo-600'
+              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+          }`}
+        >
+          {text}
+        </button>
+      ))}
+    </div>
+  </fieldset>
+);
+
+interface HowToPlayProps {
+  options: Options;
+  setOption: <K extends keyof Options>(key: K, value: Options[K]) => void;
+  onClose: () => void;
+}
+
+// How to play, in a dialog over the board, with the rules still being
+// tried (the open questions in the spec) as buttons.
+const HowToPlay = ({ options, setOption, onClose }: HowToPlayProps) => (
   <Dialog title="How to play" onClose={onClose}>
+    <div className="mb-4 rounded-md bg-slate-50 p-3">
+      <p className="text-xs text-slate-500 mb-2">
+        Rules to try: the open questions in the spec. Changes apply from the next deal.
+      </p>
+      <Choice
+        label="Q13. How are shapes dealt?"
+        value={options.deal}
+        options={[
+          ['fixed', 'Kite 60% of the time'],
+          ['free', 'By free tiles'],
+          ['blend', 'Halfway between'],
+        ]}
+        onChange={v => setOption('deal', v)}
+      />
+    </div>
     <div className="text-sm text-slate-700 space-y-2">
       <p>
         Place the Next letter (beside the title) on an empty tile of the shape it comes with, a kite
