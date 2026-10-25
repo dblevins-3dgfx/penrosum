@@ -1,6 +1,6 @@
 # Penrosum
 
-A merging number game on a Penrose tiling of kites and darts. Place a number (usually 1) on an empty tile. When that makes a group of three or more numbered tiles, the tile you placed takes their sum and the others are cleared.
+A merging number game on a Penrose tiling of kites and darts. Place a number (usually 1) on an empty tile. When that makes a group of three or more tiles with the same number, the tile you placed takes their sum and the others are cleared.
 
 The board comes from [Penrogo](https://github.com/dblevins-3dgfx/penrogo). Some rules are still being decided: the game has a **Rules to try** panel for switching between the options, and [SPEC.md](SPEC.md) lists them as open questions.
 
