@@ -7,7 +7,7 @@ import {
   applyPressure, nextSpawn, randomEmpty,
   KITE_CHANCE, canPlaceDealt, dealShape, shapeToPlace,
   TOP_VALUE, floorPow3, mergeResult,
-  type Merge, mergePoints, rungOf, scoreMerges,
+  type Merge, mergePoints, rungOf, scoreMerges, scoreRubble,
 } from './rules';
 
 // A small graph to test on:
@@ -165,13 +165,13 @@ describe('chain reactions', () => {
 
 describe('previewAt', () => {
   it('shows the placed value when nothing would merge', () => {
-    expect(previewAt(tiles, cellsOf({ 0: 1 }), 1, 1, opts())).toEqual({ value: 1, merging: [] });
+    expect(previewAt(tiles, cellsOf({ 0: 1 }), 1, 1, opts())).toEqual({ value: 1, merging: [], rubble: [] });
   });
 
   it('shows the final number and every tile that would be cleared', () => {
     const star: Tile[] = [{ neighbors: [1, 2, 3, 4] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }];
     expect(previewAt(star, [EMPTY, 1, 1, 3, 3], 0, 1, opts()))
-      .toEqual({ value: 9, merging: [1, 2, 3, 4] });
+      .toEqual({ value: 9, merging: [1, 2, 3, 4], rubble: [] });
   });
 });
 
@@ -205,7 +205,7 @@ describe('placing zeros', () => {
   });
 
   it('the preview shows a placed 0 and the zeros it would clear', () => {
-    expect(previewAt(star, [EMPTY, 0, 0, 1, EMPTY], 0, 0, opts())).toEqual({ value: 0, merging: [1, 2] });
+    expect(previewAt(star, [EMPTY, 0, 0, 1, EMPTY], 0, 0, opts())).toEqual({ value: 0, merging: [1, 2], rubble: [] });
   });
 });
 
@@ -291,7 +291,7 @@ describe('wildcards', () => {
   });
 
   it('the preview shows what the wildcard would make', () => {
-    expect(previewAt(star, [EMPTY, 3, 3, EMPTY, EMPTY], 0, WILD, wild)).toEqual({ value: 9, merging: [1, 2] });
+    expect(previewAt(star, [EMPTY, 3, 3, EMPTY, EMPTY], 0, WILD, wild)).toEqual({ value: 9, merging: [1, 2], rubble: [] });
   });
 });
 
@@ -391,27 +391,27 @@ describe('pressure', () => {
 
   it('none: adds nothing', () => {
     const { cells, merges } = merged();
-    expect(applyPressure(cells, merges, opts(), null)).toEqual({ cells, zeros: [], spawnAt: null });
+    expect(applyPressure(tiles, cells, merges, opts(), null)).toEqual({ cells, zeros: [], spawnAt: null, rubbleMerges: [] });
   });
 
   it('mergeZero: a merge drops a 0 on a random empty tile', () => {
     const { cells, merges } = merged();
     // Empty after the merge: 0, 2, 3, 4, 5; the draw picks the first
-    const r = applyPressure(cells, merges, opts({ pressure: 'mergeZero' }), null, () => 0);
+    const r = applyPressure(tiles, cells, merges, opts({ pressure: 'mergeZero' }), null, () => 0);
     expect(r.zeros).toEqual([0]);
     expect(r.cells).toEqual(cellsOf({ 0: 0, 1: 3 }));
   });
 
   it('mergeZero: a move without a merge drops nothing', () => {
     const { cells, merges } = place(tiles, cellsOf({ 0: 1 }), 1, 1, opts());
-    expect(applyPressure(cells, merges, opts({ pressure: 'mergeZero' }), null).zeros).toEqual([]);
+    expect(applyPressure(tiles, cells, merges, opts({ pressure: 'mergeZero' }), null).zeros).toEqual([]);
   });
 
   it('a merge of zeros never adds pressure', () => {
     const { cells, merges } = place(tiles, cellsOf({ 0: 0, 2: 0 }), 1, 0, opts());
     expect(merges).toHaveLength(1);
     for (const pressure of ['mergeZero', 'rubble'] as const) {
-      expect(applyPressure(cells, merges, opts({ pressure }), null).zeros).toEqual([]);
+      expect(applyPressure(tiles, cells, merges, opts({ pressure }), null).zeros).toEqual([]);
     }
   });
 
@@ -419,7 +419,7 @@ describe('pressure', () => {
     // Placing at 2 merges the chain 2-1-0; tile 0 is the farthest
     const { cells, merges } = place(tiles, cellsOf({ 0: 1, 1: 1 }), 2, 1, opts());
     expect(merges[0].from).toEqual([1, 0]);
-    const r = applyPressure(cells, merges, opts({ pressure: 'rubble' }), null);
+    const r = applyPressure(tiles, cells, merges, opts({ pressure: 'rubble' }), null);
     expect(r.zeros).toEqual([0]);
     expect(r.cells).toEqual(cellsOf({ 0: 0, 2: 3 }));
   });
@@ -427,7 +427,7 @@ describe('pressure', () => {
   it('rubble: bigger merges leave none', () => {
     const { cells, merges } = place(tiles, cellsOf({ 0: 1, 1: 1, 2: 1 }), 3, 1, opts());
     expect(merges[0].from).toHaveLength(3);
-    expect(applyPressure(cells, merges, opts({ pressure: 'rubble' }), null).zeros).toEqual([]);
+    expect(applyPressure(tiles, cells, merges, opts({ pressure: 'rubble' }), null).zeros).toEqual([]);
   });
 
   it('rubble: each 3-tile merge in a chain leaves its own', () => {
@@ -436,13 +436,54 @@ describe('pressure', () => {
       { neighbors: [1, 2, 3, 4] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] },
     ];
     const { cells, merges } = place(star, [EMPTY, 1, 1, 3, 3], 0, 1, opts());
-    expect(applyPressure(cells, merges, opts({ pressure: 'rubble' }), null).cells).toEqual([9, EMPTY, 0, EMPTY, 0]);
+    expect(applyPressure(star, cells, merges, opts({ pressure: 'rubble' }), null).cells).toEqual([9, EMPTY, 0, EMPTY, 0]);
+  });
+
+  it('rubble: lands touching two 0s and merges them into one on its tile', () => {
+    // 1s at 0 and 1, 0s at 5 and 6, both touching 0 (3 and 4 unused):
+    //   5, 6 - 0 - 1 - 2
+    // Placing a 1 at 2 merges 2-1-0, and the rubble lands on 0
+    const g: Tile[] = [
+      { neighbors: [1, 5, 6] }, { neighbors: [0, 2] }, { neighbors: [1] },
+      { neighbors: [] }, { neighbors: [] }, { neighbors: [0] }, { neighbors: [0] },
+    ];
+    const { cells, merges } = place(g, [1, 1, EMPTY, EMPTY, EMPTY, 0, 0], 2, 1, opts());
+    expect(merges[0].from).toEqual([1, 0]);
+    const r = applyPressure(g, cells, merges, opts({ pressure: 'rubble' }), null);
+    expect(r.zeros).toEqual([0]);
+    expect(r.rubbleMerges).toEqual([{ into: 0, from: [5, 6], sum: 0 }]);
+    expect(r.cells).toEqual([0, EMPTY, 3, EMPTY, EMPTY, EMPTY, EMPTY]);
+  });
+
+  it('rubble: touching only one 0 just lands', () => {
+    const g: Tile[] = [
+      { neighbors: [1, 5] }, { neighbors: [0, 2] }, { neighbors: [1] }, { neighbors: [] }, { neighbors: [] }, { neighbors: [0] },
+    ];
+    const { cells, merges } = place(g, [1, 1, EMPTY, EMPTY, EMPTY, 0], 2, 1, opts());
+    const r = applyPressure(g, cells, merges, opts({ pressure: 'rubble' }), null);
+    expect(r.rubbleMerges).toEqual([]);
+    expect(r.cells).toEqual([0, EMPTY, 3, EMPTY, EMPTY, 0]);
+  });
+
+  it('rubble merges score 1 per tile, with no chain bonus', () => {
+    const rubble = [{ into: 0, from: [5, 6], sum: 0 }, { into: 1, from: [2, 3, 4], sum: 0 }];
+    expect(scoreRubble(rubble, opts({ chain: 'on' }))).toBe(3 + 4);
+  });
+
+  it('previewAt shows where rubble lands and the 0s it would merge', () => {
+    const g: Tile[] = [
+      { neighbors: [1, 5, 6] }, { neighbors: [0, 2] }, { neighbors: [1] },
+      { neighbors: [] }, { neighbors: [] }, { neighbors: [0] }, { neighbors: [0] },
+    ];
+    const start = [1, 1, EMPTY, EMPTY, EMPTY, 0, 0];
+    expect(previewAt(g, start, 2, 1, opts({ pressure: 'rubble' }))).toEqual({ value: 3, merging: [1, 0, 5, 6], rubble: [0] });
+    expect(previewAt(g, start, 2, 1, opts())).toEqual({ value: 3, merging: [1, 0], rubble: [] });
   });
 
   it('spawn: a 0 appears on the announced tile, and the next one is announced', () => {
     const c = cellsOf({ 0: 1 });
     // Announced: 4. After it fills, empty are 1, 2, 3, 5; the draw picks 3
-    const r = applyPressure(c, [], opts({ pressure: 'spawn' }), 4, draws(0.5));
+    const r = applyPressure(tiles, c, [], opts({ pressure: 'spawn' }), 4, draws(0.5));
     expect(r.cells).toEqual(cellsOf({ 0: 1, 4: 0 }));
     expect(r.zeros).toEqual([4]);
     expect(r.spawnAt).toBe(3);
@@ -450,7 +491,7 @@ describe('pressure', () => {
 
   it('spawn: playing on the announced tile blocks that spawn', () => {
     const c = cellsOf({ 0: 1, 4: 2 }); // the player just played on 4
-    const r = applyPressure(c, [], opts({ pressure: 'spawn' }), 4, () => 0);
+    const r = applyPressure(tiles, c, [], opts({ pressure: 'spawn' }), 4, () => 0);
     expect(r.zeros).toEqual([]);
     expect(r.spawnAt).toBe(1);
   });
@@ -464,7 +505,7 @@ describe('pressure', () => {
   it('does not change the input', () => {
     const { cells, merges } = merged();
     const copy = cells.slice();
-    applyPressure(cells, merges, opts({ pressure: 'mergeZero' }), null, () => 0);
+    applyPressure(tiles, cells, merges, opts({ pressure: 'mergeZero' }), null, () => 0);
     expect(cells).toEqual(copy);
   });
 });
@@ -556,7 +597,7 @@ describe('shapes (Q10)', () => {
   });
 
   it('the preview shows a bonus result', () => {
-    expect(previewAt(dartHub, [EMPTY, 3, 3, EMPTY, EMPTY], 0, 3, opts({ shapes: 'dartDouble' }))).toEqual({ value: 27, merging: [1, 2] });
+    expect(previewAt(dartHub, [EMPTY, 3, 3, EMPTY, EMPTY], 0, 3, opts({ shapes: 'dartDouble' }))).toEqual({ value: 27, merging: [1, 2], rubble: [] });
   });
 });
 
