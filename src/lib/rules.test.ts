@@ -36,6 +36,20 @@ describe('canPlace', () => {
   });
 });
 
+// Kite 0 touches kite 1, dart 2 and kite 3; kite 1 also touches dart 4.
+//
+//   4 - 1 - 0 - 3
+//           |
+//           2
+//
+const shaped: Tile[] = [
+  { neighbors: [1, 2, 3], type: 'kite' },
+  { neighbors: [0, 4], type: 'kite' },
+  { neighbors: [0], type: 'dart' },
+  { neighbors: [0], type: 'kite' },
+  { neighbors: [1], type: 'dart' },
+];
+
 describe('groupAt', () => {
   it('connected: follows matching tiles beyond the direct neighbors', () => {
     const c = cellsOf({ 0: 1, 1: 1, 2: 1, 3: 1 });
@@ -56,6 +70,15 @@ describe('groupAt', () => {
   it('neighbors: leaves out neighbors with a different number', () => {
     const c = cellsOf({ 0: 1, 1: 1, 2: 2, 4: 1 });
     expect(groupAt(tiles, c, 1, 'neighbors')).toEqual([1, 0, 4]);
+  });
+
+  it('same shape: only kites match kites and darts match darts', () => {
+    const c: Cell[] = [1, 1, 1, 1, 1];
+    expect(groupAt(shaped, c, 0, 'connected', 'same')).toEqual([0, 1, 3]);
+    expect(groupAt(shaped, c, 0, 'neighbors', 'same')).toEqual([0, 1, 3]);
+    expect(groupAt(shaped, c, 2, 'connected', 'same')).toEqual([2]);
+    // Any shape: everything connected matches
+    expect(groupAt(shaped, c, 0, 'connected', 'any').sort()).toEqual([0, 1, 2, 3, 4]);
   });
 
   it('lists the placed tile first', () => {
@@ -122,6 +145,30 @@ describe('place', () => {
     // Zeros never match a placed number, so three tiles next to two zeros don't merge
     const second = place(tiles, cellsOf({ 0: 0, 2: 0 }), 1, 1, opts({ clear: 'zero' }));
     expect(second.merges).toEqual([]);
+  });
+
+  it('same shape: a mixed-shape group does not merge', () => {
+    const start: Cell[] = [EMPTY, 1, 1, EMPTY, EMPTY];
+    expect(place(shaped, start, 0, 1, opts({ shape: 'any' })).cells).toEqual([3, EMPTY, EMPTY, EMPTY, EMPTY]);
+    const { cells, merges } = place(shaped, start, 0, 1, opts({ shape: 'same' }));
+    expect(merges).toEqual([]);
+    expect(cells).toEqual([1, 1, 1, EMPTY, EMPTY]);
+  });
+
+  it('same shape: a chain reaction only continues with tiles of the placed shape', () => {
+    // A kite in the middle touching kites 1 and 2 (1s) and darts 3 and 4 (3s)
+    const star: Tile[] = [
+      { neighbors: [1, 2, 3, 4], type: 'kite' },
+      { neighbors: [0], type: 'kite' },
+      { neighbors: [0], type: 'kite' },
+      { neighbors: [0], type: 'dart' },
+      { neighbors: [0], type: 'dart' },
+    ];
+    const start: Cell[] = [EMPTY, 1, 1, 3, 3];
+    expect(place(star, start, 0, 1, opts({ shape: 'any' })).cells).toEqual([9, EMPTY, EMPTY, EMPTY, EMPTY]);
+    const { cells, merges } = place(star, start, 0, 1, opts({ shape: 'same' }));
+    expect(merges).toHaveLength(1);
+    expect(cells).toEqual([3, EMPTY, EMPTY, 3, 3]);
   });
 
   it('does not change the input', () => {

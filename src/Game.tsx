@@ -312,6 +312,12 @@ const Game = () => {
                 onChange={v => setOption('target', v)}
               />
             )}
+            <Choice
+              label="5. Which tiles can match?"
+              value={options.shape}
+              options={[['any', 'Any shape'], ['same', 'Same shape only']]}
+              onChange={v => setOption('shape', v)}
+            />
             <p className="text-xs text-slate-500 mt-2">
               Place a number on any empty tile. When it makes a group of {MIN_GROUP} or more tiles
               with the same number, the tile you placed takes their sum and the others are cleared.
