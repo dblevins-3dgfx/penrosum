@@ -4,7 +4,7 @@ Status: an experimental prototype. This describes the game as currently implemen
 
 ## 1. Overview
 
-A merging number game on a Penrose tiling of kites and darts. The player places a number, usually 1, on an empty tile. When that makes a group of three or more tiles holding the same number, the tile just placed takes the sum of the group and the other tiles in it are cleared. Three 1s make a 3, three 3s make a 9, and so on.
+A merging number game on a Penrose tiling of kites and darts. The player places a number, usually 1, on an empty tile. When that makes a group of three or more tiles holding the same number, the tile just placed takes the sum of the group and the other tiles in it are cleared. Three 1s make a 3, three 3s make a 9, and so on. Each game starts with a few numbers already scattered on the board.
 
 ## 2. Technology
 
@@ -34,12 +34,13 @@ A merging number game on a Penrose tiling of kites and darts. The player places 
 
 ## 4. Rules
 
-- **Tiles** are either empty or hold a number. Under the "zero" clearing option (open question 2) a tile can hold 0, which can't be played on and matches nothing.
-- **A move** places the value for this move (open question 3) on any empty tile.
-- **Group.** After placing, the group is the placed tile plus the matching tiles that count as adjacent to it (open question 1). Matching tiles hold the same number, and may also need the same shape (open question 5). Tiles with a different number, zeros included, never join the group.
-- **Merge.** If the group has 3 or more tiles (`MIN_GROUP`), the placed tile takes the sum of their numbers (the number times the group's size) and the other tiles in the group are cleared (open question 2). Otherwise nothing else changes.
-- **Chain reaction.** After a merge, the placed tile's new number may match the tiles around it: three 1s make a 3 next to two other 3s. If its new number makes a group of 3 or more, it merges again, and keeps going as long as it can, so one move can make 3, then 9, then 27. Each merge at least triples the number, so a chain always ends.
-- **End.** The game ends when no empty tile is left, or when the goal is reached (open question 4).
+- **Start.** Each new game seeds the board: 10% of its tiles (`SEED_FRACTION`, rounded), picked at random, get a random number from 0 to 3 (`SEED_VALUES`), each equally likely. Neighboring seeds never hold the same number, so no group exists before the first move; a picked tile whose neighbors already hold all four numbers is passed over for another. Seeded 0s can't be played on and match only a placed 0, so they act as obstacles (which can be cleared up only with zeros in the deck, open question 5). Seeded tiles look the same as placed ones. Undo goes back as far as the seeded board.
+- **Tiles** are either empty or hold a number. A tile can hold 0 (a seed, or a placed 0), which can't be played on and matches only a placed 0.
+- **A move** places the value for this move (open questions 2 and 5) on any empty tile.
+- **Group.** After placing, the group is the placed tile plus the matching tiles that count as adjacent to it (open question 1). Matching tiles hold the same number, and may also need the same shape (open question 4). Tiles with a different number never join the group; zeros join only a placed 0.
+- **Merge.** If the group has 3 or more tiles (`MIN_GROUP`), the placed tile takes the sum of their numbers (the number times the group's size) and the other tiles in the group become empty: they leave the board and can be played on again, so free space comes back after every merge. Otherwise nothing else changes. Zeros merge the same way: a 0 placed next to two or more zeros (under the adjacency rule) takes them into one 0 where it was placed.
+- **Chain reaction.** After a merge, the placed tile's new number may match the tiles around it: three 1s make a 3 next to two other 3s. If its new number makes a group of 3 or more, it merges again, and keeps going as long as it can, so one move can make 3, then 9, then 27. Every merge empties at least two numbered tiles and numbers none, so a chain always ends.
+- **End.** The game ends when no empty tile is left, or when the goal is reached (open question 3).
 - **Undo** steps back one move at a time, as far as the start of the game. **New Game** starts over on a new board of the size picked from its menu. Changing a rule option takes effect from the next move and does not restart the game.
 
 ## 5. Open questions
@@ -53,40 +54,42 @@ Each option below is implemented and can be switched during play, in the **Prefe
 | Whole connected group (`connected`) | Every tile with the same number reachable from the placed tile through other tiles with that number. A long chain of matching tiles collapses all at once |
 | Direct neighbors only (`neighbors`) | The placed tile and its direct neighbors with the same number (at most four). Tiles further along a chain are left alone, and the end of a chain does not merge with only one matching neighbor |
 
-### 2. What do merged-away tiles become?
-
-| Option | Behavior |
-|---|---|
-| Empty (`empty`) | Un-numbered: they can be played on again. Free space comes back after every merge, so the board may never fill up |
-| Zero (`zero`) | They hold 0: they can't be played on, and they never match a placed number, so they block groups like walls. Every move uses up a tile for good, so the board fills up and the game always ends |
-
-### 3. What value is placed?
+### 2. What value is placed?
 
 | Option | Behavior |
 |---|---|
 | Always 1 (`ones`) | Every move places 1 |
-| Random 1 to 3 (`random`) | Drawn at random, 1 with 70% chance, 2 with 20% and 3 with 10%, and shown in advance ("Next") |
+| Random 1 to 3 (`random`) | Drawn at random, 1 with 70% chance, 2 with 20% and 3 with 10%, and shown in advance ("Next"). Zeros in the deck (open question 5) add 0 to the draw |
 | Player picks 1 to 3 (`choose`) | The player chooses 1, 2 or 3 before each move |
 
 Still to think about: whether other values (bigger numbers, negatives, a "wild" tile) should exist, and whether the random weights are right.
 
-### 4. What is the goal, and when does the game end?
+### 3. What is the goal, and when does the game end?
 
 | Option | Behavior |
 |---|---|
 | Highest tile (`highest`) | No target: the game ends when the board is full, and the result is the highest tile made |
 | Reach a target (`target`) | Make a tile of at least the target (20, 50, 100 or 200) to win; filling the board first loses. The win reports how many moves it took, so fewer moves is better |
 
-Still to think about: a scoring system (for example points per merge), a move limit, a time limit, and whether the game should push back somehow (for example new tiles appearing) when merged-away tiles become empty and the board can't fill up.
+Still to think about: a scoring system (for example points per merge), a move limit, a time limit, and whether the game should push back somehow (for example new tiles appearing) since merged-away tiles become empty and the board may never fill up.
 
-### 5. Which tiles can match?
+### 4. Which tiles can match?
 
 | Option | Behavior |
 |---|---|
 | Any shape (`any`) | Kites and darts with the same number match each other |
 | Same shape only (`same`) | They must also be the same shape: kite with kite, dart with dart. A group never crosses into the other shape, even under the connected rule, and a chain reaction only continues with tiles of the placed tile's shape |
 
-How the board affects this, on the medium board at 4:3 (219 tiles): the 137 kites mostly touch two other kites and form one large connected kite region of 69 tiles. The 82 darts are scattered: the largest dart regions are five-dart stars, and 21 darts touch no other dart, so under "same shape only" a number placed on one of them can never merge. With "direct neighbors only" adjacency as well, only darts with two dart neighbors (37 of them) can merge at all.
+How the board affects this, on the medium board at 4:3 before seeding (219 tiles): the 137 kites mostly touch two other kites and form one large connected kite region of 69 tiles. The 82 darts are scattered: the largest dart regions are five-dart stars, and 21 darts touch no other dart, so under "same shape only" a number placed on one of them can never merge. With "direct neighbors only" adjacency as well, only darts with two dart neighbors (37 of them) can merge at all.
+
+### 5. Zeros in the deck?
+
+Seeded zeros are obstacles. With zeros in the deck the player can place 0s too, and a 0 placed next to two or more zeros merges them into one 0 where it was placed, so obstacles can be consolidated, moved and reduced (three zeros become one).
+
+| Option | Behavior |
+|---|---|
+| No (`none`) | 0 is never the value to place; zeros on the board stay where they are |
+| Yes (`deck`) | A drawn value is 0 10% of the time (`ZERO_CHANCE`): under "always 1", each move is 0 or 1 (90%); under "random", 0 takes 10% and 1, 2 and 3 share the rest as 63%, 18% and 9%. The next value is shown in advance ("Next"). Under "player picks", 0 joins the choices |
 
 ## 6. Screen
 
@@ -94,8 +97,8 @@ Everything fits on one screen with no scrolling: a header, the board filling the
 
 | Element | Behavior |
 |---|---|
-| Header | Title; the stats (moves, highest tile, free (empty) tiles, plus the target under the target goal and the next value under the random value rule); the value picker; **Undo** (disabled with nothing to undo), **New Game ▾** and **Preferences**. On a narrow screen it wraps onto two lines |
-| Value picker | Buttons 1, 2, 3, shown only under the "player picks" value rule |
+| Header | Title; the stats (moves, highest tile, free (empty) tiles, plus the target under the target goal, and the next value whenever it is drawn at random: under the random value rule, or with zeros in the deck); the value picker; **Undo** (disabled with nothing to undo), **New Game ▾** and **Preferences**. On a narrow screen it wraps onto two lines |
+| Value picker | Buttons 1, 2, 3 (and 0 with zeros in the deck), shown only under the "player picks" value rule. If 0 is picked and zeros then leave the deck, the move places 1 |
 | New Game menu | Small, Medium and Large, each with its approximate tile count; the current board's size is highlighted. Picking one starts a new game on that size and remembers it for next time. Escape or a click outside closes the menu without starting a game |
 | Board | Scaled to fill its space (leaving 8 px around it) and centered. If the window changes shape during a game, the board keeps its shape and is rescaled to fit; a new game takes the new shape. Empty tiles white with thin gray edges (one screen pixel wide at any scale); zeros slate gray with a gray "0"; numbered tiles colored by value, from pale yellow for 1 through orange, red, pink, purple and blue to green above 100, with the number on the tile (on a kite at its centroid, on a dart along its axis toward the tip) |
 | Last move | Amber outline |

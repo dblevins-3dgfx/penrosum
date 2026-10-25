@@ -7,11 +7,11 @@ import { DEFAULT_OPTIONS, TARGET_OPTIONS, type Options } from './rules';
 
 const ALLOWED: { [K in keyof Options]: readonly Options[K][] } = {
   group: ['connected', 'neighbors'],
-  clear: ['empty', 'zero'],
   values: ['ones', 'random', 'choose'],
   goal: ['highest', 'target'],
   target: TARGET_OPTIONS,
   shape: ['any', 'same'],
+  zeros: ['none', 'deck'],
 };
 
 // The rule options from their saved JSON (or null when nothing is saved).

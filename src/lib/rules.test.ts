@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { makeBoard } from './board';
 import {
   DEFAULT_OPTIONS, EMPTY, type Cell, type Options, type Tile,
-  boardFull, canPlace, drawValue, groupAt, highestTile, outcome, place, previewAt,
+  SEED_FRACTION, SEED_VALUES, ZERO_CHANCE,
+  boardFull, canPlace, choosableValues, deckFor, drawValue, groupAt, highestTile, outcome, place, previewAt, seedBoard,
 } from './rules';
 
 // A small graph to test on:
@@ -132,19 +134,15 @@ describe('place', () => {
     expect(cells).toEqual(cellsOf({ 1: 3, 3: 1, 5: 1 }));
   });
 
-  it('clear empty: merged-away tiles become un-numbered', () => {
-    const { cells } = place(tiles, cellsOf({ 0: 1, 2: 1 }), 1, 1, opts({ clear: 'empty' }));
+  it('merged-away tiles become empty, and can be played again', () => {
+    const { cells } = place(tiles, cellsOf({ 0: 1, 2: 1 }), 1, 1, opts());
     expect(cells[0]).toBe(EMPTY);
     expect(cells[2]).toBe(EMPTY);
+    expect(canPlace(cells, 0)).toBe(true);
   });
 
-  it('clear zero: merged-away tiles hold 0, which blocks groups', () => {
-    const first = place(tiles, cellsOf({ 0: 1, 2: 1 }), 1, 1, opts({ clear: 'zero' }));
-    expect(first.cells).toEqual(cellsOf({ 0: 0, 1: 3, 2: 0 }));
-    expect(canPlace(first.cells, 0)).toBe(false);
-    // Zeros never match a placed number, so three tiles next to two zeros don't merge
-    const second = place(tiles, cellsOf({ 0: 0, 2: 0 }), 1, 1, opts({ clear: 'zero' }));
-    expect(second.merges).toEqual([]);
+  it('zeros never match a placed 1, so a 1 between two zeros does not merge', () => {
+    expect(place(tiles, cellsOf({ 0: 0, 2: 0 }), 1, 1, opts()).merges).toEqual([]);
   });
 
   it('same shape: a mixed-shape group does not merge', () => {
@@ -221,6 +219,65 @@ describe('previewAt', () => {
   });
 });
 
+describe('zeros in the deck', () => {
+  // A star: 0 in the middle, touching 1 to 4
+  const star: Tile[] = [
+    { neighbors: [1, 2, 3, 4] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] },
+  ];
+
+  it('a placed 0 merges neighboring zeros into one, where it was placed', () => {
+    const { cells, merges } = place(star, [EMPTY, 0, 0, 0, 1], 0, 0, opts());
+    expect(merges).toEqual([{ into: 0, from: [1, 2, 3], sum: 0 }]);
+    expect(cells).toEqual([0, EMPTY, EMPTY, EMPTY, 1]);
+  });
+
+  it('a placed 0 follows connected zeros like any other number', () => {
+    const { cells } = place(tiles, cellsOf({ 0: 0, 1: 0, 2: 0 }), 3, 0, opts({ group: 'connected' }));
+    expect(cells).toEqual(cellsOf({ 3: 0 }));
+  });
+
+  it('a placed 0 does not match other numbers, and zeros still do not match placed 1s', () => {
+    expect(place(star, [EMPTY, 1, 1, 0, EMPTY], 0, 0, opts()).merges).toEqual([]);
+    expect(place(star, [EMPTY, 0, 0, 1, EMPTY], 0, 1, opts()).merges).toEqual([]);
+  });
+
+  it('a merge of zeros leaves a 0 that stays put', () => {
+    // The zeros merge into the middle; the 0 left there touches only 1s
+    const { cells, merges } = place(star, [EMPTY, 0, 0, 1, 1], 0, 0, opts());
+    expect(merges).toHaveLength(1);
+    expect(cells).toEqual([0, EMPTY, EMPTY, 1, 1]);
+  });
+
+  it('decks: what each value rule draws, with and without zeros', () => {
+    expect(deckFor(opts({ values: 'ones' }))).toEqual([[1, 1]]);
+    expect(deckFor(opts({ values: 'ones', zeros: 'deck' }))).toEqual([[0, ZERO_CHANCE], [1, 1 - ZERO_CHANCE]]);
+    expect(deckFor(opts({ values: 'choose', zeros: 'deck' }))).toEqual([]);
+    const random = deckFor(opts({ values: 'random', zeros: 'deck' }));
+    expect(random.map(([v]) => v)).toEqual([0, 1, 2, 3]);
+    expect(random.reduce((s, [, w]) => s + w, 0)).toBeCloseTo(1, 12);
+    expect(random[0][1]).toBe(ZERO_CHANCE);
+    // 1, 2 and 3 keep their proportions (7 : 2 : 1)
+    expect(random[1][1] / random[3][1]).toBeCloseTo(7, 9);
+  });
+
+  it('draws a 0 ZERO_CHANCE of the time', () => {
+    const deck = deckFor(opts({ values: 'ones', zeros: 'deck' }));
+    expect(drawValue(() => 0, deck)).toBe(0);
+    expect(drawValue(() => ZERO_CHANCE - 0.001, deck)).toBe(0);
+    expect(drawValue(() => ZERO_CHANCE, deck)).toBe(1);
+    expect(drawValue(() => 0.999, deck)).toBe(1);
+  });
+
+  it('the player can pick 0 only with zeros in the deck', () => {
+    expect(choosableValues(opts())).toEqual([1, 2, 3]);
+    expect(choosableValues(opts({ zeros: 'deck' }))).toEqual([0, 1, 2, 3]);
+  });
+
+  it('the preview shows a placed 0 and the zeros it would clear', () => {
+    expect(previewAt(star, [EMPTY, 0, 0, 1, EMPTY], 0, 0, opts())).toEqual({ value: 0, merging: [1, 2] });
+  });
+});
+
 describe('drawValue', () => {
   it('draws 1 70% of the time, 2 20% and 3 10%', () => {
     expect(drawValue(() => 0)).toBe(1);
@@ -260,5 +317,55 @@ describe('outcome', () => {
   it('highest: the game ends when the board is full, scored by the highest tile', () => {
     const full = cellsOf({ 0: 4, 1: 1, 2: 0, 3: 1, 4: 1, 5: 1 });
     expect(outcome(full, opts({ goal: 'highest' }))).toEqual({ over: true, won: true, highest: 4 });
+  });
+});
+
+describe('seedBoard', () => {
+  // A repeatable random source (a small linear congruential generator)
+  const rng = (seed: number) => () => {
+    seed = (seed * 1664525 + 1013904223) % 2 ** 32;
+    return seed / 2 ** 32;
+  };
+  const board = makeBoard(800, 600);
+
+  it('numbers about a tenth of the tiles, with 0 to 3', () => {
+    const cells = seedBoard(board, rng(1));
+    const seeded = cells.filter(c => c !== EMPTY);
+    expect(seeded).toHaveLength(Math.round(board.length * SEED_FRACTION));
+    for (const v of seeded) expect(SEED_VALUES).toContain(v);
+  });
+
+  it('uses every seed value', () => {
+    const cells = seedBoard(board, rng(2));
+    for (const v of SEED_VALUES) expect(cells).toContain(v);
+  });
+
+  it('never gives neighboring seeds the same number, so nothing can merge yet', () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      const cells = seedBoard(board, rng(seed));
+      for (const t of board) {
+        if (cells[t.id] === EMPTY) continue;
+        for (const n of t.neighbors) expect(cells[n]).not.toBe(cells[t.id]);
+        expect(groupAt(board, cells, t.id, 'connected')).toEqual([t.id]);
+      }
+    }
+  });
+
+  it('is random: different games start differently', () => {
+    expect(seedBoard(board, rng(1))).toEqual(seedBoard(board, rng(1)));
+    expect(seedBoard(board, rng(1))).not.toEqual(seedBoard(board, rng(2)));
+  });
+
+  it('leaves a tile empty when its neighbors already hold every value', () => {
+    // A star: the middle (0) touches tiles 1 to 4
+    const star: Tile[] = [
+      { neighbors: [1, 2, 3, 4] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] },
+    ];
+    // The shuffle's draws visit the middle last (order 4, 1, 2, 3, 0); the
+    // value draws then give the leaves 0, 1, 2 and 3
+    const draws = [0, 0.999, 0.999, 0.999, 0, 0.25, 0.5, 0.75];
+    let i = 0;
+    const cells = seedBoard(star, () => draws[i++], 1);
+    expect(cells).toEqual([EMPTY, 1, 2, 3, 0]);
   });
 });
