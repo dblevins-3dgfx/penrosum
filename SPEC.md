@@ -38,7 +38,7 @@ A merging number game on a Penrose tiling of kites and darts. The player places 
 - **Tiles** are either empty or hold a number. A tile can hold 0 (a seed, or a placed 0), which can't be played on and matches only a placed 0.
 - **Next value.** Each move's value is drawn at random from the deck (`DECK`) before the move and shown in advance ("Next" in the panel): 0 10% of the time, 1 63%, 2 18% and 3 9% (1, 2 and 3 at 7 : 2 : 1). With wildcards (Q8) the deck can also deal a wildcard, shown as ★.
 - **A move** places the next value on any empty tile.
-- **Group.** After placing, the group is the placed tile plus every matching tile connected to it through other matching tiles (tiles are connected when they share an edge). So a long chain of matching tiles collapses all at once, even when the placed tile is at its end. Matching tiles hold the same number, and may also need the same shape (Q6). Tiles with a different number never join the group, and the group never passes through them; zeros join only a placed 0.
+- **Group.** After placing, the group is the placed tile plus every matching tile connected to it through other matching tiles (tiles are connected when they share an edge). So a long chain of matching tiles collapses all at once, even when the placed tile is at its end. Matching tiles hold the same number; shape doesn't matter, so kites and darts match each other. Tiles with a different number never join the group, and the group never passes through them; zeros join only a placed 0.
 - **Merge.** If the group has 3 or more tiles (`MIN_GROUP`), the placed tile takes the sum of their numbers (the number times the group's size) and the other tiles in the group become empty: they leave the board and can be played on again, so free space comes back after every merge. Otherwise nothing else changes. Zeros merge the same way: a 0 placed so that it connects to two or more zeros takes them into one 0 where it was placed, so zero obstacles can be consolidated, moved and reduced (three zeros become one).
 - **Chain reaction.** After a merge, the placed tile's new number may match the tiles around it: three 1s make a 3 next to two other 3s. If its new number makes a group of 3 or more, it merges again, and keeps going as long as it can, so one move can make 3, then 9, then 27. Every merge empties at least two numbered tiles and numbers none, so a chain always ends.
 - **Pressure.** After the move (and any chain reaction), the pressure rule may add zeros to the board (Q9).
@@ -49,7 +49,7 @@ A merging number game on a Penrose tiling of kites and darts. The player places 
 
 Each option below is implemented and can be switched during play, in the **Preferences** dialog. The first one listed is the default.
 
-Every question has a permanent number, Q1, Q2 and so on, given in the order the questions were opened. A number never changes and is never reused, so it means the same question here, in **Resolved questions** (section 8), in the Preferences dialog, and in pull requests and commits. The next new question is **Q10**.
+Every question has a permanent number, Q1, Q2 and so on, given in the order the questions were opened. A number never changes and is never reused, so it means the same question here, in **Resolved questions** (section 8), in the Preferences dialog, and in pull requests and commits. The next new question is **Q11**.
 
 ### Q4. What is the goal, and when does the game end?
 
@@ -59,15 +59,6 @@ Every question has a permanent number, Q1, Q2 and so on, given in the order the 
 | Reach a target (`target`) | Make a tile of at least the target (20, 50, 100 or 200) to win; filling the board first loses. The win reports how many moves it took, so fewer moves is better |
 
 Still to think about: a scoring system (for example points per merge), a move limit, a time limit, and how the game should push back so the board fills up (Q9 tries some ways).
-
-### Q6. Which tiles can match?
-
-| Option | Behavior |
-|---|---|
-| Any shape (`any`) | Kites and darts with the same number match each other |
-| Same shape only (`same`) | They must also be the same shape: kite with kite, dart with dart. A group never crosses into the other shape, and a chain reaction only continues with tiles of the placed tile's shape |
-
-How the board affects this, on the medium board before seeding (103 tiles): the 60 kites mostly touch two other kites and form one large connected kite region of 41 tiles. The 43 darts are scattered: the largest dart regions are five-dart stars, and 7 darts touch no other dart, so under "same shape only" a number placed on one of them can never merge.
 
 ### Q8. Wildcards in the deck?
 
@@ -91,6 +82,19 @@ Merged-away tiles become empty, so a careful player can keep space free and the 
 | A 0 every move, ringed in advance (`spawn`) | After every move, a 0 appears on a tile announced a move ahead, shown with a dashed gray ring. Playing on the ringed tile blocks that move's 0. Then the next tile is announced, picked at random from the empty ones. The board fills steadily whatever the player does, and only merging keeps pace, as in Threes and 2048 |
 | Rubble from 3-tile merges (`rubble`) | Each merge of exactly 3 tiles (in a chain reaction too) leaves a 0 on its cleared tile farthest from the placed one. Bigger merges leave none, so it pays to build bigger groups |
 
+### Q10. How do the shapes matter?
+
+Kites and darts match each other (Q6 decided that), but the two shapes can still matter in other ways (`ShapesRule`). The medium board, before seeding, has 60 kites and 43 darts; the kites mostly link into one large region, while the darts sit in small clusters (at most five-dart stars), so darts are the scarcer, more scattered spots.
+
+| Option | Behavior |
+|---|---|
+| Off (`none`) | Shape changes nothing |
+| Next value comes with a shape (`dealt`) | Each drawn value is dealt a shape too: a kite 60% of the time (`KITE_CHANCE`, about the board's own share), otherwise a dart. It must go on an empty tile of that shape; if none is left, any empty tile will do (`shapeToPlace`). The Next chip is drawn as a kite or dart, and empty tiles of the other shape are shaded gray |
+| Merges on a dart double (`dartDouble`) | A merge into a dart (the placed tile is a dart) is worth double: three 1s make 6. Each merge of a chain reaction on a dart doubles again |
+| Same-shape merges double (`sameBonus`) | A merge whose tiles are all one shape (all kites or all darts) is worth double. Mixed groups still merge, at face value |
+
+The doubling options make numbers that aren't sums of the deck's values (6, 12, 36 ...), so groups can form from numbers that would otherwise never meet. Still to think about: whether a doubled merge should be marked on the board, and the suns and stars idea (a merge completing five kites or five darts around a point does something special).
+
 ## 6. Screen
 
 Everything fits on one screen with no scrolling. The board is square, so the screen is split into a square for the board and a panel in the space left over:
@@ -102,15 +106,15 @@ Rotating a phone moves the panel between the side and the bottom; the game carri
 
 | Element | Behavior |
 |---|---|
-| Next chip | The next value, at the top of the panel beside the title, drawn as a rounded tile in the same colors that number has on the board (fill and number color, from `src/lib/colors.ts`, shared with the board drawing). A wildcard shows ★ on a rainbow gradient, a look no number has. Each newly drawn value pops in (a quick grow and settle, 0.25 s), except when the device asks for reduced motion |
+| Next chip | The next value, at the top of the panel beside the title, drawn as a rounded tile in the same colors that number has on the board (fill and number color, from `src/lib/colors.ts`, shared with the board drawing). A wildcard shows ★ on a rainbow gradient, a look no number has. When the value is dealt a shape (Q10), the chip is cut into a kite or a dart instead of a rounded square. Each newly drawn value pops in (a quick grow and settle, 0.25 s), except when the device asks for reduced motion |
 | Panel | From the top: the title and the Next chip; the stats as small cards (moves, highest tile, free (empty) tiles, plus the target under the target goal); **Undo** (disabled with nothing to undo), **New Game ▾** and **Preferences**, wrapping onto more lines if the panel is narrow; then the status line |
 | New Game menu | Small, Medium and Large, each with its tile count; the current board's size is highlighted. It opens below the button with the panel at the side, and above it with the panel at the bottom, so it stays on screen. Picking one starts a new game on that size and remembers it for next time. Escape or a click outside closes the menu without starting a game |
-| Board | Scaled to fill its square (leaving 8 px around it) and centered. When the window changes size or the screen is rotated, the board is rescaled to fit. Empty tiles white with thin gray edges (one screen pixel wide at any scale); zeros slate gray with a gray "0"; numbered tiles colored by value, from pale yellow for 1 through orange, red, pink, purple and blue to green above 100, with the number on the tile (on a kite at its centroid, on a dart along its axis toward the tip) |
+| Board | Scaled to fill its square (leaving 8 px around it) and centered. When the window changes size or the screen is rotated, the board is rescaled to fit. Empty tiles white with thin gray edges (one screen pixel wide at any scale), or light gray when the next value was dealt the other shape (Q10); zeros slate gray with a gray "0"; numbered tiles colored by value, from pale yellow for 1 through orange, red, pink, purple and blue to green above 100, with the number on the tile (on a kite at its centroid, on a dart along its axis toward the tip) |
 | Last move | Amber outline |
 | Next spawn | Under the "a 0 every move" pressure rule, a dashed gray ring on the empty tile where the next 0 will appear |
 | Hover | The empty tile under the pointer is tinted blue and shows the number it would end up with: the value placed, or the result of its merges (including any chain reaction). The tiles those merges would clear get a blue outline. Occupied tiles show no preview |
-| Status line | Before the first move, a one-line hint on how to play; then what a wildcard became ("Wild played as 3.") the last move's merges ("Merged 3 tiles into 3, then 3 tiles into 9") and any zeros the pressure rule added ("A 0 dropped."), or the result at the end of the game. It wraps onto as many lines as it needs |
-| Preferences | A dialog over the board: one row of buttons per open question, labeled with its number (Q4, Q6, Q8, Q9), the target choice under the target goal, and how to play. Escape, the ×, **Done** or a click outside closes it |
+| Status line | Before the first move, a one-line hint on how to play (naming the dealt shape, if any); then what a wildcard became ("Wild played as 3.") the last move's merges ("Merged 3 tiles into 3, then 3 tiles into 9", with "(doubled on a dart)" or "(doubled: all one shape)" after a doubled one, Q10) and any zeros the pressure rule added ("A 0 dropped."), or the result at the end of the game. It wraps onto as many lines as it needs |
+| Preferences | A dialog over the board: one row of buttons per open question, labeled with its number (Q4, Q8, Q9, Q10), the target choice under the target goal, and how to play. Escape, the ×, **Done** or a click outside closes it |
 
 Pointer and touch both work: a tap or click places on the tile under it.
 
@@ -145,3 +149,4 @@ Before permanent numbers, questions were numbered by position and renumbered as 
 | Q1 | 2026-10-25 | Which tiles count as adjacent? | Whole connected group; Direct neighbors only | **Whole connected group** | A group follows matching tiles through each other, so a chain collapses even from its end (Rules: **Group**) | [#7](https://github.com/dblevins-3dgfx/penrosum/pull/7) |
 | Q3 | 2026-10-25 | What value is placed? | Always 1; Random 1 to 3 (7 : 2 : 1); Player picks 1 to 3 | **Random** | Every move is dealt from one deck and shown in advance (Rules: **Next value**). Raised a new question: wildcards (Q8) | [#8](https://github.com/dblevins-3dgfx/penrosum/pull/8) |
 | Q7 | 2026-10-25 | Zeros in the deck? | No; Yes (0 on 10% of draws) | **Yes** | The deck is 0 10%, 1 63%, 2 18%, 3 9%, so drawn 0s can merge seeded zero obstacles away (Rules: **Next value**, **Merge**) | [#8](https://github.com/dblevins-3dgfx/penrosum/pull/8) |
+| Q6 | 2026-10-25 | Which tiles can match? | Any shape; Same shape only | **Any shape** | Kites and darts with the same number match each other (Rules: **Group**). Reason: same-shape matching makes use of the two kinds of tile, but the game was more fun without it; other ways to use the shapes are being tried in Q10 | (this pull request) |

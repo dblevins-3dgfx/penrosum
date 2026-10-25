@@ -11,11 +11,6 @@
 //   target:  win by making a tile of at least `target`
 export type GoalRule = 'highest' | 'target';
 
-// Whether a tile's shape matters for matching.
-//   any:  any tiles with the same number match
-//   same: they must also be the same shape, kite with kite, dart with dart
-export type ShapeRule = 'any' | 'same';
-
 // Whether a wildcard can come up as the value to place.
 //   none: never
 //   deck: a drawn value is WILD WILD_CHANCE of the time; when placed it
@@ -32,20 +27,31 @@ export type WildRule = 'none' | 'deck';
 //              from the placed tile
 export type PressureRule = 'none' | 'mergeZero' | 'spawn' | 'rubble';
 
+export type Shape = 'kite' | 'dart';
+
+// How the two tile shapes matter in play. Matching never depends on shape.
+//   none:       they don't
+//   dealt:      each drawn value comes with a shape (kite KITE_CHANCE of the
+//               time) and must go on an empty tile of that shape, unless
+//               none is left (see shapeToPlace)
+//   dartDouble: a merge into a dart is worth double
+//   sameBonus:  a merge whose tiles are all one shape is worth double
+export type ShapesRule = 'none' | 'dealt' | 'dartDouble' | 'sameBonus';
+
 export interface Options {
   goal: GoalRule;
   target: number;
-  shape: ShapeRule;
   wild: WildRule;
   pressure: PressureRule;
+  shapes: ShapesRule;
 }
 
 export const DEFAULT_OPTIONS: Options = {
   goal: 'highest',
   target: 50,
-  shape: 'any',
   wild: 'none',
   pressure: 'none',
+  shapes: 'none',
 };
 
 export const TARGET_OPTIONS = [20, 50, 100, 200];
@@ -61,19 +67,39 @@ export type Cell = number | null;
 
 export interface Tile {
   neighbors: number[];
-  type?: 'kite' | 'dart'; // needed by the 'same' shape rule
+  type?: Shape; // needed by the shape rules (Q10)
 }
 
 // A move is legal on an un-numbered tile.
 export const canPlace = (cells: Cell[], id: number) => cells[id] === EMPTY;
 
-// The group for numbered tile `id`: it first, then every matching tile (the
-// same number, and under the 'same' shape rule the same shape) connected to
-// it through other matching tiles. Fewer than MIN_GROUP tiles means no
-// merge.
-export const groupAt = (tiles: Tile[], cells: Cell[], id: number, shape: ShapeRule = 'any'): number[] => {
-  const matches = (n: number) =>
-    cells[n] === cells[id] && (shape === 'any' || tiles[n].type === tiles[id].type);
+// Under the 'dealt' shape rule: the shape the next value must go on, or
+// null when any empty tile will do (no shape was dealt, or no empty tile of
+// the dealt shape is left).
+export const shapeToPlace = (tiles: Tile[], cells: Cell[], dealt: Shape | null): Shape | null =>
+  dealt && tiles.some((t, i) => t.type === dealt && cells[i] === EMPTY) ? dealt : null;
+
+// Whether the next value, dealt with `dealt` (or null), can go on `id`.
+export const canPlaceDealt = (tiles: Tile[], cells: Cell[], id: number, dealt: Shape | null) => {
+  if (!canPlace(cells, id)) return false;
+  const shape = shapeToPlace(tiles, cells, dealt);
+  return shape === null || tiles[id].type === shape;
+};
+
+// With the 'dealt' rule, how often the dealt shape is a kite. Roughly the
+// board's own share of kites (60 of 103 on the medium board).
+export const KITE_CHANCE = 0.6;
+
+// The shape dealt with the next value: a random one under the 'dealt'
+// rule, null under the others. `rand` returns a number in [0, 1).
+export const dealShape = (options: Options, rand: () => number = Math.random): Shape | null =>
+  options.shapes === 'dealt' ? (rand() < KITE_CHANCE ? 'kite' : 'dart') : null;
+
+// The group for numbered tile `id`: it first, then every tile with the same
+// number connected to it through other such tiles. Fewer than MIN_GROUP
+// tiles means no merge.
+export const groupAt = (tiles: Tile[], cells: Cell[], id: number): number[] => {
+  const matches = (n: number) => cells[n] === cells[id];
   const group = [id];
   const seen = new Set(group);
   for (let i = 0; i < group.length; i++) {
@@ -91,6 +117,7 @@ export interface Merge {
   into: number; // the placed tile, which takes the sum
   from: number[]; // the other tiles, now cleared
   sum: number;
+  doubled?: 'dart' | 'shape'; // why the sum was doubled, under the shape rules
 }
 
 export interface PlaceResult {
@@ -99,7 +126,8 @@ export interface PlaceResult {
 }
 
 // Places `value` on tile `id` and applies a merge if one forms: the tile
-// takes the group's sum and the rest of the group is emptied. Then it merges
+// takes the group's sum (doubled under the 'dartDouble' and 'sameBonus'
+// shape rules when they apply) and the rest of the group is emptied. Then it merges
 // again while its new number makes a group (a chain reaction). Every merge
 // empties at least two numbered tiles and numbers none, so chains end.
 // Assumes the move is legal (see canPlace). Returns new cells; the input is
@@ -109,13 +137,18 @@ export const place = (tiles: Tile[], cells: Cell[], id: number, value: number, o
   next[id] = value;
   const merges: Merge[] = [];
   for (;;) {
-    const group = groupAt(tiles, next, id, options.shape);
+    const group = groupAt(tiles, next, id);
     if (group.length < MIN_GROUP) break;
-    const sum = group.reduce((s, t) => s + next[t], 0);
+    let sum = group.reduce((s, t) => s + next[t], 0);
+    const doubled =
+      options.shapes === 'dartDouble' && tiles[id].type === 'dart' ? 'dart'
+      : options.shapes === 'sameBonus' && group.every(t => tiles[t].type === tiles[id].type) ? 'shape'
+      : null;
+    if (doubled) sum *= 2;
     const from = group.slice(1);
     for (const t of from) next[t] = EMPTY;
     next[id] = sum;
-    merges.push({ into: id, from, sum });
+    merges.push(doubled ? { into: id, from, sum, doubled } : { into: id, from, sum });
   }
   return { cells: next, merges };
 };

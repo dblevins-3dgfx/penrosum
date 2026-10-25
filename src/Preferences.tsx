@@ -78,12 +78,6 @@ const Preferences = ({ options, setOption, onClose }: PreferencesProps) => {
           />
         )}
         <Choice
-          label="Q6. Which tiles can match?"
-          value={options.shape}
-          options={[['any', 'Any shape'], ['same', 'Same shape only']]}
-          onChange={v => setOption('shape', v)}
-        />
-        <Choice
           label="Q8. Wildcards (★) in your deck?"
           value={options.wild}
           options={[['none', 'No'], ['deck', 'Yes']]}
@@ -99,6 +93,17 @@ const Preferences = ({ options, setOption, onClose }: PreferencesProps) => {
             ['rubble', 'Rubble from 3-tile merges'],
           ]}
           onChange={v => setOption('pressure', v)}
+        />
+        <Choice
+          label="Q10. How do the shapes matter?"
+          value={options.shapes}
+          options={[
+            ['none', 'Off'],
+            ['dealt', 'Next value comes with a shape'],
+            ['dartDouble', 'Merges on a dart double'],
+            ['sameBonus', 'Same-shape merges double'],
+          ]}
+          onChange={v => setOption('shapes', v)}
         />
         <p className="text-xs text-slate-500 mt-2">
           How to play: place the Next number (beside the title) on any empty tile. When it makes a group of {MIN_GROUP} or more

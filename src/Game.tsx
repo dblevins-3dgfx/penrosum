@@ -6,12 +6,12 @@ import {
 import { parseBoardSize, parseOptions } from './lib/prefs';
 import {
   EMPTY, MIN_GROUP, WILD,
-  type Cell, type Merge, type Options,
-  applyPressure, canPlace, deckFor, drawValue, highestTile, nextSpawn, outcome, place, previewAt, seedBoard,
+  type Cell, type Merge, type Options, type Shape,
+  applyPressure, canPlaceDealt, dealShape, shapeToPlace, deckFor, drawValue, highestTile, nextSpawn, outcome, place, previewAt, seedBoard,
   valueToPlace,
 } from './lib/rules';
 import { fitView, toBoard } from './lib/view';
-import { EMPTY_FILL, colorsFor, fillFor, textFor } from './lib/colors';
+import { EMPTY_FILL, OFF_SHAPE_FILL, colorsFor, fillFor, textFor } from './lib/colors';
 import Preferences from './Preferences';
 
 // The rule options and board size are remembered in this browser
@@ -44,20 +44,40 @@ const nextValueFor = (options: Options) => drawValue(Math.random, deckFor(option
 // How a drawn value is shown: the wildcard as a star
 const showDrawn = (drawn: number) => (drawn === WILD ? '★' : String(drawn));
 
-// "Merged 3 tiles into 3, then 3 tiles into 9"
+// "Merged 3 tiles into 3, then 3 tiles into 12 (doubled on a dart)"
+const DOUBLED = { dart: ' (doubled on a dart)', shape: ' (doubled: all one shape)' };
 const describeMerges = (merges: Merge[]) =>
-  merges.length ? `Merged ${merges.map(m => `${m.from.length + 1} tiles into ${m.sum}`).join(', then ')}` : '';
+  merges.length
+    ? `Merged ${merges.map(m => `${m.from.length + 1} tiles into ${m.sum}${m.doubled ? DOUBLED[m.doubled] : ''}`).join(', then ')}`
+    : '';
+
+// The chip's outline when the next value is dealt a shape (Q10): a kite,
+// or a dart with its notch at the bottom
+const CHIP_CLIP: Record<Shape, string> = {
+  kite: 'polygon(50% 0, 100% 40%, 50% 100%, 0 40%)',
+  dart: 'polygon(50% 0, 100% 100%, 50% 72%, 0 100%)',
+};
 
 // The next value as a chip in the tile's own colors (the wildcard in its
-// rainbow). Keyed by the move count, so each new draw pops in.
-const NextChip = ({ drawn, moves }: { drawn: number; moves: number }) => {
+// rainbow), shaped like a kite or dart when it was dealt a shape. Keyed by
+// the move count, so each new draw pops in.
+const NextChip = ({ drawn, shape, moves }: { drawn: number; shape: Shape | null; moves: number }) => {
   const { fill, text } = colorsFor(drawn);
+  const name = drawn === WILD ? 'wildcard' : String(drawn);
   return (
     <b
       key={moves}
-      aria-label={`Next: ${drawn === WILD ? 'wildcard' : drawn}`}
-      className="next-chip inline-flex items-center justify-center min-w-11 h-11 px-2 rounded-lg border border-slate-400/60 shadow-sm text-2xl"
-      style={{ background: fill, color: text, textShadow: drawn === WILD ? '0 1px 2px #0006' : undefined }}
+      aria-label={`Next: ${name}${shape ? ` on a ${shape}` : ''}`}
+      className={`next-chip inline-flex items-center justify-center text-2xl ${
+        shape ? 'w-14 h-14' : 'min-w-11 h-11 px-2 rounded-lg border border-slate-400/60 shadow-sm'
+      }`}
+      style={{
+        background: fill,
+        color: text,
+        textShadow: drawn === WILD ? '0 1px 2px #0006' : undefined,
+        clipPath: shape ? CHIP_CLIP[shape] : undefined,
+        paddingBottom: shape === 'dart' ? '0.6rem' : undefined,
+      }}
     >
       {showDrawn(drawn)}
     </b>
@@ -76,6 +96,7 @@ interface Snapshot {
   moves: number;
   lastMove: number | null;
   spawnAt: number | null; // where the 'spawn' pressure rule's next 0 appears
+  nextShape: Shape | null; // the shape dealt with the next value (Q10 'dealt')
   message: string;
 }
 
@@ -135,7 +156,8 @@ const Game = () => {
     setBoard({ size: newSize, tiles, bounds: boardBounds(tiles) });
     const cells = seedBoard(tiles);
     setState({
-      cells, next: nextValueFor(options), moves: 0, lastMove: null, spawnAt: nextSpawn(cells, options), message: '',
+      cells, next: nextValueFor(options), moves: 0, lastMove: null, spawnAt: nextSpawn(cells, options),
+      nextShape: dealShape(options), message: '',
     });
     setUndo([]);
     setHovered(-1);
@@ -152,6 +174,7 @@ const Game = () => {
     setOptions(updated);
     save(OPTIONS_STORAGE_KEY, JSON.stringify(updated));
     if (key === 'wild') setState(s => s && { ...s, next: nextValueFor(updated) });
+    if (key === 'shapes') setState(s => s && { ...s, nextShape: dealShape(updated) });
     if (key === 'pressure') setState(s => s && { ...s, spawnAt: nextSpawn(s.cells, updated) });
   };
   const closePrefs = useCallback(() => setShowPrefs(false), []);
@@ -176,7 +199,7 @@ const Game = () => {
   };
 
   const play = (id: number) => {
-    if (!state || result.over || id < 0 || !canPlace(cells, id)) return;
+    if (!state || result.over || id < 0 || !canPlaceDealt(tiles, cells, id, state.nextShape)) return;
     const value = valueToPlace(tiles, cells, id, drawn, options);
     const { cells: placed, merges } = place(tiles, cells, id, value, options);
     const { cells: after, zeros, spawnAt } = applyPressure(placed, merges, options, state.spawnAt);
@@ -187,6 +210,7 @@ const Game = () => {
       moves: state.moves + 1,
       lastMove: id,
       spawnAt,
+      nextShape: dealShape(options),
       message: [
         drawn === WILD ? `Wild played as ${value}.` : '',
         describeMerges(merges),
@@ -197,7 +221,7 @@ const Game = () => {
 
   // What the hovered tile would do, for the preview
   const preview = useMemo(() => {
-    if (hovered < 0 || result.over || !canPlace(cells, hovered)) return null;
+    if (hovered < 0 || result.over || !canPlaceDealt(tiles, cells, hovered, state?.nextShape ?? null)) return null;
     return previewAt(tiles, cells, hovered, drawn, options);
   }, [hovered, cells, drawn, options, result.over, tiles]);
 
@@ -221,10 +245,12 @@ const Game = () => {
     const px = 1 / view.scale; // one screen pixel, in board units
 
     const inGroup = new Set(preview?.merging);
+    // Under the 'dealt' shape rule, empty tiles of the other shape are shaded
+    const mustBe = shapeToPlace(tiles, cells, state.nextShape);
     for (const t of tiles) {
       const v = cells[t.id];
       tracePath(ctx, t);
-      ctx.fillStyle = v === EMPTY ? EMPTY_FILL : fillFor(v);
+      ctx.fillStyle = v !== EMPTY ? fillFor(v) : mustBe && t.type !== mustBe ? OFF_SHAPE_FILL : EMPTY_FILL;
       ctx.fill();
       ctx.strokeStyle = '#94a3b8';
       ctx.lineWidth = px;
@@ -279,7 +305,7 @@ const Game = () => {
   const moves = state?.moves ?? 0;
   const free = cells.filter(c => c === EMPTY).length;
   let status = state?.message || (moves === 0
-    ? `Place the Next number on an empty tile. ${MIN_GROUP} or more matching tiles merge into the one you placed.`
+    ? `Place the Next number on an empty ${shapeToPlace(tiles, cells, state?.nextShape ?? null) ?? 'tile'}. ${MIN_GROUP} or more matching tiles merge into the one you placed.`
     : '');
   if (state && result.over) {
     status = result.won
@@ -318,7 +344,7 @@ const Game = () => {
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold text-indigo-700 mr-auto">Penrosum</h1>
           <span className="text-sm text-slate-600">Next</span>
-          <NextChip drawn={drawn} moves={moves} />
+          <NextChip drawn={drawn} shape={state?.nextShape ?? null} moves={moves} />
         </div>
 
         <dl className={`grid gap-2 ${stats.length === 4 ? 'grid-cols-4' : 'grid-cols-3'}`}>
