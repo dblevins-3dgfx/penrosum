@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { MIN_GROUP, TARGET_OPTIONS, type Options } from './lib/rules';
+import { targetLabel } from './lib/labels';
 
 interface ChoiceProps<T extends string | number> {
   label: string;
@@ -73,7 +74,7 @@ const Preferences = ({ options, setOption, onClose }: PreferencesProps) => {
           <Choice
             label="Target"
             value={options.target}
-            options={TARGET_OPTIONS.map(t => [t, String(t)] as [number, string])}
+            options={TARGET_OPTIONS.map(t => [t, targetLabel(t)] as [number, string])}
             onChange={v => setOption('target', v)}
           />
         )}
@@ -88,8 +89,8 @@ const Preferences = ({ options, setOption, onClose }: PreferencesProps) => {
           value={options.pressure}
           options={[
             ['none', 'Off'],
-            ['mergeZero', 'A random 0 after each merge'],
-            ['spawn', 'A 0 every move (ringed in advance)'],
+            ['mergeZero', 'A random # after each merge'],
+            ['spawn', 'A # every move (ringed in advance)'],
             ['rubble', 'Rubble from 3-tile merges'],
           ]}
           onChange={v => setOption('pressure', v)}
@@ -100,29 +101,17 @@ const Preferences = ({ options, setOption, onClose }: PreferencesProps) => {
           options={[
             ['none', 'Off'],
             ['dealt', 'Next value comes with a shape'],
-            ['dartDouble', 'Merges on a dart double'],
-            ['sameBonus', 'Same-shape merges double'],
+            ['dartDouble', 'Bonus rung for merges on a dart'],
+            ['sameBonus', 'Bonus rung for same-shape merges'],
           ]}
           onChange={v => setOption('shapes', v)}
         />
-        <Choice
-          label="Q11. What does a merge make?"
-          value={options.merge}
-          options={[
-            ['sum', 'The sum (deals 0–3)'],
-            ['cap', 'The sum, rounded down to a power of 3 (deals 0, 1, 3, 9)'],
-            ['step', 'The next power of 3 (deals 0, 1, 3, 9)'],
-          ]}
-          onChange={v => setOption('merge', v)}
-        />
-        {options.merge !== 'sum' && (
-          <p className="text-xs text-slate-500 -mt-2 mb-3">Seeds follow from the next New Game.</p>
-        )}
         <p className="text-xs text-slate-500 mt-2">
-          How to play: place the Next number (beside the title) on any empty tile. When it makes a group of {MIN_GROUP} or more
-          tiles with the same number, the tile you placed takes their sum and the others are cleared.
-          If the new number then makes a group too, it merges again. Hover a tile to see what would
-          merge.
+          How to play: place the Next letter (beside the title) on any empty tile. When it makes a
+          group of {MIN_GROUP} or more tiles with the same letter, they merge into the tile you placed,
+          one rung up the alphabet (three As make a B; nine make a C). # tiles are obstacles that only
+          a placed # merges away. If the new letter then makes a group too, it merges again. Make a Z
+          to win. Hover a tile to see what would merge.
         </p>
         <div className="mt-4 text-right">
           <button onClick={onClose} className="px-4 py-1.5 rounded bg-indigo-600 text-white text-sm">Done</button>

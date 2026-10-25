@@ -6,7 +6,7 @@ import {
   boardFull, canPlace, deckFor, drawValue, groupAt, highestTile, outcome, place, previewAt, resolveWild, seedBoard, valueToPlace,
   applyPressure, nextSpawn, randomEmpty,
   KITE_CHANCE, canPlaceDealt, dealShape, shapeToPlace,
-  POW3_DECK, TOP_VALUE, floorPow3, mergeResult, valuesFor,
+  TOP_VALUE, floorPow3, mergeResult,
 } from './rules';
 
 // A small graph to test on:
@@ -95,9 +95,9 @@ describe('place', () => {
     expect(cells).toEqual(cellsOf({ 1: 3 }));
   });
 
-  it('merges matching numbers other than 1 into their sum', () => {
-    const { cells } = place(tiles, cellsOf({ 0: 2, 2: 2 }), 1, 2, opts());
-    expect(cells).toEqual(cellsOf({ 1: 6 }));
+  it('three Bs (3s) make a C (9)', () => {
+    const { cells } = place(tiles, cellsOf({ 0: 3, 2: 3 }), 1, 3, opts());
+    expect(cells).toEqual(cellsOf({ 1: 9 }));
   });
 
   it('does not merge tiles with different numbers', () => {
@@ -112,8 +112,9 @@ describe('place', () => {
   });
 
   it('a chain collapses into the placed tile, even from its end', () => {
+    // Four As: 4, rounded down to B (3)
     const { cells } = place(tiles, cellsOf({ 0: 1, 1: 1, 2: 1 }), 3, 1, opts());
-    expect(cells).toEqual(cellsOf({ 3: 4 }));
+    expect(cells).toEqual(cellsOf({ 3: 3 }));
   });
 
   it('merged-away tiles become empty, and can be played again', () => {
@@ -208,16 +209,16 @@ describe('placing zeros', () => {
 });
 
 describe('the deck', () => {
-  it('draws 0 10% of the time, then 1, 2 and 3 as 63%, 18% and 9%', () => {
+  it('draws # (0) 10% of the time, then A, B and C (1, 3, 9) as 63%, 18% and 9%', () => {
     expect(DECK.reduce((t, [, w]) => t + w, 0)).toBeCloseTo(1, 12);
     expect(drawValue(() => 0)).toBe(0);
     expect(drawValue(() => 0.099)).toBe(0);
     expect(drawValue(() => 0.1)).toBe(1);
     expect(drawValue(() => 0.729)).toBe(1);
-    expect(drawValue(() => 0.73)).toBe(2);
-    expect(drawValue(() => 0.909)).toBe(2);
-    expect(drawValue(() => 0.91)).toBe(3);
-    expect(drawValue(() => 0.999)).toBe(3);
+    expect(drawValue(() => 0.73)).toBe(3);
+    expect(drawValue(() => 0.909)).toBe(3);
+    expect(drawValue(() => 0.91)).toBe(9);
+    expect(drawValue(() => 0.999)).toBe(9);
   });
 
   it('is the same deck in play without wildcards', () => {
@@ -228,7 +229,7 @@ describe('the deck', () => {
     const deck = deckFor(opts({ wild: 'deck' }));
     expect(deck[0]).toEqual([WILD, WILD_CHANCE]);
     expect(deck.reduce((t, [, w]) => t + w, 0)).toBeCloseTo(1, 12);
-    expect(deck.slice(1).map(([v]) => v)).toEqual([0, 1, 2, 3]);
+    expect(deck.slice(1).map(([v]) => v)).toEqual([0, 1, 3, 9]);
     expect(deck[2][1] / deck[1][1]).toBeCloseTo(6.3, 9);
     expect(drawValue(() => 0, deck)).toBe(WILD);
     expect(drawValue(() => WILD_CHANCE, deck)).toBe(0);
@@ -247,8 +248,8 @@ describe('wildcards', () => {
   });
 
   it('prefers the merge that leaves the biggest number', () => {
-    // As 1 it makes 3; as 2 it makes 6
-    expect(resolveWild(star, [EMPTY, 1, 1, 2, 2], 0, wild)).toBe(2);
+    // As A (1) it makes B (3); as C (9) it makes D (27)
+    expect(resolveWild(star, [EMPTY, 1, 1, 9, 9], 0, wild)).toBe(9);
   });
 
   it('counts chain reactions when judging a merge', () => {
@@ -366,11 +367,11 @@ describe('seedBoard', () => {
       { neighbors: [1, 2, 3, 4] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] },
     ];
     // The shuffle's draws visit the middle last (order 4, 1, 2, 3, 0); the
-    // value draws then give the leaves 0, 1, 2 and 3
+    // value draws then give the leaves 0, 1, 3 and 9
     const draws = [0, 0.999, 0.999, 0.999, 0, 0.25, 0.5, 0.75];
     let i = 0;
     const cells = seedBoard(star, () => draws[i++], 1);
-    expect(cells).toEqual([EMPTY, 1, 2, 3, 0]);
+    expect(cells).toEqual([EMPTY, 1, 3, 9, 0]);
   });
 });
 
@@ -512,30 +513,31 @@ describe('shapes (Q10)', () => {
   describe('dartDouble', () => {
     const rule = opts({ shapes: 'dartDouble' });
 
-    it('a merge into a dart is worth double', () => {
+    it('a merge into a dart goes one rung higher', () => {
+      // Three As make a B, and the bonus makes it a C
       const { cells, merges } = place(dartHub, [EMPTY, 1, 1, EMPTY, EMPTY], 0, 1, rule);
-      expect(merges).toEqual([{ into: 0, from: [1, 2], sum: 6, doubled: 'dart' }]);
-      expect(cells[0]).toBe(6);
+      expect(merges).toEqual([{ into: 0, from: [1, 2], sum: 9, doubled: 'dart' }]);
+      expect(cells[0]).toBe(9);
     });
 
     it('a merge into a kite is not', () => {
       expect(place(hub, [EMPTY, 1, 1, EMPTY, EMPTY], 0, 1, rule).cells[0]).toBe(3);
     });
 
-    it('each merge of a chain into a dart doubles', () => {
-      // 1+1+1 = 3, doubled 6; then 6+6+6 = 18, doubled 36
-      const { cells, merges } = place(dartHub, [EMPTY, 1, 1, 6, 6], 0, 1, rule);
-      expect(merges.map(m => m.sum)).toEqual([6, 36]);
-      expect(cells).toEqual([36, EMPTY, EMPTY, EMPTY, EMPTY]);
+    it('each merge of a chain into a dart gets the bonus', () => {
+      // Three As make B, +1 rung C; then three Cs make D, +1 rung E
+      const { cells, merges } = place(dartHub, [EMPTY, 1, 1, 9, 9], 0, 1, rule);
+      expect(merges.map(m => m.sum)).toEqual([9, 81]);
+      expect(cells).toEqual([81, EMPTY, EMPTY, EMPTY, EMPTY]);
     });
   });
 
   describe('sameBonus', () => {
     const rule = opts({ shapes: 'sameBonus' });
 
-    it('a merge whose tiles are all one shape is worth double', () => {
+    it('a merge whose tiles are all one shape goes one rung higher', () => {
       const { merges } = place(hub, [EMPTY, 1, 1, EMPTY, EMPTY], 0, 1, rule);
-      expect(merges).toEqual([{ into: 0, from: [1, 2], sum: 6, doubled: 'shape' }]);
+      expect(merges).toEqual([{ into: 0, from: [1, 2], sum: 9, doubled: 'shape' }]);
     });
 
     it('a mixed-shape merge is not, but still merges', () => {
@@ -544,7 +546,7 @@ describe('shapes (Q10)', () => {
     });
 
     it('all darts counts too', () => {
-      expect(place(dartHub, [EMPTY, EMPTY, EMPTY, 2, 2], 0, 2, rule).cells[0]).toBe(12);
+      expect(place(dartHub, [EMPTY, EMPTY, EMPTY, 3, 3], 0, 3, rule).cells[0]).toBe(27);
     });
   });
 
@@ -552,14 +554,12 @@ describe('shapes (Q10)', () => {
     expect(place(dartHub, [EMPTY, 1, 1, EMPTY, EMPTY], 0, 1, opts()).merges).toEqual([{ into: 0, from: [1, 2], sum: 3 }]);
   });
 
-  it('the preview shows a doubled result', () => {
-    expect(previewAt(dartHub, [EMPTY, 2, 2, EMPTY, EMPTY], 0, 2, opts({ shapes: 'dartDouble' }))).toEqual({ value: 12, merging: [1, 2] });
+  it('the preview shows a bonus result', () => {
+    expect(previewAt(dartHub, [EMPTY, 3, 3, EMPTY, EMPTY], 0, 3, opts({ shapes: 'dartDouble' }))).toEqual({ value: 27, merging: [1, 2] });
   });
 });
 
-describe('what a merge makes (Q11)', () => {
-  const cap = opts({ merge: 'cap' });
-  const step = opts({ merge: 'step' });
+describe('what a merge makes: the sum, rounded down to a power of 3', () => {
   // A hub touching four others
   const hub: Tile[] = [
     { neighbors: [1, 2, 3, 4], type: 'kite' },
@@ -573,88 +573,56 @@ describe('what a merge makes (Q11)', () => {
     expect([0, 1, 2, 3, 4, 8, 9, 15, 26, 27, 80, 81].map(floorPow3)).toEqual([0, 1, 1, 3, 3, 3, 9, 9, 9, 27, 27, 81]);
   });
 
-  it('sum: the sum, as before', () => {
-    expect(mergeResult([1, 1, 1, 1], opts())).toBe(4);
-    expect(mergeResult([1, 1, 1], opts(), true)).toBe(6);
+  it('three or four As make a B; nine make a C; five Bs make a C', () => {
+    expect(mergeResult([1, 1, 1])).toBe(3);
+    expect(mergeResult([1, 1, 1, 1])).toBe(3);
+    expect(mergeResult(Array(9).fill(1))).toBe(9);
+    expect(mergeResult([3, 3, 3, 3, 3])).toBe(9);
+    expect(mergeResult([9, 9, 9])).toBe(27);
+    expect(mergeResult([0, 0, 0])).toBe(0);
   });
 
-  it('cap: the sum rounded down to a power of 3', () => {
-    expect(mergeResult([1, 1, 1], cap)).toBe(3);
-    expect(mergeResult([1, 1, 1, 1], cap)).toBe(3);
-    expect(mergeResult([3, 3, 3], cap)).toBe(9);
-    expect(mergeResult([3, 3, 3, 3, 3], cap)).toBe(9);
-    expect(mergeResult([9, 9, 9], cap)).toBe(27);
-    expect(mergeResult([0, 0, 0], cap)).toBe(0);
+  it('a bonus merge (Q10) goes one rung higher', () => {
+    expect(mergeResult([1, 1, 1, 1], true)).toBe(9);
+    expect(mergeResult([3, 3, 3], true)).toBe(27);
   });
 
-  it('step: the next power of 3, however many tiles merge', () => {
-    expect(mergeResult([1, 1, 1], step)).toBe(3);
-    expect(mergeResult([1, 1, 1, 1, 1, 1, 1, 1], step)).toBe(3);
-    expect(mergeResult([3, 3, 3, 3], step)).toBe(9);
-    expect(mergeResult([9, 9, 9], step)).toBe(27);
-    expect(mergeResult([0, 0, 0], step)).toBe(0);
-  });
-
-  it('a doubled merge (Q10) goes one power of 3 higher under cap and step', () => {
-    expect(mergeResult([1, 1, 1, 1], cap, true)).toBe(9);
-    expect(mergeResult([3, 3, 3], step, true)).toBe(27);
-    const dartHub: Tile[] = [{ ...hub[0], type: 'dart' }, ...hub.slice(1)];
-    expect(place(dartHub, [EMPTY, 1, 1, EMPTY, EMPTY], 0, 1, opts({ merge: 'step', shapes: 'dartDouble' })).cells[0]).toBe(9);
-  });
-
-  it('place uses the merge rule, chains included', () => {
-    // Four 1s: sum 4, cap 3, step 3
-    const fourOnes: Cell[] = [EMPTY, 1, 1, 1, EMPTY];
-    expect(place(hub, fourOnes, 0, 1, opts()).cells[0]).toBe(4);
-    expect(place(hub, fourOnes, 0, 1, cap).cells[0]).toBe(3);
-    expect(place(hub, fourOnes, 0, 1, step).cells[0]).toBe(3);
-    // 1+1+1 makes 3, which joins two 3s: 9 under every rule
-    expect(place(hub, [EMPTY, 1, 1, 3, 3], 0, 1, step).cells).toEqual([9, EMPTY, EMPTY, EMPTY, EMPTY]);
-  });
-
-  it('cap and step keep every result a power of 3 (or 0)', () => {
-    const isPow3 = (n: number) => n === 0 || floorPow3(n) === n;
-    for (const rule of [cap, step]) {
-      for (const v of [0, 1, 3, 9, 27]) {
-        for (let n = 3; n <= 8; n++) expect(isPow3(mergeResult(Array(n).fill(v), rule))).toBe(true);
+  it('every result is a power of 3 (or 0)', () => {
+    for (const v of [0, 1, 3, 9, 27]) {
+      for (let n = 3; n <= 12; n++) {
+        const r = mergeResult(Array(n).fill(v));
+        expect(r === 0 || floorPow3(r) === r).toBe(true);
       }
     }
   });
 
-  it('deals and seeds 0, 1, 3 and 9 under cap and step, 0 to 3 under sum', () => {
-    expect(valuesFor(opts())).toEqual([0, 1, 2, 3]);
-    expect(valuesFor(cap)).toEqual([0, 1, 3, 9]);
-    expect(valuesFor(step)).toEqual([0, 1, 3, 9]);
-    expect(deckFor(cap)).toEqual(POW3_DECK);
-    expect(POW3_DECK.map(([, w]) => w)).toEqual(DECK.map(([, w]) => w));
-    const withWild = deckFor(opts({ merge: 'step', wild: 'deck' }));
-    expect(withWild.slice(1).map(([v]) => v)).toEqual([0, 1, 3, 9]);
+  it('place uses it, chains included', () => {
+    expect(place(hub, [EMPTY, 1, 1, 1, EMPTY], 0, 1, opts()).cells[0]).toBe(3);
+    // Three As make a B, which joins two Bs: a C
+    expect(place(hub, [EMPTY, 1, 1, 3, 3], 0, 1, opts()).cells).toEqual([9, EMPTY, EMPTY, EMPTY, EMPTY]);
   });
 
-  it('seedBoard seeds the values it is given', () => {
+  it('deals and seeds 0, 1, 3 and 9', () => {
+    expect(DECK.map(([v]) => v)).toEqual([0, 1, 3, 9]);
+    expect(SEED_VALUES).toEqual([0, 1, 3, 9]);
     const board = makeBoard(800, 600);
     let seed = 7;
     const rand = () => (seed = (seed * 1664525 + 1013904223) % 2 ** 32) / 2 ** 32;
-    const cells = seedBoard(board, rand, 0.1, valuesFor(step));
+    const cells = seedBoard(board, rand);
     for (const c of cells) if (c !== EMPTY) expect([0, 1, 3, 9]).toContain(c);
     expect(cells).toContain(9);
   });
 });
 
-describe('making Z (Q11 power-of-3 rules)', () => {
+describe('making Z', () => {
   it('wins the game at once, whatever the goal, with free tiles left', () => {
     const cells = cellsOf({ 0: TOP_VALUE });
-    for (const merge of ['cap', 'step'] as const) {
-      expect(outcome(cells, opts({ merge }))).toEqual({ over: true, won: true, highest: TOP_VALUE });
-      expect(outcome(cells, opts({ merge, goal: 'target', target: 200 }))).toEqual({ over: true, won: true, highest: TOP_VALUE });
-    }
+    expect(outcome(cells, opts())).toEqual({ over: true, won: true, highest: TOP_VALUE });
+    expect(outcome(cells, opts({ goal: 'target', target: 729 }))).toEqual({ over: true, won: true, highest: TOP_VALUE });
   });
 
   it('one rung short does not', () => {
-    expect(outcome(cellsOf({ 0: TOP_VALUE / 3 }), opts({ merge: 'step' }))).toEqual({ over: false });
+    expect(outcome(cellsOf({ 0: TOP_VALUE / 3 }), opts())).toEqual({ over: false });
   });
 
-  it('under the sum rule the number is not special', () => {
-    expect(outcome(cellsOf({ 0: TOP_VALUE }), opts())).toEqual({ over: false });
-  });
 });
