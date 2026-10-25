@@ -34,37 +34,30 @@ A merging number game on a Penrose tiling of kites and darts. The player places 
 
 ## 4. Rules
 
-- **Start.** Each new game seeds the board: 10% of its tiles (`SEED_FRACTION`, rounded), picked at random, get a random number from 0 to 3 (`SEED_VALUES`), each equally likely. Neighboring seeds never hold the same number, so no group exists before the first move; a picked tile whose neighbors already hold all four numbers is passed over for another. Seeded 0s can't be played on and match only a placed 0, so they act as obstacles (which can be cleared up only with zeros in the deck, open question 5). Seeded tiles look the same as placed ones. Undo goes back as far as the seeded board.
+- **Start.** Each new game seeds the board: 10% of its tiles (`SEED_FRACTION`, rounded), picked at random, get a random number from 0 to 3 (`SEED_VALUES`), each equally likely. Neighboring seeds never hold the same number, so no group exists before the first move; a picked tile whose neighbors already hold all four numbers is passed over for another. Seeded 0s can't be played on and match only a placed 0, so they act as obstacles (which can be cleared up only with zeros in the deck, open question 4). Seeded tiles look the same as placed ones. Undo goes back as far as the seeded board.
 - **Tiles** are either empty or hold a number. A tile can hold 0 (a seed, or a placed 0), which can't be played on and matches only a placed 0.
-- **A move** places the value for this move (open questions 2 and 5) on any empty tile.
-- **Group.** After placing, the group is the placed tile plus the matching tiles that count as adjacent to it (open question 1). Matching tiles hold the same number, and may also need the same shape (open question 4). Tiles with a different number never join the group; zeros join only a placed 0.
-- **Merge.** If the group has 3 or more tiles (`MIN_GROUP`), the placed tile takes the sum of their numbers (the number times the group's size) and the other tiles in the group become empty: they leave the board and can be played on again, so free space comes back after every merge. Otherwise nothing else changes. Zeros merge the same way: a 0 placed next to two or more zeros (under the adjacency rule) takes them into one 0 where it was placed.
+- **A move** places the value for this move (open questions 1 and 4) on any empty tile.
+- **Group.** After placing, the group is the placed tile plus every matching tile connected to it through other matching tiles (tiles are connected when they share an edge). So a long chain of matching tiles collapses all at once, even when the placed tile is at its end. Matching tiles hold the same number, and may also need the same shape (open question 3). Tiles with a different number never join the group, and the group never passes through them; zeros join only a placed 0.
+- **Merge.** If the group has 3 or more tiles (`MIN_GROUP`), the placed tile takes the sum of their numbers (the number times the group's size) and the other tiles in the group become empty: they leave the board and can be played on again, so free space comes back after every merge. Otherwise nothing else changes. Zeros merge the same way: a 0 placed so that it connects to two or more zeros takes them into one 0 where it was placed.
 - **Chain reaction.** After a merge, the placed tile's new number may match the tiles around it: three 1s make a 3 next to two other 3s. If its new number makes a group of 3 or more, it merges again, and keeps going as long as it can, so one move can make 3, then 9, then 27. Every merge empties at least two numbered tiles and numbers none, so a chain always ends.
-- **End.** The game ends when no empty tile is left, or when the goal is reached (open question 3).
+- **End.** The game ends when no empty tile is left, or when the goal is reached (open question 2).
 - **Undo** steps back one move at a time, as far as the start of the game. **New Game** starts over on a new board of the size picked from its menu. Changing a rule option takes effect from the next move and does not restart the game.
 
 ## 5. Open questions
 
 Each option below is implemented and can be switched during play, in the **Preferences** dialog. The first one listed is the default.
 
-### 1. Which tiles count as adjacent?
-
-| Option | Behavior |
-|---|---|
-| Whole connected group (`connected`) | Every tile with the same number reachable from the placed tile through other tiles with that number. A long chain of matching tiles collapses all at once |
-| Direct neighbors only (`neighbors`) | The placed tile and its direct neighbors with the same number (at most four). Tiles further along a chain are left alone, and the end of a chain does not merge with only one matching neighbor |
-
-### 2. What value is placed?
+### 1. What value is placed?
 
 | Option | Behavior |
 |---|---|
 | Always 1 (`ones`) | Every move places 1 |
-| Random 1 to 3 (`random`) | Drawn at random, 1 with 70% chance, 2 with 20% and 3 with 10%, and shown in advance ("Next"). Zeros in the deck (open question 5) add 0 to the draw |
+| Random 1 to 3 (`random`) | Drawn at random, 1 with 70% chance, 2 with 20% and 3 with 10%, and shown in advance ("Next"). Zeros in the deck (open question 4) add 0 to the draw |
 | Player picks 1 to 3 (`choose`) | The player chooses 1, 2 or 3 before each move |
 
 Still to think about: whether other values (bigger numbers, negatives, a "wild" tile) should exist, and whether the random weights are right.
 
-### 3. What is the goal, and when does the game end?
+### 2. What is the goal, and when does the game end?
 
 | Option | Behavior |
 |---|---|
@@ -73,18 +66,18 @@ Still to think about: whether other values (bigger numbers, negatives, a "wild" 
 
 Still to think about: a scoring system (for example points per merge), a move limit, a time limit, and whether the game should push back somehow (for example new tiles appearing) since merged-away tiles become empty and the board may never fill up.
 
-### 4. Which tiles can match?
+### 3. Which tiles can match?
 
 | Option | Behavior |
 |---|---|
 | Any shape (`any`) | Kites and darts with the same number match each other |
-| Same shape only (`same`) | They must also be the same shape: kite with kite, dart with dart. A group never crosses into the other shape, even under the connected rule, and a chain reaction only continues with tiles of the placed tile's shape |
+| Same shape only (`same`) | They must also be the same shape: kite with kite, dart with dart. A group never crosses into the other shape, and a chain reaction only continues with tiles of the placed tile's shape |
 
-How the board affects this, on the medium board before seeding (103 tiles): the 60 kites mostly touch two other kites and form one large connected kite region of 41 tiles. The 43 darts are scattered: the largest dart regions are five-dart stars, and 7 darts touch no other dart, so under "same shape only" a number placed on one of them can never merge. With "direct neighbors only" adjacency as well, only darts with two dart neighbors (22 of them) can merge at all.
+How the board affects this, on the medium board before seeding (103 tiles): the 60 kites mostly touch two other kites and form one large connected kite region of 41 tiles. The 43 darts are scattered: the largest dart regions are five-dart stars, and 7 darts touch no other dart, so under "same shape only" a number placed on one of them can never merge.
 
-### 5. Zeros in the deck?
+### 4. Zeros in the deck?
 
-Seeded zeros are obstacles. With zeros in the deck the player can place 0s too, and a 0 placed next to two or more zeros merges them into one 0 where it was placed, so obstacles can be consolidated, moved and reduced (three zeros become one).
+Seeded zeros are obstacles. With zeros in the deck the player can place 0s too, and a 0 placed so that it connects to two or more zeros merges them into one 0 where it was placed, so obstacles can be consolidated, moved and reduced (three zeros become one).
 
 | Option | Behavior |
 |---|---|

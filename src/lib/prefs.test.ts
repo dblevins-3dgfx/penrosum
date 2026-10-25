@@ -8,16 +8,16 @@ describe('parseOptions', () => {
   });
 
   it('keeps saved values that are allowed', () => {
-    const saved = { group: 'neighbors', values: 'random', goal: 'target', target: 100, shape: 'same', zeros: 'deck' };
+    const saved = { values: 'random', goal: 'target', target: 100, shape: 'same', zeros: 'deck' };
     expect(parseOptions(JSON.stringify(saved))).toEqual(saved);
   });
 
   it('fills in options saved before they existed', () => {
-    expect(parseOptions(JSON.stringify({ group: 'neighbors' }))).toEqual({ ...DEFAULT_OPTIONS, group: 'neighbors' });
+    expect(parseOptions(JSON.stringify({ shape: 'same' }))).toEqual({ ...DEFAULT_OPTIONS, shape: 'same' });
   });
 
   it('drops unknown keys and values that are not allowed', () => {
-    const saved = { group: 'diagonal', target: 37, cascade: true, shape: 'same' };
+    const saved = { group: 'neighbors', target: 37, cascade: true, shape: 'same' };
     expect(parseOptions(JSON.stringify(saved))).toEqual({ ...DEFAULT_OPTIONS, shape: 'same' });
   });
 
