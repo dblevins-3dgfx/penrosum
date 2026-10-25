@@ -20,16 +20,16 @@ A merging number game on a Penrose tiling of kites and darts. The player places 
 ## 3. Board
 
 - **Tiling.** `penrose-board.ts` is Penrogo's board generator, unchanged: a patch of kites and darts made by subdividing a sun of five kites 7 times, so it is a correct Penrose tiling by construction (see Penrogo's spec, section 4).
-- **Sizes.** Three board sizes, each a playfield area in board units (the kite's long edge is 60 units):
+- **Sizes.** Three board sizes, each a square playfield in board units (the kite's long edge is 60 units). The sides are picked for about 50, 100 and 200 tiles:
 
-  | Size | Area | Tiles |
+  | Size | Playfield | Tiles |
   |---|---|---|
-  | Small | 560 x 420 | about 100 |
-  | Medium (default) | 800 x 600 | about 220 |
-  | Large | 1120 x 840 | about 450 |
+  | Small | 360 x 360 | 47 |
+  | Medium (default) | 485 x 485 | 103 |
+  | Large | 660 x 660 | 196 |
 
-- **Shape.** At the start of each game, the playfield takes the shape of the space for the board on screen (its width to height), kept between 1:2 and 2:1, with the size's area. So a phone held upright gets a tall board and a wide window a wide one, with about the same number of tiles.
-- **Placement.** The patch is aligned to a kite at the center of the playfield, pointing up, and clipped to tiles lying fully inside it. The same size and shape always gives the same board.
+- **Shape.** Every board is square, so it fits the screen the same way whichever way the screen is turned; rotating a phone mid-game just rescales the board.
+- **Placement.** The patch is aligned to a kite at the center of the playfield, pointing up, and clipped to tiles lying fully inside it. Each size always gives the same board (before seeding).
 - **Adjacency.** Two tiles are neighbors when they share a full edge, so a tile has at most four neighbors. Tiles on the ragged edge of the board have fewer.
 
 ## 4. Rules
@@ -80,7 +80,7 @@ Still to think about: a scoring system (for example points per merge), a move li
 | Any shape (`any`) | Kites and darts with the same number match each other |
 | Same shape only (`same`) | They must also be the same shape: kite with kite, dart with dart. A group never crosses into the other shape, even under the connected rule, and a chain reaction only continues with tiles of the placed tile's shape |
 
-How the board affects this, on the medium board at 4:3 before seeding (219 tiles): the 137 kites mostly touch two other kites and form one large connected kite region of 69 tiles. The 82 darts are scattered: the largest dart regions are five-dart stars, and 21 darts touch no other dart, so under "same shape only" a number placed on one of them can never merge. With "direct neighbors only" adjacency as well, only darts with two dart neighbors (37 of them) can merge at all.
+How the board affects this, on the medium board before seeding (103 tiles): the 60 kites mostly touch two other kites and form one large connected kite region of 41 tiles. The 43 darts are scattered: the largest dart regions are five-dart stars, and 7 darts touch no other dart, so under "same shape only" a number placed on one of them can never merge. With "direct neighbors only" adjacency as well, only darts with two dart neighbors (22 of them) can merge at all.
 
 ### 5. Zeros in the deck?
 
@@ -99,8 +99,8 @@ Everything fits on one screen with no scrolling: a header, the board filling the
 |---|---|
 | Header | Title; the stats (moves, highest tile, free (empty) tiles, plus the target under the target goal, and the next value whenever it is drawn at random: under the random value rule, or with zeros in the deck); the value picker; **Undo** (disabled with nothing to undo), **New Game ▾** and **Preferences**. On a narrow screen it wraps onto two lines |
 | Value picker | Buttons 1, 2, 3 (and 0 with zeros in the deck), shown only under the "player picks" value rule. If 0 is picked and zeros then leave the deck, the move places 1 |
-| New Game menu | Small, Medium and Large, each with its approximate tile count; the current board's size is highlighted. Picking one starts a new game on that size and remembers it for next time. Escape or a click outside closes the menu without starting a game |
-| Board | Scaled to fill its space (leaving 8 px around it) and centered. If the window changes shape during a game, the board keeps its shape and is rescaled to fit; a new game takes the new shape. Empty tiles white with thin gray edges (one screen pixel wide at any scale); zeros slate gray with a gray "0"; numbered tiles colored by value, from pale yellow for 1 through orange, red, pink, purple and blue to green above 100, with the number on the tile (on a kite at its centroid, on a dart along its axis toward the tip) |
+| New Game menu | Small, Medium and Large, each with its tile count; the current board's size is highlighted. Picking one starts a new game on that size and remembers it for next time. Escape or a click outside closes the menu without starting a game |
+| Board | Scaled to fill its space (leaving 8 px around it) and centered. When the window changes size or the screen is rotated, the board is rescaled to fit. Empty tiles white with thin gray edges (one screen pixel wide at any scale); zeros slate gray with a gray "0"; numbered tiles colored by value, from pale yellow for 1 through orange, red, pink, purple and blue to green above 100, with the number on the tile (on a kite at its centroid, on a dart along its axis toward the tip) |
 | Last move | Amber outline |
 | Hover | The empty tile under the pointer is tinted blue and shows the number it would end up with: the value placed, or the result of its merges (including any chain reaction). The tiles those merges would clear get a blue outline. Occupied tiles show no preview |
 | Status line | Before the first move, a one-line hint on how to play; then the last move's merges ("Merged 3 tiles into 3, then 3 tiles into 9"), or the result at the end of the game. Cut off with an ellipsis if too long |

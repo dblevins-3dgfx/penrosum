@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  BOARD_SIZES, boardBounds, centroid, makeBoard, playfieldFor, tileAtPoint,
+  BOARD_SIZES, boardBounds, boardFor, centroid, tileAtPoint,
   type BoardSize, type BoardTile,
 } from './lib/board';
 import { parseBoardSize, parseOptions } from './lib/prefs';
@@ -107,7 +107,7 @@ const Game = () => {
   const [size, setSize] = useState(() => load(SIZE_STORAGE_KEY, parseBoardSize));
   // The space for the board, in CSS pixels; measured before the first paint
   const [space, setSpace] = useState({ width: 0, height: 0 });
-  // Made once the space is known, since its shape follows the space
+  // Made on mount, and by New Game
   const [board, setBoard] = useState<Board | null>(null);
   const [state, setState] = useState<Snapshot | null>(null);
   const [undo, setUndo] = useState<Snapshot[]>([]);
@@ -126,22 +126,20 @@ const Game = () => {
     return () => observer.disconnect();
   }, []);
 
-  // Starts a new game on a board of `newSize`, shaped to the space now
+  // Starts a new game on a board of `newSize`
   const newGame = useCallback((newSize: BoardSize) => {
-    if (!space.width || !space.height) return;
-    const { width, height } = playfieldFor(newSize, space.width / space.height);
-    const tiles = makeBoard(width, height);
+    const tiles = boardFor(newSize);
     setBoard({ size: newSize, tiles, bounds: boardBounds(tiles) });
     setState({ cells: seedBoard(tiles), next: nextValueFor(options), moves: 0, lastMove: null, message: '' });
     setUndo([]);
     setHovered(-1);
     setSize(newSize);
     save(SIZE_STORAGE_KEY, newSize);
-  }, [space, options]);
+  }, [options]);
 
   useEffect(() => {
-    if (!board && space.width && space.height) newGame(size);
-  }, [board, space, size, newGame]);
+    if (!board) newGame(size);
+  }, [board, size, newGame]);
 
   const setOption = <K extends keyof Options>(key: K, value: Options[K]) => {
     const updated = { ...options, [key]: value };
@@ -312,7 +310,7 @@ const Game = () => {
                       onClick={() => { setShowSizes(false); newGame(s.id); }}
                       className="w-full text-left px-3 py-1.5 text-sm hover:bg-indigo-50 flex justify-between">
                       <span className={s.id === board?.size ? 'font-semibold text-indigo-700' : ''}>{s.name}</span>
-                      <span className="text-slate-500">~{s.tiles} tiles</span>
+                      <span className="text-slate-500">{s.tiles} tiles</span>
                     </button>
                   ))}
                 </div>
