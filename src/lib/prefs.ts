@@ -6,7 +6,6 @@ import { BOARD_SIZES, DEFAULT_BOARD_SIZE, type BoardSize } from './board';
 import { DEFAULT_OPTIONS, TARGET_OPTIONS, type Options } from './rules';
 
 const ALLOWED: { [K in keyof Options]: readonly Options[K][] } = {
-  group: ['connected', 'neighbors'],
   values: ['ones', 'random', 'choose'],
   goal: ['highest', 'target'],
   target: TARGET_OPTIONS,

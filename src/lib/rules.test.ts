@@ -53,39 +53,32 @@ const shaped: Tile[] = [
 ];
 
 describe('groupAt', () => {
-  it('connected: follows matching tiles beyond the direct neighbors', () => {
+  it('follows matching tiles beyond the direct neighbors', () => {
     const c = cellsOf({ 0: 1, 1: 1, 2: 1, 3: 1 });
-    expect(groupAt(tiles, c, 3, 'connected').sort()).toEqual([0, 1, 2, 3]);
+    expect(groupAt(tiles, c, 3).sort()).toEqual([0, 1, 2, 3]);
   });
 
-  it('connected: does not pass through a tile with a different number', () => {
+  it('does not pass through a tile with a different number', () => {
     const c = cellsOf({ 0: 1, 1: 2, 2: 1, 3: 1 });
-    expect(groupAt(tiles, c, 3, 'connected').sort()).toEqual([2, 3]);
+    expect(groupAt(tiles, c, 3).sort()).toEqual([2, 3]);
   });
 
-  it('neighbors: only the placed tile and its matching direct neighbors', () => {
-    const c = cellsOf({ 0: 1, 1: 1, 2: 1, 3: 1 });
-    expect(groupAt(tiles, c, 3, 'neighbors')).toEqual([3, 2]);
-    expect(groupAt(tiles, c, 1, 'neighbors')).toEqual([1, 0, 2]);
-  });
-
-  it('neighbors: leaves out neighbors with a different number', () => {
+  it('leaves out neighbors with a different number', () => {
     const c = cellsOf({ 0: 1, 1: 1, 2: 2, 4: 1 });
-    expect(groupAt(tiles, c, 1, 'neighbors')).toEqual([1, 0, 4]);
+    expect(groupAt(tiles, c, 1).sort()).toEqual([0, 1, 4]);
   });
 
   it('same shape: only kites match kites and darts match darts', () => {
     const c: Cell[] = [1, 1, 1, 1, 1];
-    expect(groupAt(shaped, c, 0, 'connected', 'same')).toEqual([0, 1, 3]);
-    expect(groupAt(shaped, c, 0, 'neighbors', 'same')).toEqual([0, 1, 3]);
-    expect(groupAt(shaped, c, 2, 'connected', 'same')).toEqual([2]);
+    expect(groupAt(shaped, c, 0, 'same')).toEqual([0, 1, 3]);
+    expect(groupAt(shaped, c, 2, 'same')).toEqual([2]);
     // Any shape: everything connected matches
-    expect(groupAt(shaped, c, 0, 'connected', 'any').sort()).toEqual([0, 1, 2, 3, 4]);
+    expect(groupAt(shaped, c, 0, 'any').sort()).toEqual([0, 1, 2, 3, 4]);
   });
 
   it('lists the placed tile first', () => {
     const c = cellsOf({ 0: 1, 1: 1, 2: 1 });
-    expect(groupAt(tiles, c, 2, 'connected')[0]).toBe(2);
+    expect(groupAt(tiles, c, 2)[0]).toBe(2);
   });
 });
 
@@ -118,20 +111,9 @@ describe('place', () => {
     expect(cells).toEqual(cellsOf({ 1: 3, 4: 3 }));
   });
 
-  it('connected: a chain collapses into the placed tile', () => {
-    const { cells } = place(tiles, cellsOf({ 0: 1, 1: 1, 2: 1 }), 3, 1, opts({ group: 'connected' }));
+  it('a chain collapses into the placed tile, even from its end', () => {
+    const { cells } = place(tiles, cellsOf({ 0: 1, 1: 1, 2: 1 }), 3, 1, opts());
     expect(cells).toEqual(cellsOf({ 3: 4 }));
-  });
-
-  it('neighbors: a chain end does not merge with only one neighbor', () => {
-    const { cells, merges } = place(tiles, cellsOf({ 0: 1, 1: 1, 2: 1 }), 3, 1, opts({ group: 'neighbors' }));
-    expect(merges).toEqual([]);
-    expect(cells).toEqual(cellsOf({ 0: 1, 1: 1, 2: 1, 3: 1 }));
-  });
-
-  it('neighbors: tiles beyond the direct neighbors are left alone', () => {
-    const { cells } = place(tiles, cellsOf({ 0: 1, 2: 1, 3: 1, 5: 1 }), 1, 1, opts({ group: 'neighbors' }));
-    expect(cells).toEqual(cellsOf({ 1: 3, 3: 1, 5: 1 }));
   });
 
   it('merged-away tiles become empty, and can be played again', () => {
@@ -197,10 +179,6 @@ describe('chain reactions', () => {
     expect(cells).toEqual([9, EMPTY, EMPTY, EMPTY, EMPTY]);
   });
 
-  it('happens under either adjacency rule', () => {
-    expect(place(star, start, 0, 1, opts({ group: 'neighbors' })).cells).toEqual([9, EMPTY, EMPTY, EMPTY, EMPTY]);
-  });
-
   it('stops when the new number makes no group', () => {
     const { merges } = place(star, [EMPTY, 1, 1, 3, 4], 0, 1, opts());
     expect(merges).toHaveLength(1);
@@ -232,7 +210,7 @@ describe('zeros in the deck', () => {
   });
 
   it('a placed 0 follows connected zeros like any other number', () => {
-    const { cells } = place(tiles, cellsOf({ 0: 0, 1: 0, 2: 0 }), 3, 0, opts({ group: 'connected' }));
+    const { cells } = place(tiles, cellsOf({ 0: 0, 1: 0, 2: 0 }), 3, 0, opts());
     expect(cells).toEqual(cellsOf({ 3: 0 }));
   });
 
@@ -346,7 +324,7 @@ describe('seedBoard', () => {
       for (const t of board) {
         if (cells[t.id] === EMPTY) continue;
         for (const n of t.neighbors) expect(cells[n]).not.toBe(cells[t.id]);
-        expect(groupAt(board, cells, t.id, 'connected')).toEqual([t.id]);
+        expect(groupAt(board, cells, t.id)).toEqual([t.id]);
       }
     }
   });

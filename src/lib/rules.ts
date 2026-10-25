@@ -5,13 +5,6 @@
 // questions (SPEC.md, "Open questions"); each is an option here so they can
 // be tried side by side.
 
-// Which tiles count as "adjacent" when deciding whether a placement merges.
-// Only tiles holding the same number as the placed tile ever count.
-//   connected: every matching tile connected to the placed one through
-//              other matching tiles
-//   neighbors: the placed tile and its matching direct neighbors only
-export type GroupRule = 'connected' | 'neighbors';
-
 // Where the value to place comes from.
 //   ones:   always 1
 //   random: drawn at random (mostly 1, sometimes 2 or 3) and shown in advance
@@ -36,7 +29,6 @@ export type ShapeRule = 'any' | 'same';
 export type ZeroRule = 'none' | 'deck';
 
 export interface Options {
-  group: GroupRule;
   values: ValueRule;
   goal: GoalRule;
   target: number;
@@ -45,7 +37,6 @@ export interface Options {
 }
 
 export const DEFAULT_OPTIONS: Options = {
-  group: 'connected',
   values: 'ones',
   goal: 'highest',
   target: 50,
@@ -76,15 +67,13 @@ export interface Tile {
 // A move is legal on an un-numbered tile.
 export const canPlace = (cells: Cell[], id: number) => cells[id] === EMPTY;
 
-// The group for numbered tile `id`: it first, then the matching tiles (the
-// same number, and under the 'same' shape rule the same shape) that count
-// as adjacent to it. Fewer than MIN_GROUP tiles means no merge.
-export const groupAt = (tiles: Tile[], cells: Cell[], id: number, rule: GroupRule, shape: ShapeRule = 'any'): number[] => {
+// The group for numbered tile `id`: it first, then every matching tile (the
+// same number, and under the 'same' shape rule the same shape) connected to
+// it through other matching tiles. Fewer than MIN_GROUP tiles means no
+// merge.
+export const groupAt = (tiles: Tile[], cells: Cell[], id: number, shape: ShapeRule = 'any'): number[] => {
   const matches = (n: number) =>
     cells[n] === cells[id] && (shape === 'any' || tiles[n].type === tiles[id].type);
-  if (rule === 'neighbors') {
-    return [id, ...tiles[id].neighbors.filter(matches)];
-  }
   const group = [id];
   const seen = new Set(group);
   for (let i = 0; i < group.length; i++) {
@@ -120,7 +109,7 @@ export const place = (tiles: Tile[], cells: Cell[], id: number, value: number, o
   next[id] = value;
   const merges: Merge[] = [];
   for (;;) {
-    const group = groupAt(tiles, next, id, options.group, options.shape);
+    const group = groupAt(tiles, next, id, options.shape);
     if (group.length < MIN_GROUP) break;
     const sum = group.reduce((s, t) => s + next[t], 0);
     const from = group.slice(1);

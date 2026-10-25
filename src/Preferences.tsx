@@ -64,19 +64,13 @@ const Preferences = ({ options, setOption, onClose }: PreferencesProps) => {
           Rules to try: these are the open questions in the spec. Changes apply from the next move.
         </p>
         <Choice
-          label="1. Which tiles count as adjacent?"
-          value={options.group}
-          options={[['connected', 'Whole connected group'], ['neighbors', 'Direct neighbors only']]}
-          onChange={v => setOption('group', v)}
-        />
-        <Choice
-          label="2. The value you place"
+          label="1. The value you place"
           value={options.values}
           options={[['ones', 'Always 1'], ['random', 'Random 1–3'], ['choose', 'You pick 1–3']]}
           onChange={v => setOption('values', v)}
         />
         <Choice
-          label="3. Goal"
+          label="2. Goal"
           value={options.goal}
           options={[['highest', 'Highest tile'], ['target', 'Reach a target']]}
           onChange={v => setOption('goal', v)}
@@ -90,13 +84,13 @@ const Preferences = ({ options, setOption, onClose }: PreferencesProps) => {
           />
         )}
         <Choice
-          label="4. Which tiles can match?"
+          label="3. Which tiles can match?"
           value={options.shape}
           options={[['any', 'Any shape'], ['same', 'Same shape only']]}
           onChange={v => setOption('shape', v)}
         />
         <Choice
-          label="5. Zeros in your deck?"
+          label="4. Zeros in your deck?"
           value={options.zeros}
           options={[['none', 'No'], ['deck', 'Yes']]}
           onChange={v => setOption('zeros', v)}
