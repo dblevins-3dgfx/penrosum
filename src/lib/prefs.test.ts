@@ -8,7 +8,7 @@ describe('parseOptions', () => {
   });
 
   it('keeps saved values that are allowed', () => {
-    const saved = { goal: 'target', target: 243, wild: 'deck', pressure: 'spawn', shapes: 'dealt', score: 'tiles', chain: 'off' };
+    const saved = { goal: 'target', target: 243, wild: 'deck', score: 'tiles', chain: 'off' };
     expect(parseOptions(JSON.stringify(saved))).toEqual(saved);
   });
 
@@ -17,7 +17,7 @@ describe('parseOptions', () => {
   });
 
   it('drops unknown keys and values that are not allowed', () => {
-    const saved = { group: 'neighbors', values: 'choose', zeros: 'none', target: 50, cascade: true, shape: 'same', merge: 'step', wild: 'deck', score: 'sum', chain: true };
+    const saved = { group: 'neighbors', values: 'choose', zeros: 'none', target: 50, cascade: true, shape: 'same', merge: 'step', pressure: 'spawn', shapes: 'dealt', wild: 'deck', score: 'sum', chain: true };
     expect(parseOptions(JSON.stringify(saved))).toEqual({ ...DEFAULT_OPTIONS, wild: 'deck' });
   });
 

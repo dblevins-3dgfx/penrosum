@@ -4,7 +4,7 @@ import {
   DEFAULT_OPTIONS, EMPTY, type Cell, type Options, type Tile,
   DECK, SEED_FRACTION, SEED_VALUES, WILD, WILD_CHANCE,
   boardFull, canPlace, deckFor, drawValue, groupAt, highestTile, outcome, place, previewAt, resolveWild, seedBoard, valueToPlace,
-  applyPressure, nextSpawn, randomEmpty,
+  dropRubble,
   KITE_CHANCE, canPlaceDealt, dealShape, shapeToPlace,
   TOP_VALUE, floorPow3, mergeResult,
   type Merge, mergePoints, rungOf, scoreMerges, scoreRubble,
@@ -171,7 +171,7 @@ describe('previewAt', () => {
   it('shows the final number and every tile that would be cleared', () => {
     const star: Tile[] = [{ neighbors: [1, 2, 3, 4] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }];
     expect(previewAt(star, [EMPTY, 1, 1, 3, 3], 0, 1, opts()))
-      .toEqual({ value: 9, merging: [1, 2, 3, 4], rubble: [] });
+      .toEqual({ value: 9, merging: [1, 2, 3, 4], rubble: [2, 4] });
   });
 });
 
@@ -291,7 +291,7 @@ describe('wildcards', () => {
   });
 
   it('the preview shows what the wildcard would make', () => {
-    expect(previewAt(star, [EMPTY, 3, 3, EMPTY, EMPTY], 0, WILD, wild)).toEqual({ value: 9, merging: [1, 2], rubble: [] });
+    expect(previewAt(star, [EMPTY, 3, 3, EMPTY, EMPTY], 0, WILD, wild)).toEqual({ value: 9, merging: [1, 2], rubble: [2] });
   });
 });
 
@@ -376,93 +376,67 @@ describe('seedBoard', () => {
   });
 });
 
-describe('pressure', () => {
-  // Fixed draws from a list, for predictable picks
-  const draws = (...rs: number[]) => { let i = 0; return () => rs[i++] ?? 0; };
+describe('rubble', () => {
   // A merge of three 1s into tile 1 of the line graph, clearing 0 and 2
   const merged = () => place(tiles, cellsOf({ 0: 1, 2: 1 }), 1, 1, opts());
 
-  it('randomEmpty picks among the empty tiles, or null on a full board', () => {
-    const c = cellsOf({ 0: 1, 2: 0 });
-    expect(randomEmpty(c, () => 0)).toBe(1);
-    expect(randomEmpty(c, () => 0.999)).toBe(5);
-    expect(randomEmpty([1, 0, 2], () => 0)).toBeNull();
-  });
-
-  it('none: adds nothing', () => {
-    const { cells, merges } = merged();
-    expect(applyPressure(tiles, cells, merges, opts(), null)).toEqual({ cells, zeros: [], spawnAt: null, rubbleMerges: [] });
-  });
-
-  it('mergeZero: a merge drops a 0 on a random empty tile', () => {
-    const { cells, merges } = merged();
-    // Empty after the merge: 0, 2, 3, 4, 5; the draw picks the first
-    const r = applyPressure(tiles, cells, merges, opts({ pressure: 'mergeZero' }), null, () => 0);
-    expect(r.zeros).toEqual([0]);
-    expect(r.cells).toEqual(cellsOf({ 0: 0, 1: 3 }));
-  });
-
-  it('mergeZero: a move without a merge drops nothing', () => {
+  it('a move without a merge drops nothing', () => {
     const { cells, merges } = place(tiles, cellsOf({ 0: 1 }), 1, 1, opts());
-    expect(applyPressure(tiles, cells, merges, opts({ pressure: 'mergeZero' }), null).zeros).toEqual([]);
+    expect(dropRubble(tiles, cells, merges)).toEqual({ cells, zeros: [], rubbleMerges: [] });
   });
 
-  it('a merge of zeros never adds pressure', () => {
+  it('a merge of zeros never leaves rubble', () => {
     const { cells, merges } = place(tiles, cellsOf({ 0: 0, 2: 0 }), 1, 0, opts());
     expect(merges).toHaveLength(1);
-    for (const pressure of ['mergeZero', 'rubble'] as const) {
-      expect(applyPressure(tiles, cells, merges, opts({ pressure }), null).zeros).toEqual([]);
-    }
+    expect(dropRubble(tiles, cells, merges).zeros).toEqual([]);
   });
 
-  it('rubble: a 3-tile merge leaves a 0 on its cleared tile farthest from the placed one', () => {
+  it('a 3-tile merge leaves a 0 on its cleared tile farthest from the placed one', () => {
     // Placing at 2 merges the chain 2-1-0; tile 0 is the farthest
     const { cells, merges } = place(tiles, cellsOf({ 0: 1, 1: 1 }), 2, 1, opts());
     expect(merges[0].from).toEqual([1, 0]);
-    const r = applyPressure(tiles, cells, merges, opts({ pressure: 'rubble' }), null);
+    const r = dropRubble(tiles, cells, merges);
     expect(r.zeros).toEqual([0]);
     expect(r.cells).toEqual(cellsOf({ 0: 0, 2: 3 }));
   });
 
-  it('rubble: bigger merges leave none', () => {
+  it('bigger merges leave none', () => {
     const { cells, merges } = place(tiles, cellsOf({ 0: 1, 1: 1, 2: 1 }), 3, 1, opts());
     expect(merges[0].from).toHaveLength(3);
-    expect(applyPressure(tiles, cells, merges, opts({ pressure: 'rubble' }), null).zeros).toEqual([]);
+    expect(dropRubble(tiles, cells, merges).zeros).toEqual([]);
   });
 
-  it('rubble: each 3-tile merge in a chain leaves its own', () => {
+  it('each 3-tile merge in a chain leaves its own', () => {
     // A star: 1s at 1 and 2, 3s at 3 and 4; both merges are 3 tiles
     const star: Tile[] = [
       { neighbors: [1, 2, 3, 4] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] },
     ];
     const { cells, merges } = place(star, [EMPTY, 1, 1, 3, 3], 0, 1, opts());
-    expect(applyPressure(star, cells, merges, opts({ pressure: 'rubble' }), null).cells).toEqual([9, EMPTY, 0, EMPTY, 0]);
+    expect(dropRubble(star, cells, merges).cells).toEqual([9, EMPTY, 0, EMPTY, 0]);
   });
 
-  it('rubble: lands touching two 0s and merges them into one on its tile', () => {
-    // 1s at 0 and 1, 0s at 5 and 6, both touching 0 (3 and 4 unused):
-    //   5, 6 - 0 - 1 - 2
-    // Placing a 1 at 2 merges 2-1-0, and the rubble lands on 0
-    const g: Tile[] = [
-      { neighbors: [1, 5, 6] }, { neighbors: [0, 2] }, { neighbors: [1] },
-      { neighbors: [] }, { neighbors: [] }, { neighbors: [0] }, { neighbors: [0] },
-    ];
+  // 1s at 0 and 1, 0s at 5 and 6, both touching 0 (3 and 4 unused):
+  //   5, 6 - 0 - 1 - 2
+  // Placing a 1 at 2 merges 2-1-0, and the rubble lands on 0
+  const g: Tile[] = [
+    { neighbors: [1, 5, 6] }, { neighbors: [0, 2] }, { neighbors: [1] },
+    { neighbors: [] }, { neighbors: [] }, { neighbors: [0] }, { neighbors: [0] },
+  ];
+
+  it('lands touching two 0s and merges them into one on its tile', () => {
     const { cells, merges } = place(g, [1, 1, EMPTY, EMPTY, EMPTY, 0, 0], 2, 1, opts());
     expect(merges[0].from).toEqual([1, 0]);
-    const r = applyPressure(g, cells, merges, opts({ pressure: 'rubble' }), null);
+    const r = dropRubble(g, cells, merges);
     expect(r.zeros).toEqual([0]);
     expect(r.rubbleMerges).toEqual([{ into: 0, from: [5, 6], sum: 0 }]);
     expect(r.cells).toEqual([0, EMPTY, 3, EMPTY, EMPTY, EMPTY, EMPTY]);
   });
 
-  it('rubble: touching only one 0 just lands', () => {
-    const g: Tile[] = [
-      { neighbors: [1, 5] }, { neighbors: [0, 2] }, { neighbors: [1] }, { neighbors: [] }, { neighbors: [] }, { neighbors: [0] },
-    ];
-    const { cells, merges } = place(g, [1, 1, EMPTY, EMPTY, EMPTY, 0], 2, 1, opts());
-    const r = applyPressure(g, cells, merges, opts({ pressure: 'rubble' }), null);
+  it('touching only one 0 just lands', () => {
+    const { cells, merges } = place(g, [1, 1, EMPTY, EMPTY, EMPTY, 0, EMPTY], 2, 1, opts());
+    const r = dropRubble(g, cells, merges);
     expect(r.rubbleMerges).toEqual([]);
-    expect(r.cells).toEqual([0, EMPTY, 3, EMPTY, EMPTY, 0]);
+    expect(r.cells).toEqual([0, EMPTY, 3, EMPTY, EMPTY, 0, EMPTY]);
   });
 
   it('rubble merges score 1 per tile, with no chain bonus', () => {
@@ -471,46 +445,18 @@ describe('pressure', () => {
   });
 
   it('previewAt shows where rubble lands and the 0s it would merge', () => {
-    const g: Tile[] = [
-      { neighbors: [1, 5, 6] }, { neighbors: [0, 2] }, { neighbors: [1] },
-      { neighbors: [] }, { neighbors: [] }, { neighbors: [0] }, { neighbors: [0] },
-    ];
-    const start = [1, 1, EMPTY, EMPTY, EMPTY, 0, 0];
-    expect(previewAt(g, start, 2, 1, opts({ pressure: 'rubble' }))).toEqual({ value: 3, merging: [1, 0, 5, 6], rubble: [0] });
-    expect(previewAt(g, start, 2, 1, opts())).toEqual({ value: 3, merging: [1, 0], rubble: [] });
-  });
-
-  it('spawn: a 0 appears on the announced tile, and the next one is announced', () => {
-    const c = cellsOf({ 0: 1 });
-    // Announced: 4. After it fills, empty are 1, 2, 3, 5; the draw picks 3
-    const r = applyPressure(tiles, c, [], opts({ pressure: 'spawn' }), 4, draws(0.5));
-    expect(r.cells).toEqual(cellsOf({ 0: 1, 4: 0 }));
-    expect(r.zeros).toEqual([4]);
-    expect(r.spawnAt).toBe(3);
-  });
-
-  it('spawn: playing on the announced tile blocks that spawn', () => {
-    const c = cellsOf({ 0: 1, 4: 2 }); // the player just played on 4
-    const r = applyPressure(tiles, c, [], opts({ pressure: 'spawn' }), 4, () => 0);
-    expect(r.zeros).toEqual([]);
-    expect(r.spawnAt).toBe(1);
-  });
-
-  it('spawn: nothing is announced on a full board, or under the other rules', () => {
-    expect(nextSpawn([1, 0, 2], opts({ pressure: 'spawn' }))).toBeNull();
-    expect(nextSpawn(cellsOf({}), opts({ pressure: 'rubble' }))).toBeNull();
-    expect(nextSpawn(cellsOf({}), opts({ pressure: 'spawn' }), () => 0)).toBe(0);
+    expect(previewAt(g, [1, 1, EMPTY, EMPTY, EMPTY, 0, 0], 2, 1, opts())).toEqual({ value: 3, merging: [1, 0, 5, 6], rubble: [0] });
   });
 
   it('does not change the input', () => {
     const { cells, merges } = merged();
     const copy = cells.slice();
-    applyPressure(tiles, cells, merges, opts({ pressure: 'mergeZero' }), null, () => 0);
+    dropRubble(tiles, cells, merges);
     expect(cells).toEqual(copy);
   });
 });
 
-describe('shapes (Q10)', () => {
+describe('shapes: the next value comes with a shape', () => {
   // A kite in the middle touching kites 1 and 2 and darts 3 and 4
   const hub: Tile[] = [
     { neighbors: [1, 2, 3, 4], type: 'kite' },
@@ -519,85 +465,32 @@ describe('shapes (Q10)', () => {
     { neighbors: [0], type: 'dart' },
     { neighbors: [0], type: 'dart' },
   ];
-  // The same, with a dart in the middle
-  const dartHub: Tile[] = [{ ...hub[0], type: 'dart' }, ...hub.slice(1)];
 
-  describe('dealt', () => {
-    it('deals a kite KITE_CHANCE of the time, and nothing under the other rules', () => {
-      const dealt = opts({ shapes: 'dealt' });
-      expect(dealShape(dealt, () => 0)).toBe('kite');
-      expect(dealShape(dealt, () => KITE_CHANCE - 0.001)).toBe('kite');
-      expect(dealShape(dealt, () => KITE_CHANCE)).toBe('dart');
-      expect(dealShape(opts(), () => 0)).toBeNull();
-      expect(dealShape(opts({ shapes: 'dartDouble' }), () => 0)).toBeNull();
-    });
-
-    it('the value must go on an empty tile of the dealt shape', () => {
-      const c: Cell[] = [EMPTY, EMPTY, 1, EMPTY, EMPTY];
-      expect(shapeToPlace(hub, c, 'dart')).toBe('dart');
-      expect(canPlaceDealt(hub, c, 3, 'dart')).toBe(true);
-      expect(canPlaceDealt(hub, c, 0, 'dart')).toBe(false);
-      expect(canPlaceDealt(hub, c, 1, 'kite')).toBe(true);
-      expect(canPlaceDealt(hub, c, 2, 'kite')).toBe(false); // taken
-    });
-
-    it('with no empty tile of the dealt shape left, any empty tile will do', () => {
-      const c: Cell[] = [EMPTY, EMPTY, 1, 2, 3]; // both darts are taken
-      expect(shapeToPlace(hub, c, 'dart')).toBeNull();
-      expect(canPlaceDealt(hub, c, 0, 'dart')).toBe(true);
-    });
-
-    it('without a dealt shape, any empty tile will do', () => {
-      expect(canPlaceDealt(hub, [EMPTY, EMPTY, 1, EMPTY, EMPTY], 0, null)).toBe(true);
-    });
+  it('deals a kite KITE_CHANCE of the time, otherwise a dart', () => {
+    expect(dealShape(() => 0)).toBe('kite');
+    expect(dealShape(() => KITE_CHANCE - 0.001)).toBe('kite');
+    expect(dealShape(() => KITE_CHANCE)).toBe('dart');
   });
 
-  describe('dartDouble', () => {
-    const rule = opts({ shapes: 'dartDouble' });
-
-    it('a merge into a dart goes one rung higher', () => {
-      // Three As make a B, and the bonus makes it a C
-      const { cells, merges } = place(dartHub, [EMPTY, 1, 1, EMPTY, EMPTY], 0, 1, rule);
-      expect(merges).toEqual([{ into: 0, from: [1, 2], sum: 9, doubled: 'dart' }]);
-      expect(cells[0]).toBe(9);
-    });
-
-    it('a merge into a kite is not', () => {
-      expect(place(hub, [EMPTY, 1, 1, EMPTY, EMPTY], 0, 1, rule).cells[0]).toBe(3);
-    });
-
-    it('each merge of a chain into a dart gets the bonus', () => {
-      // Three As make B, +1 rung C; then three Cs make D, +1 rung E
-      const { cells, merges } = place(dartHub, [EMPTY, 1, 1, 9, 9], 0, 1, rule);
-      expect(merges.map(m => m.sum)).toEqual([9, 81]);
-      expect(cells).toEqual([81, EMPTY, EMPTY, EMPTY, EMPTY]);
-    });
+  it('the value must go on an empty tile of the dealt shape', () => {
+    const c: Cell[] = [EMPTY, EMPTY, 1, EMPTY, EMPTY];
+    expect(shapeToPlace(hub, c, 'dart')).toBe('dart');
+    expect(canPlaceDealt(hub, c, 3, 'dart')).toBe(true);
+    expect(canPlaceDealt(hub, c, 0, 'dart')).toBe(false);
+    expect(canPlaceDealt(hub, c, 1, 'kite')).toBe(true);
+    expect(canPlaceDealt(hub, c, 2, 'kite')).toBe(false); // taken
   });
 
-  describe('sameBonus', () => {
-    const rule = opts({ shapes: 'sameBonus' });
-
-    it('a merge whose tiles are all one shape goes one rung higher', () => {
-      const { merges } = place(hub, [EMPTY, 1, 1, EMPTY, EMPTY], 0, 1, rule);
-      expect(merges).toEqual([{ into: 0, from: [1, 2], sum: 9, doubled: 'shape' }]);
-    });
-
-    it('a mixed-shape merge is not, but still merges', () => {
-      const { merges } = place(hub, [EMPTY, 1, EMPTY, 1, EMPTY], 0, 1, rule);
-      expect(merges).toEqual([{ into: 0, from: [1, 3], sum: 3 }]);
-    });
-
-    it('all darts counts too', () => {
-      expect(place(dartHub, [EMPTY, EMPTY, EMPTY, 3, 3], 0, 3, rule).cells[0]).toBe(27);
-    });
+  it('with no empty tile of the dealt shape left, any empty tile will do', () => {
+    const c: Cell[] = [EMPTY, EMPTY, 1, 2, 3]; // both darts are taken
+    expect(shapeToPlace(hub, c, 'dart')).toBeNull();
+    expect(canPlaceDealt(hub, c, 0, 'dart')).toBe(true);
   });
 
-  it('Off: no shape changes anything', () => {
+  it('shape never changes what a merge makes', () => {
+    const dartHub: Tile[] = [{ ...hub[0], type: 'dart' }, ...hub.slice(1)];
     expect(place(dartHub, [EMPTY, 1, 1, EMPTY, EMPTY], 0, 1, opts()).merges).toEqual([{ into: 0, from: [1, 2], sum: 3 }]);
-  });
-
-  it('the preview shows a bonus result', () => {
-    expect(previewAt(dartHub, [EMPTY, 3, 3, EMPTY, EMPTY], 0, 3, opts({ shapes: 'dartDouble' }))).toEqual({ value: 27, merging: [1, 2], rubble: [] });
+    expect(place(hub, [EMPTY, 1, 1, EMPTY, EMPTY], 0, 1, opts()).merges).toEqual([{ into: 0, from: [1, 2], sum: 3 }]);
   });
 });
 
@@ -622,11 +515,6 @@ describe('what a merge makes: the sum, rounded down to a power of 3', () => {
     expect(mergeResult([3, 3, 3, 3, 3])).toBe(9);
     expect(mergeResult([9, 9, 9])).toBe(27);
     expect(mergeResult([0, 0, 0])).toBe(0);
-  });
-
-  it('a bonus merge (Q10) goes one rung higher', () => {
-    expect(mergeResult([1, 1, 1, 1], true)).toBe(9);
-    expect(mergeResult([3, 3, 3], true)).toBe(27);
   });
 
   it('every result is a power of 3 (or 0)', () => {

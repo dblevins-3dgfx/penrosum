@@ -17,27 +17,7 @@ export type GoalRule = 'highest' | 'target';
 //         becomes the number that does best there (see resolveWild)
 export type WildRule = 'none' | 'deck';
 
-// What adds zeros to the board after a move, so it fills up (see
-// applyPressure). A merge of zeros never counts as a merge here.
-//   none:      nothing
-//   mergeZero: after a move that merges, a 0 lands on a random empty tile
-//   spawn:     after every move, a 0 appears on a tile announced one move
-//              ahead; playing on that tile blocks it for that move
-//   rubble:    each 3-tile merge leaves a 0 on its cleared tile farthest
-//              from the placed tile, which merges with the 0s it then
-//              touches, as a placed 0 would
-export type PressureRule = 'none' | 'mergeZero' | 'spawn' | 'rubble';
-
 export type Shape = 'kite' | 'dart';
-
-// How the two tile shapes matter in play. Matching never depends on shape.
-//   none:       they don't
-//   dealt:      each drawn value comes with a shape (kite KITE_CHANCE of the
-//               time) and must go on an empty tile of that shape, unless
-//               none is left (see shapeToPlace)
-//   dartDouble: a merge into a dart is a bonus merge (one rung higher)
-//   sameBonus:  a merge whose tiles are all one shape is a bonus merge
-export type ShapesRule = 'none' | 'dealt' | 'dartDouble' | 'sameBonus';
 
 // What a merge scores (see mergePoints). A letter's rung is its place in
 // the alphabet (see rungOf), so scores grow in even steps as the letters
@@ -56,8 +36,6 @@ export interface Options {
   goal: GoalRule;
   target: number;
   wild: WildRule;
-  pressure: PressureRule;
-  shapes: ShapesRule;
   score: ScoreRule;
   chain: ChainBonus;
 }
@@ -66,8 +44,6 @@ export const DEFAULT_OPTIONS: Options = {
   goal: 'highest',
   target: 81,
   wild: 'none',
-  pressure: 'none',
-  shapes: 'none',
   score: 'rungXTiles',
   chain: 'on',
 };
@@ -86,15 +62,15 @@ export type Cell = number | null;
 
 export interface Tile {
   neighbors: number[];
-  type?: Shape; // needed by the shape rules (Q10)
+  type?: Shape; // needed for the dealt shape
 }
 
 // A move is legal on an un-numbered tile.
 export const canPlace = (cells: Cell[], id: number) => cells[id] === EMPTY;
 
-// Under the 'dealt' shape rule: the shape the next value must go on, or
-// null when any empty tile will do (no shape was dealt, or no empty tile of
-// the dealt shape is left).
+// The shape the next value must go on: the shape dealt with it, or null
+// when any empty tile will do (no empty tile of that shape is left, or no
+// shape is given).
 export const shapeToPlace = (tiles: Tile[], cells: Cell[], dealt: Shape | null): Shape | null =>
   dealt && tiles.some((t, i) => t.type === dealt && cells[i] === EMPTY) ? dealt : null;
 
@@ -105,14 +81,13 @@ export const canPlaceDealt = (tiles: Tile[], cells: Cell[], id: number, dealt: S
   return shape === null || tiles[id].type === shape;
 };
 
-// With the 'dealt' rule, how often the dealt shape is a kite. Roughly the
-// board's own share of kites (60 of 103 on the medium board).
+// How often the dealt shape is a kite. Roughly the board's own share of
+// kites (60 of 103 on the medium board).
 export const KITE_CHANCE = 0.6;
 
-// The shape dealt with the next value: a random one under the 'dealt'
-// rule, null under the others. `rand` returns a number in [0, 1).
-export const dealShape = (options: Options, rand: () => number = Math.random): Shape | null =>
-  options.shapes === 'dealt' ? (rand() < KITE_CHANCE ? 'kite' : 'dart') : null;
+// The shape dealt with the next value. `rand` returns a number in [0, 1).
+export const dealShape = (rand: () => number = Math.random): Shape =>
+  rand() < KITE_CHANCE ? 'kite' : 'dart';
 
 // The group for numbered tile `id`: it first, then every tile with the same
 // number connected to it through other such tiles. Fewer than MIN_GROUP
@@ -136,7 +111,6 @@ export interface Merge {
   into: number; // the placed tile, which takes the sum
   from: number[]; // the other tiles, now cleared
   sum: number;
-  doubled?: 'dart' | 'shape'; // why the sum was doubled, under the shape rules
 }
 
 export interface PlaceResult {
@@ -145,9 +119,8 @@ export interface PlaceResult {
 }
 
 // Places `value` on tile `id` and applies a merge if one forms: the tile
-// takes what the group makes (see mergeResult; one rung more for a bonus
-// merge under the 'dartDouble' and 'sameBonus' shape rules) and the rest
-// of the group is emptied. Then it merges
+// takes what the group makes (see mergeResult) and the rest of the group
+// is emptied. Then it merges
 // again while its new number makes a group (a chain reaction). Every merge
 // empties at least two numbered tiles and numbers none, so chains end.
 // Assumes the move is legal (see canPlace). Returns new cells; the input is
@@ -160,30 +133,24 @@ export const place = (tiles: Tile[], cells: Cell[], id: number, value: number, o
     const group = groupAt(tiles, next, id);
     if (group.length < MIN_GROUP) break;
     const values = group.map(t => next[t]);
-    const doubled =
-      options.shapes === 'dartDouble' && tiles[id].type === 'dart' ? 'dart'
-      : options.shapes === 'sameBonus' && group.every(t => tiles[t].type === tiles[id].type) ? 'shape'
-      : null;
-    const sum = mergeResult(values, !!doubled);
+    const sum = mergeResult(values);
     const from = group.slice(1);
     for (const t of from) next[t] = EMPTY;
     next[id] = sum;
-    merges.push(doubled ? { into: id, from, sum, doubled } : { into: id, from, sum });
+    merges.push({ into: id, from, sum });
   }
   return { cells: next, merges };
 };
 
 // What placing the drawn value on `id` would do, for the hover preview: the
-// number the tile would end up with, every tile its merges would clear, and
-// under the 'rubble' pressure rule, where its rubble would land (`rubble`)
-// and the 0s that rubble would merge away (in `merging` too). The other
-// pressure rules aren't previewed: one is random, the other already ringed.
+// number the tile would end up with, every tile its merges would clear,
+// where its rubble would land (`rubble`) and the 0s that rubble would merge
+// away (in `merging` too).
 export const previewAt = (tiles: Tile[], cells: Cell[], id: number, drawn: number, options: Options) => {
   const value = valueToPlace(tiles, cells, id, drawn, options);
   const { cells: after, merges } = place(tiles, cells, id, value, options);
   const merging = merges.flatMap(m => m.from);
-  if (options.pressure !== 'rubble') return { value: after[id], merging, rubble: [] as number[] };
-  const { zeros, rubbleMerges } = applyPressure(tiles, after, merges, options, null);
+  const { zeros, rubbleMerges } = dropRubble(tiles, after, merges);
   return { value: after[id], merging: [...merging, ...rubbleMerges.flatMap(m => m.from)], rubble: zeros };
 };
 
@@ -197,11 +164,8 @@ export const floorPow3 = (n: number) => {
 
 // What a merge of tiles holding `values` (all the same number) makes: their
 // sum, rounded down to a power of 3, so every number stays on the ladder
-// 1, 3, 9, 27 ... A bonus merge (Q10) goes one rung higher (x3).
-export const mergeResult = (values: number[], bonus = false) => {
-  const made = floorPow3(values.reduce((s, v) => s + v, 0));
-  return bonus ? made * 3 : made;
-};
+// 1, 3, 9, 27 ...
+export const mergeResult = (values: number[]) => floorPow3(values.reduce((s, v) => s + v, 0));
 
 // A value's rung: 1 for A (1), 2 for B (3), 3 for C (9) ... 26 for Z;
 // 0 for #.
@@ -231,7 +195,7 @@ export const mergePoints = (merge: Merge, rule: ScoreRule) => {
 export const scoreMerges = (merges: Merge[], options: Options) =>
   merges.reduce((total, m, i) => total + mergePoints(m, options.score) * (options.chain === 'on' ? i + 1 : 1), 0);
 
-// What rubble merges (Q9) score: 1 per tile, like any merge of 0s. They
+// What rubble merges score: 1 per tile, like any merge of 0s. They
 // come after the chain, so they get no chain bonus.
 export const scoreRubble = (rubbleMerges: Merge[], options: Options) =>
   scoreMerges(rubbleMerges, { ...options, chain: 'off' });
@@ -281,59 +245,37 @@ export const resolveWild = (tiles: Tile[], cells: Cell[], id: number, options: O
 export const valueToPlace = (tiles: Tile[], cells: Cell[], id: number, drawn: number, options: Options) =>
   drawn === WILD ? resolveWild(tiles, cells, id, options) : drawn;
 
-// A random empty tile, or null when the board is full. `rand` returns a
-// number in [0, 1).
-export const randomEmpty = (cells: Cell[], rand: () => number = Math.random) => {
-  const free = cells.flatMap((c, i) => (c === EMPTY ? [i] : []));
-  return free.length ? free[Math.floor(rand() * free.length)] : null;
-};
-
-// Where the 'spawn' rule's next 0 will appear (null under the other rules).
-export const nextSpawn = (cells: Cell[], options: Options, rand: () => number = Math.random) =>
-  options.pressure === 'spawn' ? randomEmpty(cells, rand) : null;
-
-export interface PressureResult {
+export interface RubbleResult {
   cells: Cell[];
-  zeros: number[]; // the tiles that just got a 0
-  spawnAt: number | null; // where the next 'spawn' 0 will appear
+  zeros: number[]; // the tiles that just got rubble
   rubbleMerges: Merge[]; // merges of 0s made by rubble landing, in order
 }
 
-// Adds the pressure rule's zeros to `cells`, the board just after a move
-// that made `merges`. `spawnAt` is the tile announced for this move's
-// spawn. Merges of zeros (sum 0) don't count as merges.
-export const applyPressure = (
-  tiles: Tile[], cells: Cell[], merges: Merge[], options: Options, spawnAt: number | null,
-  rand: () => number = Math.random,
-): PressureResult => {
+// Rubble, the game's pressure: on `cells`, the board just after a move that
+// made `merges`, each merge of exactly MIN_GROUP tiles leaves a 0 on its
+// cleared tile farthest from the placed one. Rubble comes from the
+// player's move, so it then merges like a placed 0: touching two or more
+// connected 0s, it takes them into one 0 on its own tile. Merges of 0s
+// (sum 0) leave no rubble.
+export const dropRubble = (tiles: Tile[], cells: Cell[], merges: Merge[]): RubbleResult => {
   const next = cells.slice();
   const zeros: number[] = [];
   const rubbleMerges: Merge[] = [];
-  const drop = (t: number | null) => {
-    if (t !== null && next[t] === EMPTY) {
-      next[t] = 0;
-      zeros.push(t);
-    }
-  };
-  const scoring = merges.filter(m => m.sum > 0);
-  if (options.pressure === 'mergeZero' && scoring.length) drop(randomEmpty(next, rand));
-  if (options.pressure === 'rubble') {
+  for (const m of merges) {
+    if (m.sum === 0 || m.from.length + 1 !== MIN_GROUP) continue;
     // A group lists its tiles outward from the placed one, so the last
     // cleared tile is the farthest
-    for (const m of scoring) {
-      if (m.from.length + 1 !== MIN_GROUP) continue;
-      const at = m.from[m.from.length - 1];
-      drop(at);
-      // Rubble comes from the player's move, so it merges like a placed 0
-      const group = groupAt(tiles, next, at);
-      if (group.length < MIN_GROUP) continue;
-      const from = group.slice(1);
-      for (const t of from) next[t] = EMPTY;
-      rubbleMerges.push({ into: at, from, sum: 0 });
-    }
+    const at = m.from[m.from.length - 1];
+    if (next[at] !== EMPTY) continue;
+    next[at] = 0;
+    zeros.push(at);
+    const group = groupAt(tiles, next, at);
+    if (group.length < MIN_GROUP) continue;
+    const from = group.slice(1);
+    for (const t of from) next[t] = EMPTY;
+    rubbleMerges.push({ into: at, from, sum: 0 });
   }
-  if (options.pressure === 'spawn') drop(spawnAt); // a tile played on blocks it
-  return { cells: next, zeros, spawnAt: nextSpawn(next, options, rand), rubbleMerges };
+  return { cells: next, zeros, rubbleMerges };
 };
 
 // Draws a value from `deck`. `rand` returns a number in [0, 1).

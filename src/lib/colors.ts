@@ -10,8 +10,7 @@ export interface TileColors {
 
 export const EMPTY_FILL = '#ffffff';
 
-// An empty tile that the next value can't go on, under the 'dealt' shape
-// rule (Q10)
+// An empty tile that the next value can't go on: not the shape it was dealt
 export const OFF_SHAPE_FILL = '#e2e8f0';
 
 // Numbers warm up and then cool down as they grow.

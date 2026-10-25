@@ -1,6 +1,6 @@
 # Penrosum
 
-A merging game on a Penrose tiling of kites and darts. Values climb a ladder of powers of 3 written as letters: # (0), A (1), B (3), C (9) and on up to Z. Place the next value (dealt at random) on an empty tile. When that makes a group of three or more matching tiles, they merge into the tile you placed, one rung up or more: three As make a B, nine make a C. Merges score points as you play. Make a Z to win.
+A merging game on a Penrose tiling of kites and darts. Values climb a ladder of powers of 3 written as letters: # (0), A (1), B (3), C (9) and on up to Z. Place the next value (dealt at random, with a shape) on an empty tile of that shape. When that makes a group of three or more matching tiles, they merge into the tile you placed, one rung up or more: three As make a B, nine make a C. A merge of exactly three leaves a # of rubble behind. Merges score points as you play. Make a Z to win.
 
 The board comes from [Penrogo](https://github.com/dblevins-3dgfx/penrogo). Some rules are still being decided: the game's **Preferences** dialog switches between the options, and [SPEC.md](SPEC.md) lists them as open questions. **New Game** offers three square board sizes (about 50, 100 and 200 tiles), fitted to the screen.
 
