@@ -8,7 +8,7 @@ const HowToPlay = ({ onClose }: { onClose: () => void }) => (
     <div className="text-sm text-slate-700 space-y-2">
       <p>
         Place the Next letter (beside the title) on an empty tile of the shape it comes with, a kite
-        or a dart (any empty tile once none of that shape is left). When it makes a group of{' '}
+        or a dart (once one shape's tiles are all full, you're only dealt the other). When it makes a group of{' '}
         {MIN_GROUP} or more tiles with the same letter, they merge into the tile you placed, one rung
         up the alphabet (three As make a B; nine make a C). If the new letter then makes a group too,
         it merges again.

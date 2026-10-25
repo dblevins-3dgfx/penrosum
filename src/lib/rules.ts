@@ -25,8 +25,8 @@ export interface Tile {
 export const canPlace = (cells: Cell[], id: number) => cells[id] === EMPTY;
 
 // The shape the next value must go on: the shape dealt with it, or null
-// when any empty tile will do (no empty tile of that shape is left, or no
-// shape is given).
+// when any empty tile will do (no shape is given, or, as a safeguard, no
+// empty tile of that shape is left; dealShape never deals one like that).
 export const shapeToPlace = (tiles: Tile[], cells: Cell[], dealt: Shape | null): Shape | null =>
   dealt && tiles.some((t, i) => t.type === dealt && cells[i] === EMPTY) ? dealt : null;
 
@@ -41,9 +41,16 @@ export const canPlaceDealt = (tiles: Tile[], cells: Cell[], id: number, dealt: S
 // kites (60 of 103 on the medium board).
 export const KITE_CHANCE = 0.6;
 
-// The shape dealt with the next value. `rand` returns a number in [0, 1).
-export const dealShape = (rand: () => number = Math.random): Shape =>
-  rand() < KITE_CHANCE ? 'kite' : 'dart';
+// The shape dealt with the next value, on `cells`, the board it will be
+// played on: only a shape that still has an empty tile, so once one shape's
+// empty tiles are all filled, every value comes with the other. While both
+// have one, a kite KITE_CHANCE of the time. `rand` returns a number in [0, 1).
+export const dealShape = (tiles: Tile[], cells: Cell[], rand: () => number = Math.random): Shape => {
+  const free = (shape: Shape) => tiles.some((t, i) => t.type === shape && cells[i] === EMPTY);
+  if (!free('dart')) return 'kite';
+  if (!free('kite')) return 'dart';
+  return rand() < KITE_CHANCE ? 'kite' : 'dart';
+};
 
 // The group for numbered tile `id`: it first, then every tile with the same
 // number connected to it through other such tiles. Fewer than MIN_GROUP

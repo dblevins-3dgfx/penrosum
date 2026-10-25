@@ -164,7 +164,7 @@ const Game = () => {
     const cells = seedBoard(tiles);
     setState({
       cells, next: nextValue(), moves: 0, score: 0, lastMove: null,
-      nextShape: dealShape(), message: '',
+      nextShape: dealShape(tiles, cells), message: '',
     });
     setUndo([]);
     setHovered(-1);
@@ -216,7 +216,7 @@ const Game = () => {
       moves: state.moves + 1,
       score: state.score + gained + rubbleGained,
       lastMove: id,
-      nextShape: dealShape(),
+      nextShape: dealShape(tiles, after),
       message: [
         drawn === WILD ? `Wild played as ${label(value)}.` : '',
         describeMerges(merges, label) + (gained ? ` (+${gained}).` : ''),
