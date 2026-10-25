@@ -105,6 +105,19 @@ const Preferences = ({ options, setOption, onClose }: PreferencesProps) => {
           ]}
           onChange={v => setOption('shapes', v)}
         />
+        <Choice
+          label="Q11. What does a merge make?"
+          value={options.merge}
+          options={[
+            ['sum', 'The sum (deals 0–3)'],
+            ['cap', 'The sum, rounded down to a power of 3 (deals 0, 1, 3, 9)'],
+            ['step', 'The next power of 3 (deals 0, 1, 3, 9)'],
+          ]}
+          onChange={v => setOption('merge', v)}
+        />
+        {options.merge !== 'sum' && (
+          <p className="text-xs text-slate-500 -mt-2 mb-3">Seeds follow from the next New Game.</p>
+        )}
         <p className="text-xs text-slate-500 mt-2">
           How to play: place the Next number (beside the title) on any empty tile. When it makes a group of {MIN_GROUP} or more
           tiles with the same number, the tile you placed takes their sum and the others are cleared.

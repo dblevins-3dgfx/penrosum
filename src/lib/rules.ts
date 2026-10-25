@@ -38,12 +38,21 @@ export type Shape = 'kite' | 'dart';
 //   sameBonus:  a merge whose tiles are all one shape is worth double
 export type ShapesRule = 'none' | 'dealt' | 'dartDouble' | 'sameBonus';
 
+// What a merge makes (see mergeResult), and so which values are dealt and
+// seeded (see valuesFor).
+//   sum:  the sum of the group; deals and seeds 0 to 3
+//   cap:  the sum rounded down to a power of 3; deals and seeds 0, 1, 3, 9
+//   step: the next power of 3 up from the group's number, however many
+//         tiles merge; deals and seeds 0, 1, 3, 9
+export type MergeRule = 'sum' | 'cap' | 'step';
+
 export interface Options {
   goal: GoalRule;
   target: number;
   wild: WildRule;
   pressure: PressureRule;
   shapes: ShapesRule;
+  merge: MergeRule;
 }
 
 export const DEFAULT_OPTIONS: Options = {
@@ -52,6 +61,7 @@ export const DEFAULT_OPTIONS: Options = {
   wild: 'none',
   pressure: 'none',
   shapes: 'none',
+  merge: 'sum',
 };
 
 export const TARGET_OPTIONS = [20, 50, 100, 200];
@@ -139,12 +149,12 @@ export const place = (tiles: Tile[], cells: Cell[], id: number, value: number, o
   for (;;) {
     const group = groupAt(tiles, next, id);
     if (group.length < MIN_GROUP) break;
-    let sum = group.reduce((s, t) => s + next[t], 0);
+    const values = group.map(t => next[t]);
     const doubled =
       options.shapes === 'dartDouble' && tiles[id].type === 'dart' ? 'dart'
       : options.shapes === 'sameBonus' && group.every(t => tiles[t].type === tiles[id].type) ? 'shape'
       : null;
-    if (doubled) sum *= 2;
+    const sum = mergeResult(values, options, !!doubled);
     const from = group.slice(1);
     for (const t of from) next[t] = EMPTY;
     next[id] = sum;
@@ -161,11 +171,35 @@ export const previewAt = (tiles: Tile[], cells: Cell[], id: number, drawn: numbe
   return { value: after[id], merging: merges.flatMap(m => m.from) };
 };
 
+// The largest power of 3 not above `n` (1, 3, 9, 27 ...), or 0 for 0.
+export const floorPow3 = (n: number) => {
+  if (n < 1) return 0;
+  let p = 1;
+  while (p * 3 <= n) p *= 3;
+  return p;
+};
+
+// What a merge of tiles holding `values` (all the same number) makes. A
+// doubled merge (Q10) is worth twice the sum under 'sum', and one power of
+// 3 more (x3) under 'cap' and 'step', so they keep to powers of 3.
+export const mergeResult = (values: number[], options: Options, doubled = false) => {
+  const sum = values.reduce((s, v) => s + v, 0);
+  if (options.merge === 'sum') return doubled ? sum * 2 : sum;
+  const base = options.merge === 'cap' ? floorPow3(sum) : values[0] * 3;
+  return doubled ? base * 3 : base;
+};
+
 export type Deck = [number, number][]; // [value, chance], chances adding to 1
 
-// The value for each move is drawn at random from DECK and shown in
-// advance: 0 a tenth of the time, then 1, 2 and 3 at 7 : 2 : 1.
+// The value for each move is drawn at random from the deck and shown in
+// advance: 0 a tenth of the time, then the three numbers at 7 : 2 : 1.
+// DECK holds 0 to 3 (merge rule 'sum'); POW3_DECK holds 0, 1, 3 and 9
+// ('cap' and 'step').
 export const DECK: Deck = [[0, 0.1], [1, 0.63], [2, 0.18], [3, 0.09]];
+export const POW3_DECK: Deck = [[0, 0.1], [1, 0.63], [3, 0.18], [9, 0.09]];
+
+// The values dealt and seeded under the merge rule
+export const valuesFor = (options: Options) => (options.merge === 'sum' ? DECK : POW3_DECK).map(([v]) => v);
 
 // The wildcard, as a drawn value. It never sits on the board: placing it
 // places the number resolveWild picks.
@@ -176,10 +210,12 @@ export const WILD_CHANCE = 0.05;
 
 // The deck in play. With the wildcard, it takes WILD_CHANCE and the numbers
 // share what is left in the same proportions as without.
-export const deckFor = (options: Options): Deck =>
-  options.wild === 'deck'
-    ? [[WILD, WILD_CHANCE], ...DECK.map(([v, w]) => [v, w * (1 - WILD_CHANCE)] as [number, number])]
-    : DECK;
+export const deckFor = (options: Options): Deck => {
+  const base = options.merge === 'sum' ? DECK : POW3_DECK;
+  return options.wild === 'deck'
+    ? [[WILD, WILD_CHANCE], ...base.map(([v, w]) => [v, w * (1 - WILD_CHANCE)] as [number, number])]
+    : base;
+};
 
 // What a wildcard placed on `id` becomes: the number that does best there.
 // It tries each number held by a neighbor and keeps the one whose move
@@ -260,14 +296,17 @@ export const drawValue = (rand: () => number = Math.random, deck: Deck = DECK) =
 };
 
 // The starting board: `fraction` of the tiles (SEED_FRACTION in play),
-// picked at random, hold a random number from SEED_VALUES. Neighboring
+// picked at random, hold a random number from `values` (SEED_VALUES, or
+// valuesFor the merge rule in play). Neighboring
 // seeds never hold the same number, so no group exists before the first
 // move under any option.
 // A tile whose neighbors already hold every value stays empty.
 export const SEED_FRACTION = 0.1;
 export const SEED_VALUES = [0, 1, 2, 3];
 
-export const seedBoard = (tiles: Tile[], rand: () => number = Math.random, fraction = SEED_FRACTION): Cell[] => {
+export const seedBoard = (
+  tiles: Tile[], rand: () => number = Math.random, fraction = SEED_FRACTION, values = SEED_VALUES,
+): Cell[] => {
   const cells: Cell[] = tiles.map(() => EMPTY);
   // Visit the tiles in random order (Fisher-Yates)
   const order = tiles.map((_, i) => i);
@@ -278,7 +317,7 @@ export const seedBoard = (tiles: Tile[], rand: () => number = Math.random, fract
   let left = Math.round(tiles.length * fraction);
   for (const id of order) {
     if (left === 0) break;
-    const allowed = SEED_VALUES.filter(v => !tiles[id].neighbors.some(n => cells[n] === v));
+    const allowed = values.filter(v => !tiles[id].neighbors.some(n => cells[n] === v));
     if (!allowed.length) continue;
     cells[id] = allowed[Math.floor(rand() * allowed.length)];
     left--;

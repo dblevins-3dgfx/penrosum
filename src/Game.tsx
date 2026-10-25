@@ -7,6 +7,7 @@ import { parseBoardSize, parseOptions } from './lib/prefs';
 import {
   EMPTY, MIN_GROUP, WILD,
   type Cell, type Merge, type Options, type Shape,
+  SEED_FRACTION, valuesFor,
   applyPressure, canPlaceDealt, dealShape, shapeToPlace, deckFor, drawValue, highestTile, nextSpawn, outcome, place, previewAt, seedBoard,
   valueToPlace,
 } from './lib/rules';
@@ -44,8 +45,8 @@ const nextValueFor = (options: Options) => drawValue(Math.random, deckFor(option
 // How a drawn value is shown: the wildcard as a star
 const showDrawn = (drawn: number) => (drawn === WILD ? '★' : String(drawn));
 
-// "Merged 3 tiles into 3, then 3 tiles into 12 (doubled on a dart)"
-const DOUBLED = { dart: ' (doubled on a dart)', shape: ' (doubled: all one shape)' };
+// "Merged 3 tiles into 3, then 3 tiles into 12 (bonus on a dart)"
+const DOUBLED = { dart: ' (bonus on a dart)', shape: ' (bonus: all one shape)' };
 const describeMerges = (merges: Merge[]) =>
   merges.length
     ? `Merged ${merges.map(m => `${m.from.length + 1} tiles into ${m.sum}${m.doubled ? DOUBLED[m.doubled] : ''}`).join(', then ')}`
@@ -154,7 +155,7 @@ const Game = () => {
   const newGame = useCallback((newSize: BoardSize) => {
     const tiles = boardFor(newSize);
     setBoard({ size: newSize, tiles, bounds: boardBounds(tiles) });
-    const cells = seedBoard(tiles);
+    const cells = seedBoard(tiles, Math.random, SEED_FRACTION, valuesFor(options));
     setState({
       cells, next: nextValueFor(options), moves: 0, lastMove: null, spawnAt: nextSpawn(cells, options),
       nextShape: dealShape(options), message: '',
@@ -173,7 +174,7 @@ const Game = () => {
     const updated = { ...options, [key]: value };
     setOptions(updated);
     save(OPTIONS_STORAGE_KEY, JSON.stringify(updated));
-    if (key === 'wild') setState(s => s && { ...s, next: nextValueFor(updated) });
+    if (key === 'wild' || key === 'merge') setState(s => s && { ...s, next: nextValueFor(updated) });
     if (key === 'shapes') setState(s => s && { ...s, nextShape: dealShape(updated) });
     if (key === 'pressure') setState(s => s && { ...s, spawnAt: nextSpawn(s.cells, updated) });
   };

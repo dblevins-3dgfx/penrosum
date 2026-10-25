@@ -6,6 +6,7 @@ import {
   boardFull, canPlace, deckFor, drawValue, groupAt, highestTile, outcome, place, previewAt, resolveWild, seedBoard, valueToPlace,
   applyPressure, nextSpawn, randomEmpty,
   KITE_CHANCE, canPlaceDealt, dealShape, shapeToPlace,
+  POW3_DECK, floorPow3, mergeResult, valuesFor,
 } from './rules';
 
 // A small graph to test on:
@@ -553,5 +554,89 @@ describe('shapes (Q10)', () => {
 
   it('the preview shows a doubled result', () => {
     expect(previewAt(dartHub, [EMPTY, 2, 2, EMPTY, EMPTY], 0, 2, opts({ shapes: 'dartDouble' }))).toEqual({ value: 12, merging: [1, 2] });
+  });
+});
+
+describe('what a merge makes (Q11)', () => {
+  const cap = opts({ merge: 'cap' });
+  const step = opts({ merge: 'step' });
+  // A hub touching four others
+  const hub: Tile[] = [
+    { neighbors: [1, 2, 3, 4], type: 'kite' },
+    { neighbors: [0], type: 'kite' },
+    { neighbors: [0], type: 'kite' },
+    { neighbors: [0], type: 'dart' },
+    { neighbors: [0], type: 'dart' },
+  ];
+
+  it('floorPow3 rounds down to a power of 3', () => {
+    expect([0, 1, 2, 3, 4, 8, 9, 15, 26, 27, 80, 81].map(floorPow3)).toEqual([0, 1, 1, 3, 3, 3, 9, 9, 9, 27, 27, 81]);
+  });
+
+  it('sum: the sum, as before', () => {
+    expect(mergeResult([1, 1, 1, 1], opts())).toBe(4);
+    expect(mergeResult([1, 1, 1], opts(), true)).toBe(6);
+  });
+
+  it('cap: the sum rounded down to a power of 3', () => {
+    expect(mergeResult([1, 1, 1], cap)).toBe(3);
+    expect(mergeResult([1, 1, 1, 1], cap)).toBe(3);
+    expect(mergeResult([3, 3, 3], cap)).toBe(9);
+    expect(mergeResult([3, 3, 3, 3, 3], cap)).toBe(9);
+    expect(mergeResult([9, 9, 9], cap)).toBe(27);
+    expect(mergeResult([0, 0, 0], cap)).toBe(0);
+  });
+
+  it('step: the next power of 3, however many tiles merge', () => {
+    expect(mergeResult([1, 1, 1], step)).toBe(3);
+    expect(mergeResult([1, 1, 1, 1, 1, 1, 1, 1], step)).toBe(3);
+    expect(mergeResult([3, 3, 3, 3], step)).toBe(9);
+    expect(mergeResult([9, 9, 9], step)).toBe(27);
+    expect(mergeResult([0, 0, 0], step)).toBe(0);
+  });
+
+  it('a doubled merge (Q10) goes one power of 3 higher under cap and step', () => {
+    expect(mergeResult([1, 1, 1, 1], cap, true)).toBe(9);
+    expect(mergeResult([3, 3, 3], step, true)).toBe(27);
+    const dartHub: Tile[] = [{ ...hub[0], type: 'dart' }, ...hub.slice(1)];
+    expect(place(dartHub, [EMPTY, 1, 1, EMPTY, EMPTY], 0, 1, opts({ merge: 'step', shapes: 'dartDouble' })).cells[0]).toBe(9);
+  });
+
+  it('place uses the merge rule, chains included', () => {
+    // Four 1s: sum 4, cap 3, step 3
+    const fourOnes: Cell[] = [EMPTY, 1, 1, 1, EMPTY];
+    expect(place(hub, fourOnes, 0, 1, opts()).cells[0]).toBe(4);
+    expect(place(hub, fourOnes, 0, 1, cap).cells[0]).toBe(3);
+    expect(place(hub, fourOnes, 0, 1, step).cells[0]).toBe(3);
+    // 1+1+1 makes 3, which joins two 3s: 9 under every rule
+    expect(place(hub, [EMPTY, 1, 1, 3, 3], 0, 1, step).cells).toEqual([9, EMPTY, EMPTY, EMPTY, EMPTY]);
+  });
+
+  it('cap and step keep every result a power of 3 (or 0)', () => {
+    const isPow3 = (n: number) => n === 0 || floorPow3(n) === n;
+    for (const rule of [cap, step]) {
+      for (const v of [0, 1, 3, 9, 27]) {
+        for (let n = 3; n <= 8; n++) expect(isPow3(mergeResult(Array(n).fill(v), rule))).toBe(true);
+      }
+    }
+  });
+
+  it('deals and seeds 0, 1, 3 and 9 under cap and step, 0 to 3 under sum', () => {
+    expect(valuesFor(opts())).toEqual([0, 1, 2, 3]);
+    expect(valuesFor(cap)).toEqual([0, 1, 3, 9]);
+    expect(valuesFor(step)).toEqual([0, 1, 3, 9]);
+    expect(deckFor(cap)).toEqual(POW3_DECK);
+    expect(POW3_DECK.map(([, w]) => w)).toEqual(DECK.map(([, w]) => w));
+    const withWild = deckFor(opts({ merge: 'step', wild: 'deck' }));
+    expect(withWild.slice(1).map(([v]) => v)).toEqual([0, 1, 3, 9]);
+  });
+
+  it('seedBoard seeds the values it is given', () => {
+    const board = makeBoard(800, 600);
+    let seed = 7;
+    const rand = () => (seed = (seed * 1664525 + 1013904223) % 2 ** 32) / 2 ** 32;
+    const cells = seedBoard(board, rand, 0.1, valuesFor(step));
+    for (const c of cells) if (c !== EMPTY) expect([0, 1, 3, 9]).toContain(c);
+    expect(cells).toContain(9);
   });
 });
