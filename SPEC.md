@@ -97,7 +97,8 @@ Everything fits on one screen with no scrolling: a header, the board filling the
 
 | Element | Behavior |
 |---|---|
-| Header | Title; the stats (moves, highest tile, free (empty) tiles, plus the target under the target goal, and the next value, ★ for a wildcard); **Undo** (disabled with nothing to undo), **New Game ▾** and **Preferences**. On a narrow screen it wraps onto two lines |
+| Next chip | The next value in the header, drawn as a small rounded tile in the same colors that number has on the board (fill and number color, from `src/lib/colors.ts`, shared with the board drawing). A wildcard shows ★ on a rainbow gradient, a look no number has. Each newly drawn value pops in (a quick grow and settle, 0.25 s), except when the device asks for reduced motion |
+| Header | Title; the stats (moves, highest tile, free (empty) tiles, plus the target under the target goal, and the next value as a chip, below); **Undo** (disabled with nothing to undo), **New Game ▾** and **Preferences**. On a narrow screen it wraps onto two lines |
 | New Game menu | Small, Medium and Large, each with its tile count; the current board's size is highlighted. Picking one starts a new game on that size and remembers it for next time. Escape or a click outside closes the menu without starting a game |
 | Board | Scaled to fill its space (leaving 8 px around it) and centered. When the window changes size or the screen is rotated, the board is rescaled to fit. Empty tiles white with thin gray edges (one screen pixel wide at any scale); zeros slate gray with a gray "0"; numbered tiles colored by value, from pale yellow for 1 through orange, red, pink, purple and blue to green above 100, with the number on the tile (on a kite at its centroid, on a dart along its axis toward the tip) |
 | Last move | Amber outline |

@@ -38,6 +38,7 @@ One-time setup, needed before the first deploy: repository **Settings → Pages 
 - `penrose-board.ts`: Penrose tiling generation and the tile adjacency graph (from Penrogo, unchanged)
 - `src/lib/board.ts`: board sizes, builds this game's square boards, and finds the tile under a point
 - `src/lib/view.ts`: fits the board to the space on screen
+- `src/lib/colors.ts`: tile colors, shared by the board and the Next chip
 - `src/lib/prefs.ts`: reads the saved rule options and board size
 - `src/lib/rules.ts`: the rules, with an option for each open question
 - `src/lib/*.test.ts`: unit tests for the above
