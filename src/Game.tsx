@@ -12,6 +12,7 @@ import {
   valueToPlace,
 } from './lib/rules';
 import { fitView, toBoard } from './lib/view';
+import { TOP_LABEL, TOP_VALUE, targetLabel, usesLetters, valueLabel } from './lib/labels';
 import { EMPTY_FILL, OFF_SHAPE_FILL, colorsFor, fillFor, textFor } from './lib/colors';
 import Preferences from './Preferences';
 
@@ -42,14 +43,12 @@ const BOARD_MARGIN = 8;
 // The value for the next move, drawn in advance so it can be shown
 const nextValueFor = (options: Options) => drawValue(Math.random, deckFor(options));
 
-// How a drawn value is shown: the wildcard as a star
-const showDrawn = (drawn: number) => (drawn === WILD ? '★' : String(drawn));
-
-// "Merged 3 tiles into 3, then 3 tiles into 12 (bonus on a dart)"
+// "Merged 3 tiles into 3, then 3 tiles into 12 (bonus on a dart)", with
+// values written by `label` (numbers, or letters under Q11's power-of-3 rules)
 const DOUBLED = { dart: ' (bonus on a dart)', shape: ' (bonus: all one shape)' };
-const describeMerges = (merges: Merge[]) =>
+const describeMerges = (merges: Merge[], label: (v: number) => string) =>
   merges.length
-    ? `Merged ${merges.map(m => `${m.from.length + 1} tiles into ${m.sum}${m.doubled ? DOUBLED[m.doubled] : ''}`).join(', then ')}`
+    ? `Merged ${merges.map(m => `${m.from.length + 1} tiles into ${label(m.sum)}${m.doubled ? DOUBLED[m.doubled] : ''}`).join(', then ')}`
     : '';
 
 // The chip's outline when the next value is dealt a shape (Q10): a kite,
@@ -62,9 +61,9 @@ const CHIP_CLIP: Record<Shape, string> = {
 // The next value as a chip in the tile's own colors (the wildcard in its
 // rainbow), shaped like a kite or dart when it was dealt a shape. Keyed by
 // the move count, so each new draw pops in.
-const NextChip = ({ drawn, shape, moves }: { drawn: number; shape: Shape | null; moves: number }) => {
+const NextChip = ({ drawn, label, shape, moves }: { drawn: number; label: string; shape: Shape | null; moves: number }) => {
   const { fill, text } = colorsFor(drawn);
-  const name = drawn === WILD ? 'wildcard' : String(drawn);
+  const name = drawn === WILD ? 'wildcard' : label;
   return (
     <b
       key={moves}
@@ -80,7 +79,7 @@ const NextChip = ({ drawn, shape, moves }: { drawn: number; shape: Shape | null;
         paddingBottom: shape === 'dart' ? '0.6rem' : undefined,
       }}
     >
-      {showDrawn(drawn)}
+      {label}
     </b>
   );
 };
@@ -191,6 +190,8 @@ const Game = () => {
   const tiles = board?.tiles ?? [];
   const cells = state?.cells ?? [];
   const result = outcome(cells, options);
+  // How values are written: numbers, or letters under Q11's power-of-3 rules
+  const label = useCallback((v: number) => valueLabel(v, options), [options]);
   const drawn = state?.next ?? 1;
 
   const undoMove = () => {
@@ -213,8 +214,8 @@ const Game = () => {
       spawnAt,
       nextShape: dealShape(options),
       message: [
-        drawn === WILD ? `Wild played as ${value}.` : '',
-        describeMerges(merges),
+        drawn === WILD ? `Wild played as ${label(value)}.` : '',
+        describeMerges(merges, label),
         zeros.length === 1 ? 'A 0 dropped.' : zeros.length ? `${zeros.length} zeros dropped.` : '',
       ].filter(Boolean).join(' '),
     });
@@ -256,7 +257,7 @@ const Game = () => {
       ctx.strokeStyle = '#94a3b8';
       ctx.lineWidth = px;
       ctx.stroke();
-      if (v !== EMPTY) drawNumber(ctx, t, String(v), textFor(v));
+      if (v !== EMPTY) drawNumber(ctx, t, label(v), textFor(v));
     }
 
     // Tiles the hovered move would merge
@@ -292,9 +293,9 @@ const Game = () => {
       ctx.strokeStyle = '#4f46e5';
       ctx.lineWidth = 3;
       ctx.stroke();
-      drawNumber(ctx, t, String(preview.value), '#3730a3');
+      drawNumber(ctx, t, label(preview.value), '#3730a3');
     }
-  }, [tiles, cells, state, hovered, preview, view, space]);
+  }, [tiles, cells, state, hovered, preview, view, space, label]);
 
   const tileFromEvent = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!view) return -1;
@@ -309,19 +310,22 @@ const Game = () => {
     ? `Place the Next number on an empty ${shapeToPlace(tiles, cells, state?.nextShape ?? null) ?? 'tile'}. ${MIN_GROUP} or more matching tiles merge into the one you placed.`
     : '');
   if (state && result.over) {
-    status = result.won
-      ? options.goal === 'target'
-        ? `You made ${result.highest} in ${moves} moves!`
-        : `Board full. Highest tile: ${result.highest} after ${moves} moves.`
-      : `Board full before reaching ${options.target}. Highest tile: ${result.highest}.`;
+    const best = label(result.highest);
+    status = usesLetters(options) && result.highest >= TOP_VALUE
+      ? `You made ${TOP_LABEL}, the top of the alphabet, in ${moves} moves. You win!`
+      : result.won
+        ? options.goal === 'target'
+          ? `You made ${best} in ${moves} moves!`
+          : `Board full. Highest tile: ${best} after ${moves} moves.`
+        : `Board full before reaching ${targetLabel(options.target, options)}. Highest tile: ${best}.`;
   }
 
   const button = 'px-3 py-1.5 rounded text-sm border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-40';
-  const stats: [string, number][] = [
+  const stats: [string, string | number][] = [
     ['Moves', moves],
-    ['Highest', highestTile(cells)],
+    ['Highest', label(highestTile(cells))],
     ['Free', free],
-    ...(options.goal === 'target' ? [['Target', options.target] as [string, number]] : []),
+    ...(options.goal === 'target' ? [['Target', targetLabel(options.target, options)] as [string, string]] : []),
   ];
 
   // The board takes a square at the start of the screen (left on a wide
@@ -345,7 +349,7 @@ const Game = () => {
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold text-indigo-700 mr-auto">Penrosum</h1>
           <span className="text-sm text-slate-600">Next</span>
-          <NextChip drawn={drawn} shape={state?.nextShape ?? null} moves={moves} />
+          <NextChip drawn={drawn} label={label(drawn)} shape={state?.nextShape ?? null} moves={moves} />
         </div>
 
         <dl className={`grid gap-2 ${stats.length === 4 ? 'grid-cols-4' : 'grid-cols-3'}`}>

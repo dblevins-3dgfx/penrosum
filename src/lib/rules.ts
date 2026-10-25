@@ -332,10 +332,15 @@ export const boardFull = (cells: Cell[]) => !cells.some(c => c === EMPTY);
 
 // The game ends with a win when the target is reached (goal 'target'), or
 // when no un-numbered tile is left.
+// Under the power-of-3 merge rules, the top of the ladder: Z, 3 to the
+// 25th. Making it wins the game, whatever the goal.
+export const TOP_VALUE = 3 ** 25;
+
 export type Outcome = { over: false } | { over: true; won: boolean; highest: number };
 
 export const outcome = (cells: Cell[], options: Options): Outcome => {
   const highest = highestTile(cells);
+  if (options.merge !== 'sum' && highest >= TOP_VALUE) return { over: true, won: true, highest };
   if (options.goal === 'target' && highest >= options.target) return { over: true, won: true, highest };
   if (boardFull(cells)) return { over: true, won: options.goal === 'highest', highest };
   return { over: false };
