@@ -24,7 +24,8 @@ export type WildRule = 'none' | 'deck';
 //   spawn:     after every move, a 0 appears on a tile announced one move
 //              ahead; playing on that tile blocks it for that move
 //   rubble:    each 3-tile merge leaves a 0 on its cleared tile farthest
-//              from the placed tile
+//              from the placed tile, which merges with the 0s it then
+//              touches, as a placed 0 would
 export type PressureRule = 'none' | 'mergeZero' | 'spawn' | 'rubble';
 
 export type Shape = 'kite' | 'dart';
@@ -173,11 +174,17 @@ export const place = (tiles: Tile[], cells: Cell[], id: number, value: number, o
 };
 
 // What placing the drawn value on `id` would do, for the hover preview: the
-// number the tile would end up with, and every tile its merges would clear.
+// number the tile would end up with, every tile its merges would clear, and
+// under the 'rubble' pressure rule, where its rubble would land (`rubble`)
+// and the 0s that rubble would merge away (in `merging` too). The other
+// pressure rules aren't previewed: one is random, the other already ringed.
 export const previewAt = (tiles: Tile[], cells: Cell[], id: number, drawn: number, options: Options) => {
   const value = valueToPlace(tiles, cells, id, drawn, options);
   const { cells: after, merges } = place(tiles, cells, id, value, options);
-  return { value: after[id], merging: merges.flatMap(m => m.from) };
+  const merging = merges.flatMap(m => m.from);
+  if (options.pressure !== 'rubble') return { value: after[id], merging, rubble: [] as number[] };
+  const { zeros, rubbleMerges } = applyPressure(tiles, after, merges, options, null);
+  return { value: after[id], merging: [...merging, ...rubbleMerges.flatMap(m => m.from)], rubble: zeros };
 };
 
 // The largest power of 3 not above `n` (1, 3, 9, 27 ...), or 0 for 0.
@@ -223,6 +230,11 @@ export const mergePoints = (merge: Merge, rule: ScoreRule) => {
 // place in the chain reaction (x1, x2, x3 ...) with the chain bonus on.
 export const scoreMerges = (merges: Merge[], options: Options) =>
   merges.reduce((total, m, i) => total + mergePoints(m, options.score) * (options.chain === 'on' ? i + 1 : 1), 0);
+
+// What rubble merges (Q9) score: 1 per tile, like any merge of 0s. They
+// come after the chain, so they get no chain bonus.
+export const scoreRubble = (rubbleMerges: Merge[], options: Options) =>
+  scoreMerges(rubbleMerges, { ...options, chain: 'off' });
 
 export type Deck = [number, number][]; // [value, chance], chances adding to 1
 
@@ -284,17 +296,19 @@ export interface PressureResult {
   cells: Cell[];
   zeros: number[]; // the tiles that just got a 0
   spawnAt: number | null; // where the next 'spawn' 0 will appear
+  rubbleMerges: Merge[]; // merges of 0s made by rubble landing, in order
 }
 
 // Adds the pressure rule's zeros to `cells`, the board just after a move
 // that made `merges`. `spawnAt` is the tile announced for this move's
 // spawn. Merges of zeros (sum 0) don't count as merges.
 export const applyPressure = (
-  cells: Cell[], merges: Merge[], options: Options, spawnAt: number | null,
+  tiles: Tile[], cells: Cell[], merges: Merge[], options: Options, spawnAt: number | null,
   rand: () => number = Math.random,
 ): PressureResult => {
   const next = cells.slice();
   const zeros: number[] = [];
+  const rubbleMerges: Merge[] = [];
   const drop = (t: number | null) => {
     if (t !== null && next[t] === EMPTY) {
       next[t] = 0;
@@ -306,10 +320,20 @@ export const applyPressure = (
   if (options.pressure === 'rubble') {
     // A group lists its tiles outward from the placed one, so the last
     // cleared tile is the farthest
-    for (const m of scoring) if (m.from.length + 1 === MIN_GROUP) drop(m.from[m.from.length - 1]);
+    for (const m of scoring) {
+      if (m.from.length + 1 !== MIN_GROUP) continue;
+      const at = m.from[m.from.length - 1];
+      drop(at);
+      // Rubble comes from the player's move, so it merges like a placed 0
+      const group = groupAt(tiles, next, at);
+      if (group.length < MIN_GROUP) continue;
+      const from = group.slice(1);
+      for (const t of from) next[t] = EMPTY;
+      rubbleMerges.push({ into: at, from, sum: 0 });
+    }
   }
   if (options.pressure === 'spawn') drop(spawnAt); // a tile played on blocks it
-  return { cells: next, zeros, spawnAt: nextSpawn(next, options, rand) };
+  return { cells: next, zeros, spawnAt: nextSpawn(next, options, rand), rubbleMerges };
 };
 
 // Draws a value from `deck`. `rand` returns a number in [0, 1).

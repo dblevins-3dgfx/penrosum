@@ -7,7 +7,7 @@ import { parseBoardSize, parseOptions } from './lib/prefs';
 import {
   EMPTY, MIN_GROUP, WILD,
   type Cell, type Merge, type Options, type Shape,
-  applyPressure, canPlaceDealt, dealShape, shapeToPlace, deckFor, drawValue, highestTile, nextSpawn, outcome, place, previewAt, scoreMerges, seedBoard,
+  applyPressure, canPlaceDealt, dealShape, shapeToPlace, deckFor, drawValue, highestTile, nextSpawn, outcome, place, previewAt, scoreMerges, scoreRubble, seedBoard,
   valueToPlace,
 } from './lib/rules';
 import { fitView, toBoard } from './lib/view';
@@ -204,21 +204,23 @@ const Game = () => {
     if (!state || result.over || id < 0 || !canPlaceDealt(tiles, cells, id, state.nextShape)) return;
     const value = valueToPlace(tiles, cells, id, drawn, options);
     const { cells: placed, merges } = place(tiles, cells, id, value, options);
-    const { cells: after, zeros, spawnAt } = applyPressure(placed, merges, options, state.spawnAt);
+    const { cells: after, zeros, spawnAt, rubbleMerges } = applyPressure(tiles, placed, merges, options, state.spawnAt);
     const gained = scoreMerges(merges, options);
+    const rubbleGained = scoreRubble(rubbleMerges, options);
     setUndo([...undo, state]);
     setState({
       cells: after,
       next: nextValueFor(options),
       moves: state.moves + 1,
-      score: state.score + gained,
+      score: state.score + gained + rubbleGained,
       lastMove: id,
       spawnAt,
       nextShape: dealShape(options),
       message: [
         drawn === WILD ? `Wild played as ${label(value)}.` : '',
-        describeMerges(merges, label) + (gained ? ` (+${gained})` : ''),
+        describeMerges(merges, label) + (gained ? ` (+${gained}).` : ''),
         zeros.length === 1 ? 'A # dropped.' : zeros.length ? `${zeros.length} #s dropped.` : '',
+        ...rubbleMerges.map(m => `Rubble merged ${m.from.length + 1} #s into one (+${scoreRubble([m], options)}).`),
       ].filter(Boolean).join(' '),
     });
   };
@@ -296,6 +298,19 @@ const Game = () => {
       ctx.lineWidth = 3;
       ctx.stroke();
       drawNumber(ctx, t, label(preview.value), '#3730a3');
+    }
+
+    // Where the move's rubble would land (Q9 'rubble'): a gray # with the
+    // merge outline
+    for (const id of preview?.rubble ?? []) {
+      const t = tiles[id];
+      tracePath(ctx, t);
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fill();
+      ctx.strokeStyle = '#4f46e5';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      drawNumber(ctx, t, label(0), '#475569');
     }
   }, [tiles, cells, state, hovered, preview, view, space, label]);
 
