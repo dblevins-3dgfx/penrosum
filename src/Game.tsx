@@ -7,7 +7,8 @@ import { parseBoardSize, parseOptions } from './lib/prefs';
 import {
   EMPTY, MIN_GROUP, WILD,
   type Cell, type Merge, type Options,
-  canPlace, deckFor, drawValue, highestTile, outcome, place, previewAt, seedBoard, valueToPlace,
+  applyPressure, canPlace, deckFor, drawValue, highestTile, nextSpawn, outcome, place, previewAt, seedBoard,
+  valueToPlace,
 } from './lib/rules';
 import { fitView, toBoard } from './lib/view';
 import Preferences from './Preferences';
@@ -57,6 +58,7 @@ interface Snapshot {
   next: number;
   moves: number;
   lastMove: number | null;
+  spawnAt: number | null; // where the 'spawn' pressure rule's next 0 appears
   message: string;
 }
 
@@ -128,7 +130,10 @@ const Game = () => {
   const newGame = useCallback((newSize: BoardSize) => {
     const tiles = boardFor(newSize);
     setBoard({ size: newSize, tiles, bounds: boardBounds(tiles) });
-    setState({ cells: seedBoard(tiles), next: nextValueFor(options), moves: 0, lastMove: null, message: '' });
+    const cells = seedBoard(tiles);
+    setState({
+      cells, next: nextValueFor(options), moves: 0, lastMove: null, spawnAt: nextSpawn(cells, options), message: '',
+    });
     setUndo([]);
     setHovered(-1);
     setSize(newSize);
@@ -144,6 +149,7 @@ const Game = () => {
     setOptions(updated);
     save(OPTIONS_STORAGE_KEY, JSON.stringify(updated));
     if (key === 'wild') setState(s => s && { ...s, next: nextValueFor(updated) });
+    if (key === 'pressure') setState(s => s && { ...s, spawnAt: nextSpawn(s.cells, updated) });
   };
   const closePrefs = useCallback(() => setShowPrefs(false), []);
 
@@ -169,14 +175,20 @@ const Game = () => {
   const play = (id: number) => {
     if (!state || result.over || id < 0 || !canPlace(cells, id)) return;
     const value = valueToPlace(tiles, cells, id, drawn, options);
-    const { cells: after, merges } = place(tiles, cells, id, value, options);
+    const { cells: placed, merges } = place(tiles, cells, id, value, options);
+    const { cells: after, zeros, spawnAt } = applyPressure(placed, merges, options, state.spawnAt);
     setUndo([...undo, state]);
     setState({
       cells: after,
       next: nextValueFor(options),
       moves: state.moves + 1,
       lastMove: id,
-      message: [drawn === WILD ? `Wild played as ${value}.` : '', describeMerges(merges)].filter(Boolean).join(' '),
+      spawnAt,
+      message: [
+        drawn === WILD ? `Wild played as ${value}.` : '',
+        describeMerges(merges),
+        zeros.length === 1 ? 'A 0 dropped.' : zeros.length ? `${zeros.length} zeros dropped.` : '',
+      ].filter(Boolean).join(' '),
     });
   };
 
@@ -223,6 +235,16 @@ const Game = () => {
       ctx.strokeStyle = '#4f46e5';
       ctx.lineWidth = 3;
       ctx.stroke();
+    }
+
+    // Where the next 'spawn' 0 will appear: a dashed ring
+    if (state.spawnAt !== null && cells[state.spawnAt] === EMPTY) {
+      tracePath(ctx, tiles[state.spawnAt]);
+      ctx.setLineDash([6, 4]);
+      ctx.strokeStyle = '#64748b';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+      ctx.setLineDash([]);
     }
 
     if (state.lastMove !== null) {

@@ -64,7 +64,7 @@ const Preferences = ({ options, setOption, onClose }: PreferencesProps) => {
           Rules to try: these are the open questions in the spec. Changes apply from the next move.
         </p>
         <Choice
-          label="1. Goal"
+          label="Q4. Goal"
           value={options.goal}
           options={[['highest', 'Highest tile'], ['target', 'Reach a target']]}
           onChange={v => setOption('goal', v)}
@@ -78,16 +78,27 @@ const Preferences = ({ options, setOption, onClose }: PreferencesProps) => {
           />
         )}
         <Choice
-          label="2. Which tiles can match?"
+          label="Q6. Which tiles can match?"
           value={options.shape}
           options={[['any', 'Any shape'], ['same', 'Same shape only']]}
           onChange={v => setOption('shape', v)}
         />
         <Choice
-          label="3. Wildcards (★) in your deck?"
+          label="Q8. Wildcards (★) in your deck?"
           value={options.wild}
           options={[['none', 'No'], ['deck', 'Yes']]}
           onChange={v => setOption('wild', v)}
+        />
+        <Choice
+          label="Q9. Pressure"
+          value={options.pressure}
+          options={[
+            ['none', 'Off'],
+            ['mergeZero', 'A random 0 after each merge'],
+            ['spawn', 'A 0 every move (ringed in advance)'],
+            ['rubble', 'Rubble from 3-tile merges'],
+          ]}
+          onChange={v => setOption('pressure', v)}
         />
         <p className="text-xs text-slate-500 mt-2">
           How to play: place the next number (shown in the header) on any empty tile. When it makes a group of {MIN_GROUP} or more

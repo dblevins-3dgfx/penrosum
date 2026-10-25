@@ -8,7 +8,7 @@ describe('parseOptions', () => {
   });
 
   it('keeps saved values that are allowed', () => {
-    const saved = { goal: 'target', target: 100, shape: 'same', wild: 'deck' };
+    const saved = { goal: 'target', target: 100, shape: 'same', wild: 'deck', pressure: 'spawn' };
     expect(parseOptions(JSON.stringify(saved))).toEqual(saved);
   });
 
