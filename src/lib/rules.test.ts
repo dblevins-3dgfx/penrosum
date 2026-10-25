@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import { makeBoard } from './board';
 import {
   DEFAULT_OPTIONS, EMPTY, type Cell, type Options, type Tile,
-  boardFull, canPlace, drawValue, groupAt, highestTile, outcome, place, previewAt,
+  SEED_FRACTION, SEED_VALUES,
+  boardFull, canPlace, drawValue, groupAt, highestTile, outcome, place, previewAt, seedBoard,
 } from './rules';
 
 // A small graph to test on:
@@ -260,5 +262,55 @@ describe('outcome', () => {
   it('highest: the game ends when the board is full, scored by the highest tile', () => {
     const full = cellsOf({ 0: 4, 1: 1, 2: 0, 3: 1, 4: 1, 5: 1 });
     expect(outcome(full, opts({ goal: 'highest' }))).toEqual({ over: true, won: true, highest: 4 });
+  });
+});
+
+describe('seedBoard', () => {
+  // A repeatable random source (a small linear congruential generator)
+  const rng = (seed: number) => () => {
+    seed = (seed * 1664525 + 1013904223) % 2 ** 32;
+    return seed / 2 ** 32;
+  };
+  const board = makeBoard(800, 600);
+
+  it('numbers about a tenth of the tiles, with 0 to 3', () => {
+    const cells = seedBoard(board, rng(1));
+    const seeded = cells.filter(c => c !== EMPTY);
+    expect(seeded).toHaveLength(Math.round(board.length * SEED_FRACTION));
+    for (const v of seeded) expect(SEED_VALUES).toContain(v);
+  });
+
+  it('uses every seed value', () => {
+    const cells = seedBoard(board, rng(2));
+    for (const v of SEED_VALUES) expect(cells).toContain(v);
+  });
+
+  it('never gives neighboring seeds the same number, so nothing can merge yet', () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      const cells = seedBoard(board, rng(seed));
+      for (const t of board) {
+        if (cells[t.id] === EMPTY) continue;
+        for (const n of t.neighbors) expect(cells[n]).not.toBe(cells[t.id]);
+        expect(groupAt(board, cells, t.id, 'connected')).toEqual([t.id]);
+      }
+    }
+  });
+
+  it('is random: different games start differently', () => {
+    expect(seedBoard(board, rng(1))).toEqual(seedBoard(board, rng(1)));
+    expect(seedBoard(board, rng(1))).not.toEqual(seedBoard(board, rng(2)));
+  });
+
+  it('leaves a tile empty when its neighbors already hold every value', () => {
+    // A star: the middle (0) touches tiles 1 to 4
+    const star: Tile[] = [
+      { neighbors: [1, 2, 3, 4] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] },
+    ];
+    // The shuffle's draws visit the middle last (order 4, 1, 2, 3, 0); the
+    // value draws then give the leaves 0, 1, 2 and 3
+    const draws = [0, 0.999, 0.999, 0.999, 0, 0.25, 0.5, 0.75];
+    let i = 0;
+    const cells = seedBoard(star, () => draws[i++], 1);
+    expect(cells).toEqual([EMPTY, 1, 2, 3, 0]);
   });
 });

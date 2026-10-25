@@ -147,6 +147,32 @@ export const drawValue = (rand: () => number = Math.random) => {
   return RANDOM_WEIGHTS[RANDOM_WEIGHTS.length - 1][0];
 };
 
+// The starting board: `fraction` of the tiles (SEED_FRACTION in play),
+// picked at random, hold a random number from SEED_VALUES. Neighboring seeds never hold the
+// same number, so no group exists before the first move under any option.
+// A tile whose neighbors already hold every value stays empty.
+export const SEED_FRACTION = 0.1;
+export const SEED_VALUES = [0, 1, 2, 3];
+
+export const seedBoard = (tiles: Tile[], rand: () => number = Math.random, fraction = SEED_FRACTION): Cell[] => {
+  const cells: Cell[] = tiles.map(() => EMPTY);
+  // Visit the tiles in random order (Fisher-Yates)
+  const order = tiles.map((_, i) => i);
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  let left = Math.round(tiles.length * fraction);
+  for (const id of order) {
+    if (left === 0) break;
+    const allowed = SEED_VALUES.filter(v => !tiles[id].neighbors.some(n => cells[n] === v));
+    if (!allowed.length) continue;
+    cells[id] = allowed[Math.floor(rand() * allowed.length)];
+    left--;
+  }
+  return cells;
+};
+
 export const highestTile = (cells: Cell[]) =>
   cells.reduce<number>((m, c) => (c !== EMPTY && c > m ? c : m), 0);
 

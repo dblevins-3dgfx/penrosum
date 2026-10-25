@@ -4,7 +4,7 @@ Status: an experimental prototype. This describes the game as currently implemen
 
 ## 1. Overview
 
-A merging number game on a Penrose tiling of kites and darts. The player places a number, usually 1, on an empty tile. When that makes a group of three or more tiles holding the same number, the tile just placed takes the sum of the group and the other tiles in it are cleared. Three 1s make a 3, three 3s make a 9, and so on.
+A merging number game on a Penrose tiling of kites and darts. The player places a number, usually 1, on an empty tile. When that makes a group of three or more tiles holding the same number, the tile just placed takes the sum of the group and the other tiles in it are cleared. Three 1s make a 3, three 3s make a 9, and so on. Each game starts with a few numbers already scattered on the board.
 
 ## 2. Technology
 
@@ -34,7 +34,8 @@ A merging number game on a Penrose tiling of kites and darts. The player places 
 
 ## 4. Rules
 
-- **Tiles** are either empty or hold a number. Under the "zero" clearing option (open question 2) a tile can hold 0, which can't be played on and matches nothing.
+- **Start.** Each new game seeds the board: 10% of its tiles (`SEED_FRACTION`, rounded), picked at random, get a random number from 0 to 3 (`SEED_VALUES`), each equally likely. Neighboring seeds never hold the same number, so no group exists before the first move; a picked tile whose neighbors already hold all four numbers is passed over for another. Seeded 0s, like zeros from merges, can't be played on and match nothing placed, so they act as obstacles. Seeded tiles look the same as placed ones. Undo goes back as far as the seeded board.
+- **Tiles** are either empty or hold a number. A tile can hold 0 (a seed, or a cleared tile under the "zero" clearing option, open question 2), which can't be played on and matches nothing.
 - **A move** places the value for this move (open question 3) on any empty tile.
 - **Group.** After placing, the group is the placed tile plus the matching tiles that count as adjacent to it (open question 1). Matching tiles hold the same number, and may also need the same shape (open question 5). Tiles with a different number, zeros included, never join the group.
 - **Merge.** If the group has 3 or more tiles (`MIN_GROUP`), the placed tile takes the sum of their numbers (the number times the group's size) and the other tiles in the group are cleared (open question 2). Otherwise nothing else changes.

@@ -7,7 +7,7 @@ import { parseBoardSize, parseOptions } from './lib/prefs';
 import {
   CHOOSABLE_VALUES, EMPTY, MIN_GROUP,
   type Cell, type Merge, type Options,
-  canPlace, drawValue, highestTile, outcome, place, previewAt,
+  canPlace, drawValue, highestTile, outcome, place, previewAt, seedBoard,
 } from './lib/rules';
 import { fitView, toBoard } from './lib/view';
 import Preferences from './Preferences';
@@ -129,7 +129,7 @@ const Game = () => {
     const { width, height } = playfieldFor(newSize, space.width / space.height);
     const tiles = makeBoard(width, height);
     setBoard({ size: newSize, tiles, bounds: boardBounds(tiles) });
-    setState({ cells: tiles.map(() => EMPTY), next: nextValueFor(options), moves: 0, lastMove: null, message: '' });
+    setState({ cells: seedBoard(tiles), next: nextValueFor(options), moves: 0, lastMove: null, message: '' });
     setUndo([]);
     setHovered(-1);
     setSize(newSize);
