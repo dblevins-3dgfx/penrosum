@@ -1,32 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseBoardSize, parseOptions } from './prefs';
-import { DEFAULT_OPTIONS } from './rules';
-
-describe('parseOptions', () => {
-  it('uses the defaults when nothing is saved', () => {
-    expect(parseOptions(null)).toEqual(DEFAULT_OPTIONS);
-  });
-
-  it('keeps saved values that are allowed', () => {
-    const saved = { goal: 'target', target: 243 };
-    expect(parseOptions(JSON.stringify(saved))).toEqual(saved);
-  });
-
-  it('fills in options saved before they existed', () => {
-    expect(parseOptions(JSON.stringify({ goal: 'target' }))).toEqual({ ...DEFAULT_OPTIONS, goal: 'target' });
-  });
-
-  it('drops unknown keys and values that are not allowed', () => {
-    const saved = { group: 'neighbors', values: 'choose', zeros: 'none', target: 50, cascade: true, shape: 'same', merge: 'step', pressure: 'spawn', shapes: 'dealt', wild: 'deck', score: 'sum', chain: true, goal: 'target' };
-    expect(parseOptions(JSON.stringify(saved))).toEqual({ ...DEFAULT_OPTIONS, goal: 'target' });
-  });
-
-  it('survives damaged storage', () => {
-    expect(parseOptions('{not json')).toEqual(DEFAULT_OPTIONS);
-    expect(parseOptions('null')).toEqual(DEFAULT_OPTIONS);
-    expect(parseOptions('42')).toEqual(DEFAULT_OPTIONS);
-  });
-});
+import { parseBoardSize } from './prefs';
 
 describe('parseBoardSize', () => {
   it('reads a saved size, or falls back to medium', () => {

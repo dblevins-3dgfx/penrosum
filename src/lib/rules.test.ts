@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { makeBoard } from './board';
 import {
-  DEFAULT_OPTIONS, EMPTY, type Cell, type Options, type Tile,
+  EMPTY, type Cell, type Tile,
   DECK, NUMBERS, SEED_FRACTION, SEED_VALUES, WILD, WILD_CHANCE,
   boardFull, canPlace, drawValue, groupAt, highestTile, outcome, place, previewAt, resolveWild, seedBoard, valueToPlace,
   dropRubble,
@@ -31,7 +31,6 @@ const cellsOf = (values: Record<number, number>): Cell[] => {
   for (const [id, v] of Object.entries(values)) c[Number(id)] = v;
   return c;
 };
-const opts = (o: Partial<Options> = {}): Options => ({ ...DEFAULT_OPTIONS, ...o });
 
 describe('canPlace', () => {
   it('allows only un-numbered tiles', () => {
@@ -85,53 +84,53 @@ describe('groupAt', () => {
 
 describe('place', () => {
   it('does not merge fewer than three tiles', () => {
-    const { cells, merges } = place(tiles, cellsOf({ 0: 1 }), 1, 1, opts());
+    const { cells, merges } = place(tiles, cellsOf({ 0: 1 }), 1, 1);
     expect(merges).toEqual([]);
     expect(cells).toEqual(cellsOf({ 0: 1, 1: 1 }));
   });
 
   it('merges three tiles into the one just placed', () => {
-    const { cells, merges } = place(tiles, cellsOf({ 0: 1, 2: 1 }), 1, 1, opts());
+    const { cells, merges } = place(tiles, cellsOf({ 0: 1, 2: 1 }), 1, 1);
     expect(merges).toEqual([{ into: 1, from: [0, 2], sum: 3 }]);
     expect(cells).toEqual(cellsOf({ 1: 3 }));
   });
 
   it('three Bs (3s) make a C (9)', () => {
-    const { cells } = place(tiles, cellsOf({ 0: 3, 2: 3 }), 1, 3, opts());
+    const { cells } = place(tiles, cellsOf({ 0: 3, 2: 3 }), 1, 3);
     expect(cells).toEqual(cellsOf({ 1: 9 }));
   });
 
   it('does not merge tiles with different numbers', () => {
-    const { cells, merges } = place(tiles, cellsOf({ 0: 1, 2: 2 }), 1, 1, opts());
+    const { cells, merges } = place(tiles, cellsOf({ 0: 1, 2: 2 }), 1, 1);
     expect(merges).toEqual([]);
     expect(cells).toEqual(cellsOf({ 0: 1, 1: 1, 2: 2 }));
   });
 
   it('merges only the matching tiles in a mixed cluster', () => {
-    const { cells } = place(tiles, cellsOf({ 0: 1, 2: 1, 4: 3 }), 1, 1, opts());
+    const { cells } = place(tiles, cellsOf({ 0: 1, 2: 1, 4: 3 }), 1, 1);
     expect(cells).toEqual(cellsOf({ 1: 3, 4: 3 }));
   });
 
   it('a chain collapses into the placed tile, even from its end', () => {
     // Four As: 4, rounded down to B (3)
-    const { cells } = place(tiles, cellsOf({ 0: 1, 1: 1, 2: 1 }), 3, 1, opts());
+    const { cells } = place(tiles, cellsOf({ 0: 1, 1: 1, 2: 1 }), 3, 1);
     expect(cells).toEqual(cellsOf({ 3: 3 }));
   });
 
   it('merged-away tiles become empty, and can be played again', () => {
-    const { cells } = place(tiles, cellsOf({ 0: 1, 2: 1 }), 1, 1, opts());
+    const { cells } = place(tiles, cellsOf({ 0: 1, 2: 1 }), 1, 1);
     expect(cells[0]).toBe(EMPTY);
     expect(cells[2]).toBe(EMPTY);
     expect(canPlace(cells, 0)).toBe(true);
   });
 
   it('zeros never match a placed 1, so a 1 between two zeros does not merge', () => {
-    expect(place(tiles, cellsOf({ 0: 0, 2: 0 }), 1, 1, opts()).merges).toEqual([]);
+    expect(place(tiles, cellsOf({ 0: 0, 2: 0 }), 1, 1).merges).toEqual([]);
   });
 
   it('does not change the input', () => {
     const before = cellsOf({ 0: 1, 2: 1 });
-    place(tiles, before, 1, 1, opts());
+    place(tiles, before, 1, 1);
     expect(before).toEqual(cellsOf({ 0: 1, 2: 1 }));
   });
 });
@@ -149,7 +148,7 @@ describe('chain reactions', () => {
   const start: Cell[] = [EMPTY, 1, 1, 3, 3];
 
   it('the new number merges again with matching tiles', () => {
-    const { cells, merges } = place(star, start, 0, 1, opts());
+    const { cells, merges } = place(star, start, 0, 1);
     expect(merges).toEqual([
       { into: 0, from: [1, 2], sum: 3 },
       { into: 0, from: [3, 4], sum: 9 },
@@ -158,19 +157,19 @@ describe('chain reactions', () => {
   });
 
   it('stops when the new number makes no group', () => {
-    const { merges } = place(star, [EMPTY, 1, 1, 3, 4], 0, 1, opts());
+    const { merges } = place(star, [EMPTY, 1, 1, 3, 4], 0, 1);
     expect(merges).toHaveLength(1);
   });
 });
 
 describe('previewAt', () => {
   it('shows the placed value when nothing would merge', () => {
-    expect(previewAt(tiles, cellsOf({ 0: 1 }), 1, 1, opts())).toEqual({ value: 1, merging: [], rubble: [] });
+    expect(previewAt(tiles, cellsOf({ 0: 1 }), 1, 1)).toEqual({ value: 1, merging: [], rubble: [] });
   });
 
   it('shows the final number and every tile that would be cleared', () => {
     const star: Tile[] = [{ neighbors: [1, 2, 3, 4] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }];
-    expect(previewAt(star, [EMPTY, 1, 1, 3, 3], 0, 1, opts()))
+    expect(previewAt(star, [EMPTY, 1, 1, 3, 3], 0, 1))
       .toEqual({ value: 9, merging: [1, 2, 3, 4], rubble: [2, 4] });
   });
 });
@@ -182,30 +181,30 @@ describe('placing zeros', () => {
   ];
 
   it('a placed 0 merges neighboring zeros into one, where it was placed', () => {
-    const { cells, merges } = place(star, [EMPTY, 0, 0, 0, 1], 0, 0, opts());
+    const { cells, merges } = place(star, [EMPTY, 0, 0, 0, 1], 0, 0);
     expect(merges).toEqual([{ into: 0, from: [1, 2, 3], sum: 0 }]);
     expect(cells).toEqual([0, EMPTY, EMPTY, EMPTY, 1]);
   });
 
   it('a placed 0 follows connected zeros like any other number', () => {
-    const { cells } = place(tiles, cellsOf({ 0: 0, 1: 0, 2: 0 }), 3, 0, opts());
+    const { cells } = place(tiles, cellsOf({ 0: 0, 1: 0, 2: 0 }), 3, 0);
     expect(cells).toEqual(cellsOf({ 3: 0 }));
   });
 
   it('a placed 0 does not match other numbers, and zeros still do not match placed 1s', () => {
-    expect(place(star, [EMPTY, 1, 1, 0, EMPTY], 0, 0, opts()).merges).toEqual([]);
-    expect(place(star, [EMPTY, 0, 0, 1, EMPTY], 0, 1, opts()).merges).toEqual([]);
+    expect(place(star, [EMPTY, 1, 1, 0, EMPTY], 0, 0).merges).toEqual([]);
+    expect(place(star, [EMPTY, 0, 0, 1, EMPTY], 0, 1).merges).toEqual([]);
   });
 
   it('a merge of zeros leaves a 0 that stays put', () => {
     // The zeros merge into the middle; the 0 left there touches only 1s
-    const { cells, merges } = place(star, [EMPTY, 0, 0, 1, 1], 0, 0, opts());
+    const { cells, merges } = place(star, [EMPTY, 0, 0, 1, 1], 0, 0);
     expect(merges).toHaveLength(1);
     expect(cells).toEqual([0, EMPTY, EMPTY, 1, 1]);
   });
 
   it('the preview shows a placed 0 and the zeros it would clear', () => {
-    expect(previewAt(star, [EMPTY, 0, 0, 1, EMPTY], 0, 0, opts())).toEqual({ value: 0, merging: [1, 2], rubble: [] });
+    expect(previewAt(star, [EMPTY, 0, 0, 1, EMPTY], 0, 0)).toEqual({ value: 0, merging: [1, 2], rubble: [] });
   });
 });
 
@@ -242,15 +241,14 @@ describe('wildcards', () => {
   const star: Tile[] = [
     { neighbors: [1, 2, 3, 4] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] },
   ];
-  const wild = opts();
 
   it('becomes the number that merges', () => {
-    expect(resolveWild(star, [EMPTY, 2, 2, 1, EMPTY], 0, wild)).toBe(2);
+    expect(resolveWild(star, [EMPTY, 2, 2, 1, EMPTY], 0)).toBe(2);
   });
 
   it('prefers the merge that leaves the biggest number', () => {
     // As A (1) it makes B (3); as C (9) it makes D (27)
-    expect(resolveWild(star, [EMPTY, 1, 1, 9, 9], 0, wild)).toBe(9);
+    expect(resolveWild(star, [EMPTY, 1, 1, 9, 9], 0)).toBe(9);
   });
 
   it('counts chain reactions when judging a merge', () => {
@@ -260,38 +258,38 @@ describe('wildcards', () => {
     const chain: Tile[] = [
       { neighbors: [1, 2, 3, 4, 5] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] },
     ];
-    expect(resolveWild(chain, [...cells, 2], 0, wild)).toBe(1);
-    expect(place(chain, [...cells, 2], 0, 1, wild).cells[0]).toBe(9);
+    expect(resolveWild(chain, [...cells, 2], 0)).toBe(1);
+    expect(place(chain, [...cells, 2], 0, 1).cells[0]).toBe(9);
   });
 
   it('prefers any merge to none, even a merge of zeros', () => {
     // As 0 it merges two zeros (leaving 0); as 1 nothing merges
-    expect(resolveWild(star, [EMPTY, 0, 0, 1, EMPTY], 0, wild)).toBe(0);
+    expect(resolveWild(star, [EMPTY, 0, 0, 1, EMPTY], 0)).toBe(0);
   });
 
   it('when two merges leave the same number, prefers the one clearing more tiles', () => {
     // A hub touching five 1s and two 2s: as 1 it makes 6 clearing five
     // tiles; as 2 it also makes 6 but clears two
     const hub: Tile[] = [{ neighbors: [1, 2, 3, 4, 5, 6, 7] }, ...Array.from({ length: 7 }, () => ({ neighbors: [0] }))];
-    expect(resolveWild(hub, [EMPTY, 1, 1, 1, 1, 1, 2, 2], 0, wild)).toBe(1);
+    expect(resolveWild(hub, [EMPTY, 1, 1, 1, 1, 1, 2, 2], 0)).toBe(1);
   });
 
   it('is a 1 when no number would merge', () => {
-    expect(resolveWild(star, [EMPTY, 2, 3, 0, EMPTY], 0, wild)).toBe(1);
-    expect(resolveWild(star, [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY], 0, wild)).toBe(1);
+    expect(resolveWild(star, [EMPTY, 2, 3, 0, EMPTY], 0)).toBe(1);
+    expect(resolveWild(star, [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY], 0)).toBe(1);
   });
 
   it('can join numbers bigger than the deck holds', () => {
-    expect(resolveWild(star, [EMPTY, 27, 27, EMPTY, EMPTY], 0, wild)).toBe(27);
+    expect(resolveWild(star, [EMPTY, 27, 27, EMPTY, EMPTY], 0)).toBe(27);
   });
 
   it('only a drawn wildcard is resolved; numbers place as themselves', () => {
-    expect(valueToPlace(star, [EMPTY, 2, 2, EMPTY, EMPTY], 0, WILD, wild)).toBe(2);
-    expect(valueToPlace(star, [EMPTY, 2, 2, EMPTY, EMPTY], 0, 1, wild)).toBe(1);
+    expect(valueToPlace(star, [EMPTY, 2, 2, EMPTY, EMPTY], 0, WILD)).toBe(2);
+    expect(valueToPlace(star, [EMPTY, 2, 2, EMPTY, EMPTY], 0, 1)).toBe(1);
   });
 
   it('the preview shows what the wildcard would make', () => {
-    expect(previewAt(star, [EMPTY, 3, 3, EMPTY, EMPTY], 0, WILD, wild)).toEqual({ value: 9, merging: [1, 2], rubble: [2] });
+    expect(previewAt(star, [EMPTY, 3, 3, EMPTY, EMPTY], 0, WILD)).toEqual({ value: 9, merging: [1, 2], rubble: [2] });
   });
 });
 
@@ -305,24 +303,13 @@ describe('highestTile and boardFull', () => {
 });
 
 describe('outcome', () => {
-  it('goes on while a tile is free and the target is not reached', () => {
-    expect(outcome(cellsOf({ 0: 10 }), opts({ goal: 'target', target: 20 }))).toEqual({ over: false });
+  it('goes on while a tile is free', () => {
+    expect(outcome(cellsOf({ 0: 81 }))).toEqual({ over: false });
   });
 
-  it('target: reaching it wins, even with free tiles left', () => {
-    expect(outcome(cellsOf({ 0: 20 }), opts({ goal: 'target', target: 20 })))
-      .toEqual({ over: true, won: true, highest: 20 });
-  });
-
-  it('target: filling the board first loses', () => {
-    const full = cellsOf({ 0: 1, 1: 1, 2: 0, 3: 1, 4: 1, 5: 1 });
-    expect(outcome(full, opts({ goal: 'target', target: 20 })))
-      .toEqual({ over: true, won: false, highest: 1 });
-  });
-
-  it('highest: the game ends when the board is full, scored by the highest tile', () => {
-    const full = cellsOf({ 0: 4, 1: 1, 2: 0, 3: 1, 4: 1, 5: 1 });
-    expect(outcome(full, opts({ goal: 'highest' }))).toEqual({ over: true, won: true, highest: 4 });
+  it('ends when the board is full, with the highest tile', () => {
+    const full = cellsOf({ 0: 9, 1: 1, 2: 0, 3: 1, 4: 1, 5: 1 });
+    expect(outcome(full)).toEqual({ over: true, won: false, highest: 9 });
   });
 });
 
@@ -378,22 +365,22 @@ describe('seedBoard', () => {
 
 describe('rubble', () => {
   // A merge of three 1s into tile 1 of the line graph, clearing 0 and 2
-  const merged = () => place(tiles, cellsOf({ 0: 1, 2: 1 }), 1, 1, opts());
+  const merged = () => place(tiles, cellsOf({ 0: 1, 2: 1 }), 1, 1);
 
   it('a move without a merge drops nothing', () => {
-    const { cells, merges } = place(tiles, cellsOf({ 0: 1 }), 1, 1, opts());
+    const { cells, merges } = place(tiles, cellsOf({ 0: 1 }), 1, 1);
     expect(dropRubble(tiles, cells, merges)).toEqual({ cells, zeros: [], rubbleMerges: [] });
   });
 
   it('a merge of zeros never leaves rubble', () => {
-    const { cells, merges } = place(tiles, cellsOf({ 0: 0, 2: 0 }), 1, 0, opts());
+    const { cells, merges } = place(tiles, cellsOf({ 0: 0, 2: 0 }), 1, 0);
     expect(merges).toHaveLength(1);
     expect(dropRubble(tiles, cells, merges).zeros).toEqual([]);
   });
 
   it('a 3-tile merge leaves a 0 on its cleared tile farthest from the placed one', () => {
     // Placing at 2 merges the chain 2-1-0; tile 0 is the farthest
-    const { cells, merges } = place(tiles, cellsOf({ 0: 1, 1: 1 }), 2, 1, opts());
+    const { cells, merges } = place(tiles, cellsOf({ 0: 1, 1: 1 }), 2, 1);
     expect(merges[0].from).toEqual([1, 0]);
     const r = dropRubble(tiles, cells, merges);
     expect(r.zeros).toEqual([0]);
@@ -401,7 +388,7 @@ describe('rubble', () => {
   });
 
   it('bigger merges leave none', () => {
-    const { cells, merges } = place(tiles, cellsOf({ 0: 1, 1: 1, 2: 1 }), 3, 1, opts());
+    const { cells, merges } = place(tiles, cellsOf({ 0: 1, 1: 1, 2: 1 }), 3, 1);
     expect(merges[0].from).toHaveLength(3);
     expect(dropRubble(tiles, cells, merges).zeros).toEqual([]);
   });
@@ -411,7 +398,7 @@ describe('rubble', () => {
     const star: Tile[] = [
       { neighbors: [1, 2, 3, 4] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] },
     ];
-    const { cells, merges } = place(star, [EMPTY, 1, 1, 3, 3], 0, 1, opts());
+    const { cells, merges } = place(star, [EMPTY, 1, 1, 3, 3], 0, 1);
     expect(dropRubble(star, cells, merges).cells).toEqual([9, EMPTY, 0, EMPTY, 0]);
   });
 
@@ -424,7 +411,7 @@ describe('rubble', () => {
   ];
 
   it('lands touching two 0s and merges them into one on its tile', () => {
-    const { cells, merges } = place(g, [1, 1, EMPTY, EMPTY, EMPTY, 0, 0], 2, 1, opts());
+    const { cells, merges } = place(g, [1, 1, EMPTY, EMPTY, EMPTY, 0, 0], 2, 1);
     expect(merges[0].from).toEqual([1, 0]);
     const r = dropRubble(g, cells, merges);
     expect(r.zeros).toEqual([0]);
@@ -433,7 +420,7 @@ describe('rubble', () => {
   });
 
   it('touching only one 0 just lands', () => {
-    const { cells, merges } = place(g, [1, 1, EMPTY, EMPTY, EMPTY, 0, EMPTY], 2, 1, opts());
+    const { cells, merges } = place(g, [1, 1, EMPTY, EMPTY, EMPTY, 0, EMPTY], 2, 1);
     const r = dropRubble(g, cells, merges);
     expect(r.rubbleMerges).toEqual([]);
     expect(r.cells).toEqual([0, EMPTY, 3, EMPTY, EMPTY, 0, EMPTY]);
@@ -445,7 +432,7 @@ describe('rubble', () => {
   });
 
   it('previewAt shows where rubble lands and the 0s it would merge', () => {
-    expect(previewAt(g, [1, 1, EMPTY, EMPTY, EMPTY, 0, 0], 2, 1, opts())).toEqual({ value: 3, merging: [1, 0, 5, 6], rubble: [0] });
+    expect(previewAt(g, [1, 1, EMPTY, EMPTY, EMPTY, 0, 0], 2, 1)).toEqual({ value: 3, merging: [1, 0, 5, 6], rubble: [0] });
   });
 
   it('does not change the input', () => {
@@ -489,8 +476,8 @@ describe('shapes: the next value comes with a shape', () => {
 
   it('shape never changes what a merge makes', () => {
     const dartHub: Tile[] = [{ ...hub[0], type: 'dart' }, ...hub.slice(1)];
-    expect(place(dartHub, [EMPTY, 1, 1, EMPTY, EMPTY], 0, 1, opts()).merges).toEqual([{ into: 0, from: [1, 2], sum: 3 }]);
-    expect(place(hub, [EMPTY, 1, 1, EMPTY, EMPTY], 0, 1, opts()).merges).toEqual([{ into: 0, from: [1, 2], sum: 3 }]);
+    expect(place(dartHub, [EMPTY, 1, 1, EMPTY, EMPTY], 0, 1).merges).toEqual([{ into: 0, from: [1, 2], sum: 3 }]);
+    expect(place(hub, [EMPTY, 1, 1, EMPTY, EMPTY], 0, 1).merges).toEqual([{ into: 0, from: [1, 2], sum: 3 }]);
   });
 });
 
@@ -527,9 +514,9 @@ describe('what a merge makes: the sum, rounded down to a power of 3', () => {
   });
 
   it('place uses it, chains included', () => {
-    expect(place(hub, [EMPTY, 1, 1, 1, EMPTY], 0, 1, opts()).cells[0]).toBe(3);
+    expect(place(hub, [EMPTY, 1, 1, 1, EMPTY], 0, 1).cells[0]).toBe(3);
     // Three As make a B, which joins two Bs: a C
-    expect(place(hub, [EMPTY, 1, 1, 3, 3], 0, 1, opts()).cells).toEqual([9, EMPTY, EMPTY, EMPTY, EMPTY]);
+    expect(place(hub, [EMPTY, 1, 1, 3, 3], 0, 1).cells).toEqual([9, EMPTY, EMPTY, EMPTY, EMPTY]);
   });
 
   it('deals and seeds 0, 1, 3 and 9 (and deals wildcards)', () => {
@@ -546,14 +533,12 @@ describe('what a merge makes: the sum, rounded down to a power of 3', () => {
 });
 
 describe('making Z', () => {
-  it('wins the game at once, whatever the goal, with free tiles left', () => {
-    const cells = cellsOf({ 0: TOP_VALUE });
-    expect(outcome(cells, opts())).toEqual({ over: true, won: true, highest: TOP_VALUE });
-    expect(outcome(cells, opts({ goal: 'target', target: 729 }))).toEqual({ over: true, won: true, highest: TOP_VALUE });
+  it('wins the game at once, with free tiles left', () => {
+    expect(outcome(cellsOf({ 0: TOP_VALUE }))).toEqual({ over: true, won: true, highest: TOP_VALUE });
   });
 
   it('one rung short does not', () => {
-    expect(outcome(cellsOf({ 0: TOP_VALUE / 3 }), opts())).toEqual({ over: false });
+    expect(outcome(cellsOf({ 0: TOP_VALUE / 3 }))).toEqual({ over: false });
   });
 
 });
@@ -588,7 +573,7 @@ describe('scoring', () => {
 
   it('scores a real chain reaction from place', () => {
     const star: Tile[] = [{ neighbors: [1, 2, 3, 4] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }];
-    const { merges } = place(star, [EMPTY, 1, 1, 3, 3], 0, 1, opts());
+    const { merges } = place(star, [EMPTY, 1, 1, 3, 3], 0, 1);
     expect(scoreMerges(merges)).toBe(2 * 3 + 3 * 3 * 2); // a B, then a C at x2
   });
 });

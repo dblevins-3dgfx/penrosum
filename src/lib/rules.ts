@@ -1,30 +1,11 @@
 // Penrosum rules, as plain functions over the tile graph.
 //
 // The board is a list of tiles with neighbor lists (see penrose-board.ts).
-// The game state is one number per tile. Several rules are still open
-// questions (SPEC.md, "Open questions"); each is an option here so they can
-// be tried side by side.
-
-// What the player is aiming for.
-//   highest: no target; play until the board is full, aiming for the
-//            highest tile
-//   target:  win by making a tile of at least `target`
-export type GoalRule = 'highest' | 'target';
+// The game state is one number per tile. No rules are open questions
+// right now (SPEC.md, "Open questions"); when one is, it gets an option
+// here so its choices can be tried side by side.
 
 export type Shape = 'kite' | 'dart';
-
-export interface Options {
-  goal: GoalRule;
-  target: number;
-}
-
-export const DEFAULT_OPTIONS: Options = {
-  goal: 'highest',
-  target: 81,
-};
-
-// The targets for the 'target' goal: rungs D, E, F and G
-export const TARGET_OPTIONS = [27, 81, 243, 729];
 
 // A merge needs this many matching tiles, counting the one just placed.
 export const MIN_GROUP = 3;
@@ -100,7 +81,7 @@ export interface PlaceResult {
 // empties at least two numbered tiles and numbers none, so chains end.
 // Assumes the move is legal (see canPlace). Returns new cells; the input is
 // unchanged.
-export const place = (tiles: Tile[], cells: Cell[], id: number, value: number, options: Options): PlaceResult => {
+export const place = (tiles: Tile[], cells: Cell[], id: number, value: number): PlaceResult => {
   const next = cells.slice();
   next[id] = value;
   const merges: Merge[] = [];
@@ -121,9 +102,9 @@ export const place = (tiles: Tile[], cells: Cell[], id: number, value: number, o
 // number the tile would end up with, every tile its merges would clear,
 // where its rubble would land (`rubble`) and the 0s that rubble would merge
 // away (in `merging` too).
-export const previewAt = (tiles: Tile[], cells: Cell[], id: number, drawn: number, options: Options) => {
-  const value = valueToPlace(tiles, cells, id, drawn, options);
-  const { cells: after, merges } = place(tiles, cells, id, value, options);
+export const previewAt = (tiles: Tile[], cells: Cell[], id: number, drawn: number) => {
+  const value = valueToPlace(tiles, cells, id, drawn);
+  const { cells: after, merges } = place(tiles, cells, id, value);
   const merging = merges.flatMap(m => m.from);
   const { zeros, rubbleMerges } = dropRubble(tiles, after, merges);
   return { value: after[id], merging: [...merging, ...rubbleMerges.flatMap(m => m.from)], rubble: zeros };
@@ -194,11 +175,11 @@ export const DECK: Deck = [[WILD, WILD_CHANCE], ...NUMBERS.map(([v, w]) => [v, w
 // (chain reactions included) merges rather than not, then leaves the
 // biggest number, then clears the most tiles; on a tie, the smaller
 // number. If none of them merges, it is a 1.
-export const resolveWild = (tiles: Tile[], cells: Cell[], id: number, options: Options) => {
+export const resolveWild = (tiles: Tile[], cells: Cell[], id: number) => {
   const tried = [...new Set(tiles[id].neighbors.map(n => cells[n]).filter(c => c !== EMPTY))].sort((a, b) => a - b);
   let best = { value: 1, result: -1, cleared: 0 };
   for (const value of tried) {
-    const { cells: after, merges } = place(tiles, cells, id, value, options);
+    const { cells: after, merges } = place(tiles, cells, id, value);
     if (!merges.length) continue;
     const result = after[id];
     const cleared = merges.reduce((s, m) => s + m.from.length, 0);
@@ -211,8 +192,8 @@ export const resolveWild = (tiles: Tile[], cells: Cell[], id: number, options: O
 
 // The number a drawn value places on `id`: itself, or for a wildcard the
 // number it resolves to.
-export const valueToPlace = (tiles: Tile[], cells: Cell[], id: number, drawn: number, options: Options) =>
-  drawn === WILD ? resolveWild(tiles, cells, id, options) : drawn;
+export const valueToPlace = (tiles: Tile[], cells: Cell[], id: number, drawn: number) =>
+  drawn === WILD ? resolveWild(tiles, cells, id) : drawn;
 
 export interface RubbleResult {
   cells: Cell[];
@@ -292,18 +273,16 @@ export const highestTile = (cells: Cell[]) =>
 
 export const boardFull = (cells: Cell[]) => !cells.some(c => c === EMPTY);
 
-// The game ends with a win when the target is reached (goal 'target'), or
-// when no un-numbered tile is left.
-// The top of the ladder: Z, 3 to the 25th. Making it wins the game,
-// whatever the goal.
+// The top of the ladder: Z, 3 to the 25th. Making it wins the game at once.
 export const TOP_VALUE = 3 ** 25;
 
 export type Outcome = { over: false } | { over: true; won: boolean; highest: number };
 
-export const outcome = (cells: Cell[], options: Options): Outcome => {
+// The goal is to use up the board: the game ends when no empty tile is
+// left, and the result is the score. Making a Z ends it early, as a win.
+export const outcome = (cells: Cell[]): Outcome => {
   const highest = highestTile(cells);
   if (highest >= TOP_VALUE) return { over: true, won: true, highest };
-  if (options.goal === 'target' && highest >= options.target) return { over: true, won: true, highest };
-  if (boardFull(cells)) return { over: true, won: options.goal === 'highest', highest };
+  if (boardFull(cells)) return { over: true, won: false, highest };
   return { over: false };
 };

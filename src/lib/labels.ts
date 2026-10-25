@@ -14,13 +14,6 @@ const log3 = (n: number) => {
   return -1;
 };
 
-// The smallest power of 3 not below `n` (1 for n <= 1).
-export const ceilPow3 = (n: number) => {
-  let p = 1;
-  while (p < n) p *= 3;
-  return p;
-};
-
 // How a value (or the wildcard) is written.
 export const valueLabel = (value: number) => {
   if (value === WILD) return '★';
@@ -28,9 +21,6 @@ export const valueLabel = (value: number) => {
   const e = log3(value);
   return e >= 0 && e < LETTERS.length ? LETTERS[e] : String(value);
 };
-
-// How the target goal is written: the first rung that reaches it.
-export const targetLabel = (target: number) => valueLabel(ceilPow3(target));
 
 // The letter that wins the game
 export const TOP_LABEL = LETTERS[LETTERS.length - 1];
