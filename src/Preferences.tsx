@@ -78,29 +78,6 @@ const Preferences = ({ options, setOption, onClose }: PreferencesProps) => {
             onChange={v => setOption('target', v)}
           />
         )}
-        <Choice
-          label="Q8. Wildcards (★) in your deck?"
-          value={options.wild}
-          options={[['none', 'No'], ['deck', 'Yes']]}
-          onChange={v => setOption('wild', v)}
-        />
-        <Choice
-          label="Q12. What does a merge score?"
-          value={options.score}
-          options={[
-            ['rungXTiles', 'Rung × tiles merged'],
-            ['rung', 'Rung made'],
-            ['tiles', 'Tiles merged'],
-            ['rungPlus', 'Rung + 1 per extra tile'],
-          ]}
-          onChange={v => setOption('score', v)}
-        />
-        <Choice
-          label="Chain bonus (×2, ×3 … for each later merge in a chain)"
-          value={options.chain}
-          options={[['on', 'On'], ['off', 'Off']]}
-          onChange={v => setOption('chain', v)}
-        />
         <p className="text-xs text-slate-500 mt-2">
           How to play: place the Next letter (beside the title) on an empty tile of the shape it
           comes with, a kite or a dart (any empty tile once none of that shape is left). When it makes
@@ -108,8 +85,10 @@ const Preferences = ({ options, setOption, onClose }: PreferencesProps) => {
           placed, one rung up the alphabet (three As make a B; nine make a C). If the new letter then
           makes a group too, it merges again. A merge of exactly {MIN_GROUP} leaves rubble, a #, on its
           farthest cleared tile; bigger merges leave none. # tiles are obstacles that only a placed #
-          or rubble merges away. Merges score points (a letter's rung is its place in the alphabet:
-          A 1, B 2 …). Make a Z to win. Hover a tile to see what would merge and where rubble lands.
+          or rubble merges away. A ★ is a wildcard: it becomes whichever letter does best where you
+          place it. A merge scores its new letter's rung (its place in the alphabet: A 1, B 2 …) times
+          the tiles merged, times 2, 3 … for later merges in a chain. Make a Z to win. Hover a tile to
+          see what would merge and where rubble lands.
         </p>
         <div className="mt-4 text-right">
           <button onClick={onClose} className="px-4 py-1.5 rounded bg-indigo-600 text-white text-sm">Done</button>

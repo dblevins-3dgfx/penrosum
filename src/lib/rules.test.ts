@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { makeBoard } from './board';
 import {
   DEFAULT_OPTIONS, EMPTY, type Cell, type Options, type Tile,
-  DECK, SEED_FRACTION, SEED_VALUES, WILD, WILD_CHANCE,
-  boardFull, canPlace, deckFor, drawValue, groupAt, highestTile, outcome, place, previewAt, resolveWild, seedBoard, valueToPlace,
+  DECK, NUMBERS, SEED_FRACTION, SEED_VALUES, WILD, WILD_CHANCE,
+  boardFull, canPlace, drawValue, groupAt, highestTile, outcome, place, previewAt, resolveWild, seedBoard, valueToPlace,
   dropRubble,
   KITE_CHANCE, canPlaceDealt, dealShape, shapeToPlace,
   TOP_VALUE, floorPow3, mergeResult,
@@ -210,30 +210,30 @@ describe('placing zeros', () => {
 });
 
 describe('the deck', () => {
-  it('draws # (0) 10% of the time, then A, B and C (1, 3, 9) as 63%, 18% and 9%', () => {
+  it('a draw is wild WILD_CHANCE of the time', () => {
+    expect(DECK[0]).toEqual([WILD, WILD_CHANCE]);
     expect(DECK.reduce((t, [, w]) => t + w, 0)).toBeCloseTo(1, 12);
-    expect(drawValue(() => 0)).toBe(0);
-    expect(drawValue(() => 0.099)).toBe(0);
-    expect(drawValue(() => 0.1)).toBe(1);
-    expect(drawValue(() => 0.729)).toBe(1);
-    expect(drawValue(() => 0.73)).toBe(3);
-    expect(drawValue(() => 0.909)).toBe(3);
-    expect(drawValue(() => 0.91)).toBe(9);
+    expect(drawValue(() => 0)).toBe(WILD);
+    expect(drawValue(() => WILD_CHANCE - 0.001)).toBe(WILD);
+    expect(drawValue(() => WILD_CHANCE)).toBe(0);
+  });
+
+  it('otherwise # (0) a tenth of the time, then A, B and C (1, 3, 9) at 7 : 2 : 1', () => {
+    expect(NUMBERS.reduce((t, [, w]) => t + w, 0)).toBeCloseTo(1, 12);
+    expect(DECK.slice(1).map(([v]) => v)).toEqual([0, 1, 3, 9]);
+    const share = (v: number) => DECK.find(([d]) => d === v)![1] / (1 - WILD_CHANCE);
+    expect(share(0)).toBeCloseTo(0.1, 12);
+    expect(share(1)).toBeCloseTo(0.63, 12);
+    expect(share(3)).toBeCloseTo(0.18, 12);
+    expect(share(9)).toBeCloseTo(0.09, 12);
     expect(drawValue(() => 0.999)).toBe(9);
   });
 
-  it('is the same deck in play without wildcards', () => {
-    expect(deckFor(opts())).toEqual(DECK);
-  });
-
-  it('with wildcards, a draw is wild WILD_CHANCE of the time and the numbers keep their proportions', () => {
-    const deck = deckFor(opts({ wild: 'deck' }));
-    expect(deck[0]).toEqual([WILD, WILD_CHANCE]);
-    expect(deck.reduce((t, [, w]) => t + w, 0)).toBeCloseTo(1, 12);
-    expect(deck.slice(1).map(([v]) => v)).toEqual([0, 1, 3, 9]);
-    expect(deck[2][1] / deck[1][1]).toBeCloseTo(6.3, 9);
-    expect(drawValue(() => 0, deck)).toBe(WILD);
-    expect(drawValue(() => WILD_CHANCE, deck)).toBe(0);
+  it('draws from another deck when given one', () => {
+    expect(drawValue(() => 0, NUMBERS)).toBe(0);
+    expect(drawValue(() => 0.1, NUMBERS)).toBe(1);
+    expect(drawValue(() => 0.73, NUMBERS)).toBe(3);
+    expect(drawValue(() => 0.91, NUMBERS)).toBe(9);
   });
 });
 
@@ -242,7 +242,7 @@ describe('wildcards', () => {
   const star: Tile[] = [
     { neighbors: [1, 2, 3, 4] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] },
   ];
-  const wild = opts({ wild: 'deck' });
+  const wild = opts();
 
   it('becomes the number that merges', () => {
     expect(resolveWild(star, [EMPTY, 2, 2, 1, EMPTY], 0, wild)).toBe(2);
@@ -441,7 +441,7 @@ describe('rubble', () => {
 
   it('rubble merges score 1 per tile, with no chain bonus', () => {
     const rubble = [{ into: 0, from: [5, 6], sum: 0 }, { into: 1, from: [2, 3, 4], sum: 0 }];
-    expect(scoreRubble(rubble, opts({ chain: 'on' }))).toBe(3 + 4);
+    expect(scoreRubble(rubble)).toBe(3 + 4);
   });
 
   it('previewAt shows where rubble lands and the 0s it would merge', () => {
@@ -532,8 +532,9 @@ describe('what a merge makes: the sum, rounded down to a power of 3', () => {
     expect(place(hub, [EMPTY, 1, 1, 3, 3], 0, 1, opts()).cells).toEqual([9, EMPTY, EMPTY, EMPTY, EMPTY]);
   });
 
-  it('deals and seeds 0, 1, 3 and 9', () => {
-    expect(DECK.map(([v]) => v)).toEqual([0, 1, 3, 9]);
+  it('deals and seeds 0, 1, 3 and 9 (and deals wildcards)', () => {
+    expect(NUMBERS.map(([v]) => v)).toEqual([0, 1, 3, 9]);
+    expect(DECK.map(([v]) => v)).toEqual([WILD, 0, 1, 3, 9]);
     expect(SEED_VALUES).toEqual([0, 1, 3, 9]);
     const board = makeBoard(800, 600);
     let seed = 7;
@@ -557,7 +558,7 @@ describe('making Z', () => {
 
 });
 
-describe('scoring (Q12)', () => {
+describe('scoring', () => {
   // A merge of `tiles` tiles making `sum`
   const merge = (tiles: number, sum: number): Merge => ({ into: 0, from: Array.from({ length: tiles - 1 }, (_, i) => i + 1), sum });
 
@@ -565,49 +566,29 @@ describe('scoring (Q12)', () => {
     expect([0, 1, 3, 9, 27, TOP_VALUE].map(rungOf)).toEqual([0, 1, 2, 3, 4, 26]);
   });
 
-  it('rungXTiles scores the rung made times the tiles merged', () => {
-    expect(mergePoints(merge(3, 3), 'rungXTiles')).toBe(6); // three As make a B
-    expect(mergePoints(merge(5, 27), 'rungXTiles')).toBe(20); // five Cs make a D
+  it('a merge scores the rung made times the tiles merged', () => {
+    expect(mergePoints(merge(3, 3))).toBe(6); // three As make a B
+    expect(mergePoints(merge(4, 3))).toBe(8); // four As make a B
+    expect(mergePoints(merge(5, 27))).toBe(20); // five Cs make a D
   });
 
-  it('rung scores the rung made, whatever the group size', () => {
-    expect(mergePoints(merge(3, 3), 'rung')).toBe(2);
-    expect(mergePoints(merge(4, 3), 'rung')).toBe(2);
-    expect(mergePoints(merge(3, 81), 'rung')).toBe(5);
+  it('a merge of #s scores 1 per tile', () => {
+    expect(mergePoints(merge(3, 0))).toBe(3);
+    expect(mergePoints(merge(4, 0))).toBe(4);
   });
 
-  it('tiles scores the tiles merged, whatever the rung', () => {
-    expect(mergePoints(merge(3, 3), 'tiles')).toBe(3);
-    expect(mergePoints(merge(3, 81), 'tiles')).toBe(3);
-    expect(mergePoints(merge(6, 9), 'tiles')).toBe(6);
-  });
-
-  it('rungPlus scores the rung made plus 1 per tile beyond three', () => {
-    expect(mergePoints(merge(3, 3), 'rungPlus')).toBe(2);
-    expect(mergePoints(merge(5, 3), 'rungPlus')).toBe(4);
-  });
-
-  it('a merge of #s scores 1 per tile under every rule', () => {
-    for (const rule of ['rungXTiles', 'rung', 'tiles', 'rungPlus'] as const) {
-      expect(mergePoints(merge(3, 0), rule)).toBe(3);
-      expect(mergePoints(merge(4, 0), rule)).toBe(4);
-    }
-  });
-
-  it('with the chain bonus, each merge of a chain scores times its place in it', () => {
+  it('each merge of a chain scores times its place in it', () => {
     const chain = [merge(3, 3), merge(3, 9), merge(3, 27)]; // 6, 9, 12 points
-    expect(scoreMerges(chain, opts({ chain: 'on' }))).toBe(6 + 9 * 2 + 12 * 3);
-    expect(scoreMerges(chain, opts({ chain: 'off' }))).toBe(6 + 9 + 12);
-    expect(scoreMerges(chain, opts({ score: 'rung', chain: 'off' }))).toBe(2 + 3 + 4);
+    expect(scoreMerges(chain)).toBe(6 + 9 * 2 + 12 * 3);
   });
 
   it('a move without merges scores nothing', () => {
-    expect(scoreMerges([], opts())).toBe(0);
+    expect(scoreMerges([])).toBe(0);
   });
 
   it('scores a real chain reaction from place', () => {
     const star: Tile[] = [{ neighbors: [1, 2, 3, 4] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }];
     const { merges } = place(star, [EMPTY, 1, 1, 3, 3], 0, 1, opts());
-    expect(scoreMerges(merges, opts())).toBe(2 * 3 + 3 * 3 * 2); // a B, then a C at x2
+    expect(scoreMerges(merges)).toBe(2 * 3 + 3 * 3 * 2); // a B, then a C at x2
   });
 });
