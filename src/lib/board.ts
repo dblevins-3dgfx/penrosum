@@ -2,10 +2,32 @@ import { buildBoard } from '../../penrose-board';
 
 export const PHI = (1 + Math.sqrt(5)) / 2;
 
-// Playfield size (matches the canvas) and the kite's long edge.
-export const BOARD_W = 800;
-export const BOARD_H = 600;
+// The kite's long edge, in board units.
 export const TILE_SIZE = 60;
+
+// Board sizes, by playfield area in board units. The playfield's shape
+// follows the screen (see playfieldFor), so the tile counts are approximate.
+export type BoardSize = 'small' | 'medium' | 'large';
+export const BOARD_SIZES: { id: BoardSize; name: string; area: number; tiles: number }[] = [
+  { id: 'small', name: 'Small', area: 560 * 420, tiles: 100 },
+  { id: 'medium', name: 'Medium', area: 800 * 600, tiles: 220 },
+  { id: 'large', name: 'Large', area: 1120 * 840, tiles: 450 },
+];
+export const DEFAULT_BOARD_SIZE: BoardSize = 'medium';
+
+// The playfield's shape is kept between 1:2 and 2:1, however narrow the
+// screen.
+export const MIN_ASPECT = 0.5;
+export const MAX_ASPECT = 2;
+
+// Playfield width and height for a board size, shaped to `aspect` (the
+// space's width / height, clamped to MIN_ASPECT..MAX_ASPECT) with the
+// size's area.
+export const playfieldFor = (size: BoardSize, aspect: number) => {
+  const { area } = BOARD_SIZES.find(s => s.id === size);
+  const a = Math.min(MAX_ASPECT, Math.max(MIN_ASPECT, aspect || 1));
+  return { width: Math.sqrt(area * a), height: Math.sqrt(area / a) };
+};
 
 export interface Point { x: number; y: number }
 export interface BoardTile {
@@ -38,8 +60,16 @@ export const kiteVertices = (x: number, y: number, rotation: number): Point[] =>
 
 // The board: a Penrose tiling around a kite at the center of the playfield,
 // pointing up, clipped to the playfield.
-export const makeBoard = (): BoardTile[] =>
-  buildBoard('kite', kiteVertices(BOARD_W / 2, BOARD_H / 2, -90), BOARD_W, BOARD_H, TILE_SIZE).tiles;
+export const makeBoard = (width: number, height: number): BoardTile[] =>
+  buildBoard('kite', kiteVertices(width / 2, height / 2, -90), width, height, TILE_SIZE).tiles;
+
+// The smallest rectangle around all the tiles.
+export const boardBounds = (tiles: BoardTile[]) => {
+  const xs = tiles.flatMap(t => t.verts.map(v => v.x));
+  const ys = tiles.flatMap(t => t.verts.map(v => v.y));
+  const minX = Math.min(...xs), minY = Math.min(...ys);
+  return { x: minX, y: minY, width: Math.max(...xs) - minX, height: Math.max(...ys) - minY };
+};
 
 export const centroid = (verts: Point[]): Point => ({
   x: verts.reduce((s, v) => s + v.x, 0) / verts.length,
