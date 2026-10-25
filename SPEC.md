@@ -34,13 +34,13 @@ A merging number game on a Penrose tiling of kites and darts. The player places 
 
 ## 4. Rules
 
-- **Start.** Each new game seeds the board: 10% of its tiles (`SEED_FRACTION`, rounded), picked at random, get a random number from 0 to 3 (`SEED_VALUES`), each equally likely. Neighboring seeds never hold the same number, so no group exists before the first move; a picked tile whose neighbors already hold all four numbers is passed over for another. Seeded 0s, like zeros from merges, can't be played on and match only a placed 0, so they act as obstacles (which can be cleared up only with zeros in the deck, open question 6). Seeded tiles look the same as placed ones. Undo goes back as far as the seeded board.
-- **Tiles** are either empty or hold a number. A tile can hold 0 (a seed, a placed 0, or a cleared tile under the "zero" clearing option, open question 2), which can't be played on and matches only a placed 0.
-- **A move** places the value for this move (open questions 3 and 6) on any empty tile.
-- **Group.** After placing, the group is the placed tile plus the matching tiles that count as adjacent to it (open question 1). Matching tiles hold the same number, and may also need the same shape (open question 5). Tiles with a different number never join the group; zeros join only a placed 0.
-- **Merge.** If the group has 3 or more tiles (`MIN_GROUP`), the placed tile takes the sum of their numbers (the number times the group's size) and the other tiles in the group are cleared (open question 2). Otherwise nothing else changes. Zeros merge the same way: a 0 placed next to two or more zeros (under the adjacency rule) takes them into one 0 where it was placed.
-- **Chain reaction.** After a merge, the placed tile's new number may match the tiles around it: three 1s make a 3 next to two other 3s. If its new number makes a group of 3 or more and the last merge made the number bigger, it merges again, and keeps going as long as it can, so one move can make 3, then 9, then 27. A merge of 1s or more at least triples the number, so a chain always ends. A merge of zeros leaves 0, no bigger than before, so it never chains (under the "zero" clearing option it would otherwise repeat forever, since the cleared tiles become zeros again).
-- **End.** The game ends when no empty tile is left, or when the goal is reached (open question 4).
+- **Start.** Each new game seeds the board: 10% of its tiles (`SEED_FRACTION`, rounded), picked at random, get a random number from 0 to 3 (`SEED_VALUES`), each equally likely. Neighboring seeds never hold the same number, so no group exists before the first move; a picked tile whose neighbors already hold all four numbers is passed over for another. Seeded 0s can't be played on and match only a placed 0, so they act as obstacles (which can be cleared up only with zeros in the deck, open question 5). Seeded tiles look the same as placed ones. Undo goes back as far as the seeded board.
+- **Tiles** are either empty or hold a number. A tile can hold 0 (a seed, or a placed 0), which can't be played on and matches only a placed 0.
+- **A move** places the value for this move (open questions 2 and 5) on any empty tile.
+- **Group.** After placing, the group is the placed tile plus the matching tiles that count as adjacent to it (open question 1). Matching tiles hold the same number, and may also need the same shape (open question 4). Tiles with a different number never join the group; zeros join only a placed 0.
+- **Merge.** If the group has 3 or more tiles (`MIN_GROUP`), the placed tile takes the sum of their numbers (the number times the group's size) and the other tiles in the group become empty: they leave the board and can be played on again, so free space comes back after every merge. Otherwise nothing else changes. Zeros merge the same way: a 0 placed next to two or more zeros (under the adjacency rule) takes them into one 0 where it was placed.
+- **Chain reaction.** After a merge, the placed tile's new number may match the tiles around it: three 1s make a 3 next to two other 3s. If its new number makes a group of 3 or more, it merges again, and keeps going as long as it can, so one move can make 3, then 9, then 27. Every merge empties at least two numbered tiles and numbers none, so a chain always ends.
+- **End.** The game ends when no empty tile is left, or when the goal is reached (open question 3).
 - **Undo** steps back one move at a time, as far as the start of the game. **New Game** starts over on a new board of the size picked from its menu. Changing a rule option takes effect from the next move and does not restart the game.
 
 ## 5. Open questions
@@ -54,33 +54,26 @@ Each option below is implemented and can be switched during play, in the **Prefe
 | Whole connected group (`connected`) | Every tile with the same number reachable from the placed tile through other tiles with that number. A long chain of matching tiles collapses all at once |
 | Direct neighbors only (`neighbors`) | The placed tile and its direct neighbors with the same number (at most four). Tiles further along a chain are left alone, and the end of a chain does not merge with only one matching neighbor |
 
-### 2. What do merged-away tiles become?
-
-| Option | Behavior |
-|---|---|
-| Empty (`empty`) | Un-numbered: they can be played on again. Free space comes back after every merge, so the board may never fill up |
-| Zero (`zero`) | They hold 0: they can't be played on, and they match only a placed 0, so they block groups like walls. Every move uses up a tile for good, so the board fills up and the game always ends |
-
-### 3. What value is placed?
+### 2. What value is placed?
 
 | Option | Behavior |
 |---|---|
 | Always 1 (`ones`) | Every move places 1 |
-| Random 1 to 3 (`random`) | Drawn at random, 1 with 70% chance, 2 with 20% and 3 with 10%, and shown in advance ("Next"). Zeros in the deck (open question 6) add 0 to the draw |
+| Random 1 to 3 (`random`) | Drawn at random, 1 with 70% chance, 2 with 20% and 3 with 10%, and shown in advance ("Next"). Zeros in the deck (open question 5) add 0 to the draw |
 | Player picks 1 to 3 (`choose`) | The player chooses 1, 2 or 3 before each move |
 
 Still to think about: whether other values (bigger numbers, negatives, a "wild" tile) should exist, and whether the random weights are right.
 
-### 4. What is the goal, and when does the game end?
+### 3. What is the goal, and when does the game end?
 
 | Option | Behavior |
 |---|---|
 | Highest tile (`highest`) | No target: the game ends when the board is full, and the result is the highest tile made |
 | Reach a target (`target`) | Make a tile of at least the target (20, 50, 100 or 200) to win; filling the board first loses. The win reports how many moves it took, so fewer moves is better |
 
-Still to think about: a scoring system (for example points per merge), a move limit, a time limit, and whether the game should push back somehow (for example new tiles appearing) when merged-away tiles become empty and the board can't fill up.
+Still to think about: a scoring system (for example points per merge), a move limit, a time limit, and whether the game should push back somehow (for example new tiles appearing) since merged-away tiles become empty and the board may never fill up.
 
-### 5. Which tiles can match?
+### 4. Which tiles can match?
 
 | Option | Behavior |
 |---|---|
@@ -89,16 +82,14 @@ Still to think about: a scoring system (for example points per merge), a move li
 
 How the board affects this, on the medium board at 4:3 before seeding (219 tiles): the 137 kites mostly touch two other kites and form one large connected kite region of 69 tiles. The 82 darts are scattered: the largest dart regions are five-dart stars, and 21 darts touch no other dart, so under "same shape only" a number placed on one of them can never merge. With "direct neighbors only" adjacency as well, only darts with two dart neighbors (37 of them) can merge at all.
 
-### 6. Zeros in the deck?
+### 5. Zeros in the deck?
 
-Zeros on the board (seeds, and cleared tiles under the "zero" clearing option) are obstacles. With zeros in the deck the player can place 0s too, and three or more connected zeros merge into one 0 where the last was placed, so obstacles can be consolidated, moved, and (with merged-away tiles becoming empty) reduced.
+Seeded zeros are obstacles. With zeros in the deck the player can place 0s too, and a 0 placed next to two or more zeros merges them into one 0 where it was placed, so obstacles can be consolidated, moved and reduced (three zeros become one).
 
 | Option | Behavior |
 |---|---|
 | No (`none`) | 0 is never the value to place; zeros on the board stay where they are |
 | Yes (`deck`) | A drawn value is 0 10% of the time (`ZERO_CHANCE`): under "always 1", each move is 0 or 1 (90%); under "random", 0 takes 10% and 1, 2 and 3 share the rest as 63%, 18% and 9%. The next value is shown in advance ("Next"). Under "player picks", 0 joins the choices |
-
-How it plays with question 2: with merged-away tiles becoming **empty**, merging three zeros leaves one, so the obstacles shrink. With them becoming **zero**, merging zeros changes nothing but the tile played on, so a 0 only ever adds an obstacle.
 
 ## 6. Screen
 

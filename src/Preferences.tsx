@@ -70,19 +70,13 @@ const Preferences = ({ options, setOption, onClose }: PreferencesProps) => {
           onChange={v => setOption('group', v)}
         />
         <Choice
-          label="2. Merged-away tiles become"
-          value={options.clear}
-          options={[['empty', 'Empty'], ['zero', 'Zero (stays on the board)']]}
-          onChange={v => setOption('clear', v)}
-        />
-        <Choice
-          label="3. The value you place"
+          label="2. The value you place"
           value={options.values}
           options={[['ones', 'Always 1'], ['random', 'Random 1–3'], ['choose', 'You pick 1–3']]}
           onChange={v => setOption('values', v)}
         />
         <Choice
-          label="4. Goal"
+          label="3. Goal"
           value={options.goal}
           options={[['highest', 'Highest tile'], ['target', 'Reach a target']]}
           onChange={v => setOption('goal', v)}
@@ -96,13 +90,13 @@ const Preferences = ({ options, setOption, onClose }: PreferencesProps) => {
           />
         )}
         <Choice
-          label="5. Which tiles can match?"
+          label="4. Which tiles can match?"
           value={options.shape}
           options={[['any', 'Any shape'], ['same', 'Same shape only']]}
           onChange={v => setOption('shape', v)}
         />
         <Choice
-          label="6. Zeros in your deck?"
+          label="5. Zeros in your deck?"
           value={options.zeros}
           options={[['none', 'No'], ['deck', 'Yes']]}
           onChange={v => setOption('zeros', v)}

@@ -12,12 +12,6 @@
 //   neighbors: the placed tile and its matching direct neighbors only
 export type GroupRule = 'connected' | 'neighbors';
 
-// What a merged-away tile becomes.
-//   empty: un-numbered; it can be played again and never counts toward a group
-//   zero:  holds a 0, which can't be played on and matches only a placed
-//          0, so it blocks groups and the board slowly fills up
-export type ClearRule = 'empty' | 'zero';
-
 // Where the value to place comes from.
 //   ones:   always 1
 //   random: drawn at random (mostly 1, sometimes 2 or 3) and shown in advance
@@ -43,7 +37,6 @@ export type ZeroRule = 'none' | 'deck';
 
 export interface Options {
   group: GroupRule;
-  clear: ClearRule;
   values: ValueRule;
   goal: GoalRule;
   target: number;
@@ -53,7 +46,6 @@ export interface Options {
 
 export const DEFAULT_OPTIONS: Options = {
   group: 'connected',
-  clear: 'empty',
   values: 'ones',
   goal: 'highest',
   target: 50,
@@ -70,8 +62,8 @@ export const choosableValues = (options: Options) =>
 // A merge needs this many matching tiles, counting the one just placed.
 export const MIN_GROUP = 3;
 
-// No number on the tile. A cleared tile under the 'zero' rule holds 0
-// instead, which is "numbered".
+// No number on the tile. A tile holding 0 is numbered: it can't be played
+// on, and matches only a placed 0.
 export const EMPTY = null;
 
 export type Cell = number | null;
@@ -117,11 +109,10 @@ export interface PlaceResult {
   merges: Merge[]; // in order; more than one when a chain reaction follows
 }
 
-// Places `value` on tile `id` and applies a merge if one forms, then merges
-// again while the tile's new number makes a group and is bigger than before
-// (a chain reaction). A merge of 1s or more at least triples the number, so
-// chains end; a merge of zeros leaves 0, which ends the chain at once
-// (otherwise, with cleared tiles becoming zeros, it would repeat forever).
+// Places `value` on tile `id` and applies a merge if one forms: the tile
+// takes the group's sum and the rest of the group is emptied. Then it merges
+// again while its new number makes a group (a chain reaction). Every merge
+// empties at least two numbered tiles and numbers none, so chains end.
 // Assumes the move is legal (see canPlace). Returns new cells; the input is
 // unchanged.
 export const place = (tiles: Tile[], cells: Cell[], id: number, value: number, options: Options): PlaceResult => {
@@ -131,13 +122,11 @@ export const place = (tiles: Tile[], cells: Cell[], id: number, value: number, o
   for (;;) {
     const group = groupAt(tiles, next, id, options.group, options.shape);
     if (group.length < MIN_GROUP) break;
-    const before = next[id];
     const sum = group.reduce((s, t) => s + next[t], 0);
     const from = group.slice(1);
-    for (const t of from) next[t] = options.clear === 'zero' ? 0 : EMPTY;
+    for (const t of from) next[t] = EMPTY;
     next[id] = sum;
     merges.push({ into: id, from, sum });
-    if (sum <= before) break;
   }
   return { cells: next, merges };
 };

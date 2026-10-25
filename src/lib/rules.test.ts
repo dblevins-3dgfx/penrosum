@@ -134,19 +134,15 @@ describe('place', () => {
     expect(cells).toEqual(cellsOf({ 1: 3, 3: 1, 5: 1 }));
   });
 
-  it('clear empty: merged-away tiles become un-numbered', () => {
-    const { cells } = place(tiles, cellsOf({ 0: 1, 2: 1 }), 1, 1, opts({ clear: 'empty' }));
+  it('merged-away tiles become empty, and can be played again', () => {
+    const { cells } = place(tiles, cellsOf({ 0: 1, 2: 1 }), 1, 1, opts());
     expect(cells[0]).toBe(EMPTY);
     expect(cells[2]).toBe(EMPTY);
+    expect(canPlace(cells, 0)).toBe(true);
   });
 
-  it('clear zero: merged-away tiles hold 0, which blocks groups', () => {
-    const first = place(tiles, cellsOf({ 0: 1, 2: 1 }), 1, 1, opts({ clear: 'zero' }));
-    expect(first.cells).toEqual(cellsOf({ 0: 0, 1: 3, 2: 0 }));
-    expect(canPlace(first.cells, 0)).toBe(false);
-    // Zeros never match a placed number, so three tiles next to two zeros don't merge
-    const second = place(tiles, cellsOf({ 0: 0, 2: 0 }), 1, 1, opts({ clear: 'zero' }));
-    expect(second.merges).toEqual([]);
+  it('zeros never match a placed 1, so a 1 between two zeros does not merge', () => {
+    expect(place(tiles, cellsOf({ 0: 0, 2: 0 }), 1, 1, opts()).merges).toEqual([]);
   });
 
   it('same shape: a mixed-shape group does not merge', () => {
@@ -245,22 +241,11 @@ describe('zeros in the deck', () => {
     expect(place(star, [EMPTY, 0, 0, 1, EMPTY], 0, 1, opts()).merges).toEqual([]);
   });
 
-  it('clear zero: merging zeros changes nothing but the placed tile, and stops', () => {
-    // Without the "number must grow" stop, this would merge forever
-    const { cells, merges } = place(star, [EMPTY, 0, 0, 0, 1], 0, 0, opts({ clear: 'zero' }));
-    expect(merges).toHaveLength(1);
-    expect(cells).toEqual([0, 0, 0, 0, 1]);
-  });
-
   it('a merge of zeros leaves a 0 that stays put', () => {
     // The zeros merge into the middle; the 0 left there touches only 1s
     const { cells, merges } = place(star, [EMPTY, 0, 0, 1, 1], 0, 0, opts());
     expect(merges).toHaveLength(1);
     expect(cells).toEqual([0, EMPTY, EMPTY, 1, 1]);
-  });
-
-  it('positive chains still run to the end', () => {
-    expect(place(star, [EMPTY, 1, 1, 3, 3], 0, 1, opts({ clear: 'zero' })).cells).toEqual([9, 0, 0, 0, 0]);
   });
 
   it('decks: what each value rule draws, with and without zeros', () => {
