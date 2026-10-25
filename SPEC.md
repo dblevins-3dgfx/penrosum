@@ -34,12 +34,12 @@ A merging number game on a Penrose tiling of kites and darts. The player places 
 
 ## 4. Rules
 
-- **Start.** Each new game seeds the board: 10% of its tiles (`SEED_FRACTION`, rounded), picked at random, get a random number from 0 to 3 (`SEED_VALUES`), each equally likely. Neighboring seeds never hold the same number, so no group exists before the first move; a picked tile whose neighbors already hold all four numbers is passed over for another. Seeded 0s can't be played on and match only a placed 0, so they act as obstacles; drawn 0s can merge them (see **Merge**). Seeded tiles look the same as placed ones. Undo goes back as far as the seeded board.
+- **Start.** Each new game seeds the board: 10% of its tiles (`SEED_FRACTION`, rounded), picked at random, get a random number from the values the deck deals (0 to 3, or 0, 1, 3 and 9, by Q11), each equally likely. Neighboring seeds never hold the same number, so no group exists before the first move; a picked tile whose neighbors already hold all four values is passed over for another. Seeded 0s can't be played on and match only a placed 0, so they act as obstacles; drawn 0s can merge them (see **Merge**). Seeded tiles look the same as placed ones. Undo goes back as far as the seeded board.
 - **Tiles** are either empty or hold a number. A tile can hold 0 (a seed, or a placed 0), which can't be played on and matches only a placed 0.
-- **Next value.** Each move's value is drawn at random from the deck (`DECK`) before the move and shown in advance ("Next" in the panel): 0 10% of the time, 1 63%, 2 18% and 3 9% (1, 2 and 3 at 7 : 2 : 1). With wildcards (Q8) the deck can also deal a wildcard, shown as ★.
+- **Next value.** Each move's value is drawn at random from the deck before the move and shown in advance ("Next" in the panel): 0 10% of the time, then three numbers at 63%, 18% and 9% (7 : 2 : 1). The numbers are 1, 2 and 3 (`DECK`), or 1, 3 and 9 (`POW3_DECK`) under Q11's power-of-3 options. With wildcards (Q8) the deck can also deal a wildcard, shown as ★.
 - **A move** places the next value on any empty tile.
 - **Group.** After placing, the group is the placed tile plus every matching tile connected to it through other matching tiles (tiles are connected when they share an edge). So a long chain of matching tiles collapses all at once, even when the placed tile is at its end. Matching tiles hold the same number; shape doesn't matter, so kites and darts match each other. Tiles with a different number never join the group, and the group never passes through them; zeros join only a placed 0.
-- **Merge.** If the group has 3 or more tiles (`MIN_GROUP`), the placed tile takes the sum of their numbers (the number times the group's size) and the other tiles in the group become empty: they leave the board and can be played on again, so free space comes back after every merge. Otherwise nothing else changes. Zeros merge the same way: a 0 placed so that it connects to two or more zeros takes them into one 0 where it was placed, so zero obstacles can be consolidated, moved and reduced (three zeros become one).
+- **Merge.** If the group has 3 or more tiles (`MIN_GROUP`), the placed tile takes what the merge makes (Q11; by default the sum of their numbers, the number times the group's size) and the other tiles in the group become empty: they leave the board and can be played on again, so free space comes back after every merge. Otherwise nothing else changes. Zeros merge the same way: a 0 placed so that it connects to two or more zeros takes them into one 0 where it was placed, so zero obstacles can be consolidated, moved and reduced (three zeros become one).
 - **Chain reaction.** After a merge, the placed tile's new number may match the tiles around it: three 1s make a 3 next to two other 3s. If its new number makes a group of 3 or more, it merges again, and keeps going as long as it can, so one move can make 3, then 9, then 27. Every merge empties at least two numbered tiles and numbers none, so a chain always ends.
 - **Pressure.** After the move (and any chain reaction), the pressure rule may add zeros to the board (Q9).
 - **End.** The game ends when no empty tile is left, or when the goal is reached (Q4).
@@ -49,7 +49,7 @@ A merging number game on a Penrose tiling of kites and darts. The player places 
 
 Each option below is implemented and can be switched during play, in the **Preferences** dialog. The first one listed is the default.
 
-Every question has a permanent number, Q1, Q2 and so on, given in the order the questions were opened. A number never changes and is never reused, so it means the same question here, in **Resolved questions** (section 8), in the Preferences dialog, and in pull requests and commits. The next new question is **Q11**.
+Every question has a permanent number, Q1, Q2 and so on, given in the order the questions were opened. A number never changes and is never reused, so it means the same question here, in **Resolved questions** (section 8), in the Preferences dialog, and in pull requests and commits. The next new question is **Q12**.
 
 ### Q4. What is the goal, and when does the game end?
 
@@ -93,7 +93,19 @@ Kites and darts match each other (Q6 decided that), but the two shapes can still
 | Merges on a dart double (`dartDouble`) | A merge into a dart (the placed tile is a dart) is worth double: three 1s make 6. Each merge of a chain reaction on a dart doubles again |
 | Same-shape merges double (`sameBonus`) | A merge whose tiles are all one shape (all kites or all darts) is worth double. Mixed groups still merge, at face value |
 
-The doubling options make numbers that aren't sums of the deck's values (6, 12, 36 ...), so groups can form from numbers that would otherwise never meet. Still to think about: whether a doubled merge should be marked on the board, and the suns and stars idea (a merge completing five kites or five darts around a point does something special).
+Under Q11's "sum" option, the doubling options make numbers that aren't sums of the deck's values (6, 12, 36 ...), so groups can form from numbers that would otherwise never meet. Under its power-of-3 options, "double" means one power of 3 higher (x3) instead, so results stay powers of 3. The status line calls either a bonus. Still to think about: whether a doubled merge should be marked on the board, and the suns and stars idea (a merge completing five kites or five darts around a point does something special).
+
+### Q11. What does a merge make?
+
+Summing a group gives oddball values: four 1s make 4, a dealt 2 makes 6s and 18s, and Q10's doubling makes 12s and 36s, so numbers that could have grouped never meet. The power-of-3 options keep every number on one ladder, 1, 3, 9, 27, 81 ..., and deal from its bottom rungs (`mergeResult`, `valuesFor`).
+
+| Option | A merge makes | Deals and seeds |
+|---|---|---|
+| The sum (`sum`) | The sum of the group: four 1s make 4, three 2s make 6 | 0, 1, 2, 3 |
+| The sum, rounded down to a power of 3 (`cap`) | The sum, rounded down to the nearest power of 3 (`floorPow3`): three or four 1s make 3, five 3s (15) make 9, nine 1s make 9 | 0, 1, 3, 9 |
+| The next power of 3 (`step`) | Three times the group's number, however many tiles merge: any group of 1s makes 3, of 3s makes 9 | 0, 1, 3, 9 |
+
+Under both power-of-3 options a merge makes a power of 3 (or 0), and a Q10 bonus merge goes one power higher (x3). The deck keeps its shape: 0 10%, 1 63%, 3 18%, 9 9%. With "cap", a big group can jump more than one power (nine 1s make 9); with "step", group size never matters, so the only way up is one rung at a time. Switching mid-game changes the deck at once; the seeds follow from the next New Game, so numbers already on the board (2s, say) stay until then.
 
 ## 6. Screen
 
@@ -113,8 +125,8 @@ Rotating a phone moves the panel between the side and the bottom; the game carri
 | Last move | Amber outline |
 | Next spawn | Under the "a 0 every move" pressure rule, a dashed gray ring on the empty tile where the next 0 will appear |
 | Hover | The empty tile under the pointer is tinted blue and shows the number it would end up with: the value placed, or the result of its merges (including any chain reaction). The tiles those merges would clear get a blue outline. Occupied tiles show no preview |
-| Status line | Before the first move, a one-line hint on how to play (naming the dealt shape, if any); then what a wildcard became ("Wild played as 3.") the last move's merges ("Merged 3 tiles into 3, then 3 tiles into 9", with "(doubled on a dart)" or "(doubled: all one shape)" after a doubled one, Q10) and any zeros the pressure rule added ("A 0 dropped."), or the result at the end of the game. It wraps onto as many lines as it needs |
-| Preferences | A dialog over the board: one row of buttons per open question, labeled with its number (Q4, Q8, Q9, Q10), the target choice under the target goal, and how to play. Escape, the ×, **Done** or a click outside closes it |
+| Status line | Before the first move, a one-line hint on how to play (naming the dealt shape, if any); then what a wildcard became ("Wild played as 3.") the last move's merges ("Merged 3 tiles into 3, then 3 tiles into 9", with "(bonus on a dart)" or "(bonus: all one shape)" after a Q10 bonus merge) and any zeros the pressure rule added ("A 0 dropped."), or the result at the end of the game. It wraps onto as many lines as it needs |
+| Preferences | A dialog over the board: one row of buttons per open question, labeled with its number (Q4, Q8, Q9, Q10, Q11), the target choice under the target goal, and how to play. Escape, the ×, **Done** or a click outside closes it |
 
 Pointer and touch both work: a tap or click places on the tile under it.
 
