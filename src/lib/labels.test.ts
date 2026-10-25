@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { LETTERS, TOP_LABEL, ceilPow3, targetLabel, valueLabel } from './labels';
-import { TARGET_OPTIONS, TOP_VALUE, WILD } from './rules';
+import { LETTERS, TOP_LABEL, valueLabel } from './labels';
+import { TOP_VALUE, WILD } from './rules';
 
 describe('value labels', () => {
   it('# for 0, then A for 1, B for 3, C for 9 ...', () => {
@@ -21,10 +21,5 @@ describe('value labels', () => {
 
   it('the wildcard is a star', () => {
     expect(valueLabel(WILD)).toBe('★');
-  });
-
-  it('a target is written as the first rung that reaches it', () => {
-    expect([1, 2, 3, 20, 50, 100, 200].map(ceilPow3)).toEqual([1, 3, 3, 27, 81, 243, 243]);
-    expect(TARGET_OPTIONS.map(targetLabel)).toEqual(['D', 'E', 'F', 'G']);
   });
 });

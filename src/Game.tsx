@@ -3,22 +3,24 @@ import {
   BOARD_SIZES, boardBounds, boardFor, centroid, tileAtPoint,
   type BoardSize, type BoardTile,
 } from './lib/board';
-import { parseBoardSize, parseOptions } from './lib/prefs';
+import { parseBoardSize } from './lib/prefs';
+import { addScore, parseScores } from './lib/scores';
 import {
   EMPTY, MIN_GROUP, WILD,
-  type Cell, type Merge, type Options, type Shape,
+  type Cell, type Merge, type Shape,
   canPlaceDealt, dealShape, dropRubble, shapeToPlace, drawValue, highestTile, outcome, place, previewAt, scoreMerges, scoreRubble, seedBoard,
   valueToPlace,
 } from './lib/rules';
 import { fitView, toBoard } from './lib/view';
-import { TOP_LABEL, TOP_VALUE, targetLabel, valueLabel } from './lib/labels';
+import { TOP_LABEL, TOP_VALUE, valueLabel } from './lib/labels';
 import { EMPTY_FILL, OFF_SHAPE_FILL, colorsFor, fillFor, textFor } from './lib/colors';
-import Preferences from './Preferences';
+import HowToPlay from './HowToPlay';
+import Scoreboard from './Scoreboard';
 
-// The rule options and board size are remembered in this browser
+// The board size and the scoreboards are remembered in this browser
 // (localStorage).
-const OPTIONS_STORAGE_KEY = 'penrosum.options';
 const SIZE_STORAGE_KEY = 'penrosum.boardSize';
+const SCORES_STORAGE_KEY = 'penrosum.scores';
 
 const load = <T,>(key: string, parse: (raw: string | null) => T): T => {
   try {
@@ -126,7 +128,6 @@ const drawNumber = (ctx: CanvasRenderingContext2D, t: BoardTile, text: string, c
 const Game = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [options, setOptions] = useState(() => load(OPTIONS_STORAGE_KEY, parseOptions));
   const [size, setSize] = useState(() => load(SIZE_STORAGE_KEY, parseBoardSize));
   // The space for the board, in CSS pixels; measured before the first paint
   const [space, setSpace] = useState({ width: 0, height: 0 });
@@ -135,8 +136,16 @@ const Game = () => {
   const [state, setState] = useState<Snapshot | null>(null);
   const [undo, setUndo] = useState<Snapshot[]>([]);
   const [hovered, setHovered] = useState(-1);
-  const [showPrefs, setShowPrefs] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [showSizes, setShowSizes] = useState(false);
+  const [showScores, setShowScores] = useState(false);
+  const [scores, setScores] = useState(() => load(SCORES_STORAGE_KEY, parseScores));
+  // Each game is recorded on the scoreboard once, the first time it ends
+  // (Undo can reopen a finished game, but finishing it again doesn't count)
+  const [gameId, setGameId] = useState(0);
+  const recorded = useRef(-1);
+  // This game's place on the scoreboard, once it has ended and made it
+  const [latest, setLatest] = useState<{ size: BoardSize; rank: number } | null>(null);
 
   useLayoutEffect(() => {
     const el = containerRef.current;
@@ -159,20 +168,18 @@ const Game = () => {
     });
     setUndo([]);
     setHovered(-1);
+    setGameId(g => g + 1);
+    setLatest(null);
     setSize(newSize);
     save(SIZE_STORAGE_KEY, newSize);
-  }, [options]);
+  }, []);
 
   useEffect(() => {
     if (!board) newGame(size);
   }, [board, size, newGame]);
 
-  const setOption = <K extends keyof Options>(key: K, value: Options[K]) => {
-    const updated = { ...options, [key]: value };
-    setOptions(updated);
-    save(OPTIONS_STORAGE_KEY, JSON.stringify(updated));
-  };
-  const closePrefs = useCallback(() => setShowPrefs(false), []);
+  const closeHelp = useCallback(() => setShowHelp(false), []);
+  const closeScores = useCallback(() => setShowScores(false), []);
 
   // Escape closes the board-size menu
   useEffect(() => {
@@ -184,7 +191,7 @@ const Game = () => {
 
   const tiles = board?.tiles ?? [];
   const cells = state?.cells ?? [];
-  const result = outcome(cells, options);
+  const result = outcome(cells);
   // How values are written: as letters
   const label = valueLabel;
   const drawn = state?.next ?? 1;
@@ -197,8 +204,8 @@ const Game = () => {
 
   const play = (id: number) => {
     if (!state || result.over || id < 0 || !canPlaceDealt(tiles, cells, id, state.nextShape)) return;
-    const value = valueToPlace(tiles, cells, id, drawn, options);
-    const { cells: placed, merges } = place(tiles, cells, id, value, options);
+    const value = valueToPlace(tiles, cells, id, drawn);
+    const { cells: placed, merges } = place(tiles, cells, id, value);
     const { cells: after, zeros, rubbleMerges } = dropRubble(tiles, placed, merges);
     const gained = scoreMerges(merges);
     const rubbleGained = scoreRubble(rubbleMerges);
@@ -222,8 +229,28 @@ const Game = () => {
   // What the hovered tile would do, for the preview
   const preview = useMemo(() => {
     if (hovered < 0 || result.over || !canPlaceDealt(tiles, cells, hovered, state?.nextShape ?? null)) return null;
-    return previewAt(tiles, cells, hovered, drawn, options);
-  }, [hovered, cells, drawn, options, result.over, tiles]);
+    return previewAt(tiles, cells, hovered, drawn);
+  }, [hovered, cells, drawn, result.over, tiles]);
+
+  // When the game ends, record it on its board size's scoreboard and show
+  // the scoreboard
+  const over = result.over;
+  useEffect(() => {
+    if (!over || !state || !board || recorded.current === gameId) return;
+    recorded.current = gameId;
+    const entry = {
+      score: state.score, highest: highestTile(state.cells), moves: state.moves,
+      date: new Date().toISOString(), won: highestTile(state.cells) >= TOP_VALUE,
+    };
+    const { list, rank } = addScore(scores[board.size], entry);
+    if (rank) {
+      const updated = { ...scores, [board.size]: list };
+      setScores(updated);
+      save(SCORES_STORAGE_KEY, JSON.stringify(updated));
+      setLatest({ size: board.size, rank });
+    }
+    setShowScores(true);
+  }, [over, state, board, gameId, scores]);
 
   const view = useMemo(
     () => board && fitView(board.bounds, space.width, space.height, BOARD_MARGIN),
@@ -312,15 +339,10 @@ const Game = () => {
     ? `Place the Next letter on an empty ${shapeToPlace(tiles, cells, state?.nextShape ?? null) ?? 'tile'}. ${MIN_GROUP} or more matching tiles merge into the one you placed, a rung higher.`
     : '');
   if (state && result.over) {
-    const best = label(result.highest);
-    status = result.highest >= TOP_VALUE
-      ? `You made ${TOP_LABEL}, the top of the alphabet, in ${moves} moves. You win!`
-      : result.won
-        ? options.goal === 'target'
-          ? `You made ${best} in ${moves} moves!`
-          : `Board full. Highest tile: ${best} after ${moves} moves.`
-        : `Board full before reaching ${targetLabel(options.target)}. Highest tile: ${best}.`;
-    status += ` Score: ${score}.`;
+    status = result.won
+      ? `You made ${TOP_LABEL}, the top of the alphabet, in ${moves} moves. You win! Score: ${score}.`
+      : `Board full. Score: ${score} (highest tile ${label(result.highest)}, ${moves} moves).`;
+    if (latest) status += ` #${latest.rank} on the ${BOARD_SIZES.find(s => s.id === latest.size)?.name.toLowerCase()} board!`;
   }
 
   const button = 'px-3 py-1.5 rounded text-sm border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-40';
@@ -329,7 +351,6 @@ const Game = () => {
     ['Moves', moves],
     ['Highest', label(highestTile(cells))],
     ['Free', free],
-    ...(options.goal === 'target' ? [['Target', targetLabel(options.target)] as [string, string]] : []),
   ];
 
   // The board takes a square at the start of the screen (left on a wide
@@ -390,13 +411,15 @@ const Game = () => {
               </>
             )}
           </div>
-          <button onClick={() => setShowPrefs(true)} className={button}>Preferences</button>
+          <button onClick={() => setShowScores(true)} className={button}>Top 10</button>
+          <button onClick={() => setShowHelp(true)} className={button}>How to play</button>
         </div>
 
         <p className="text-sm font-medium min-h-10" aria-live="polite">{status}</p>
       </aside>
 
-      {showPrefs && <Preferences options={options} setOption={setOption} onClose={closePrefs} />}
+      {showHelp && <HowToPlay onClose={closeHelp} />}
+      {showScores && <Scoreboard scores={scores} size={board?.size ?? size} latest={latest} onClose={closeScores} />}
     </div>
   );
 };

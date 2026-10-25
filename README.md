@@ -2,7 +2,7 @@
 
 A merging game on a Penrose tiling of kites and darts. Values climb a ladder of powers of 3 written as letters: # (0), A (1), B (3), C (9) and on up to Z. Place the next value (dealt at random, with a shape; now and then a ★ wildcard) on an empty tile of that shape. When that makes a group of three or more matching tiles, they merge into the tile you placed, one rung up or more: three As make a B, nine make a C. A merge of exactly three leaves a # of rubble behind. Merges score points as you play. Make a Z to win.
 
-The board comes from [Penrogo](https://github.com/dblevins-3dgfx/penrogo). Some rules are still being decided: the game's **Preferences** dialog switches between the options, and [SPEC.md](SPEC.md) lists them as open questions. **New Game** offers three square board sizes (about 50, 100 and 200 tiles), fitted to the screen.
+The board comes from [Penrogo](https://github.com/dblevins-3dgfx/penrogo). The game ends when the board is full; each board size keeps a **Top 10** of scores in your browser. [SPEC.md](SPEC.md) describes the rules, and the decisions behind them. **New Game** offers three square board sizes (about 50, 100 and 200 tiles), fitted to the screen.
 
 ## Running
 
@@ -40,11 +40,12 @@ One-time setup, needed before the first deploy: repository **Settings → Pages 
 - `src/lib/view.ts`: fits the board to the space on screen
 - `src/lib/colors.ts`: tile colors, shared by the board and the Next chip
 - `src/lib/labels.ts`: how values are written (as letters)
-- `src/lib/prefs.ts`: reads the saved rule options and board size
-- `src/lib/rules.ts`: the rules, with an option for each open question
+- `src/lib/prefs.ts`: reads the saved board size
+- `src/lib/scores.ts`: the top 10 for each board size
+- `src/lib/rules.ts`: the rules (and an option for each open question, when there are any)
 - `src/lib/*.test.ts`: unit tests for the above
 - `src/Game.tsx`: the game screen (state, drawing, controls)
-- `src/Preferences.tsx`: the Preferences dialog
+- `src/Dialog.tsx`, `src/HowToPlay.tsx`, `src/Scoreboard.tsx`: the dialogs (How to play, Top 10)
 - `src/main.tsx`, `src/index.css`, `index.html`: Vite entry point and Tailwind setup
 - `SPEC.md`: the game as implemented, and the open questions
 - `untested-requirements.md`: spec rules without unit tests, and why
