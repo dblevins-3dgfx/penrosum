@@ -85,28 +85,6 @@ const Preferences = ({ options, setOption, onClose }: PreferencesProps) => {
           onChange={v => setOption('wild', v)}
         />
         <Choice
-          label="Q9. Pressure"
-          value={options.pressure}
-          options={[
-            ['none', 'Off'],
-            ['mergeZero', 'A random # after each merge'],
-            ['spawn', 'A # every move (ringed in advance)'],
-            ['rubble', 'Rubble from 3-tile merges'],
-          ]}
-          onChange={v => setOption('pressure', v)}
-        />
-        <Choice
-          label="Q10. How do the shapes matter?"
-          value={options.shapes}
-          options={[
-            ['none', 'Off'],
-            ['dealt', 'Next value comes with a shape'],
-            ['dartDouble', 'Bonus rung for merges on a dart'],
-            ['sameBonus', 'Bonus rung for same-shape merges'],
-          ]}
-          onChange={v => setOption('shapes', v)}
-        />
-        <Choice
           label="Q12. What does a merge score?"
           value={options.score}
           options={[
@@ -124,11 +102,14 @@ const Preferences = ({ options, setOption, onClose }: PreferencesProps) => {
           onChange={v => setOption('chain', v)}
         />
         <p className="text-xs text-slate-500 mt-2">
-          How to play: place the Next letter (beside the title) on any empty tile. When it makes a
-          group of {MIN_GROUP} or more tiles with the same letter, they merge into the tile you placed,
-          one rung up the alphabet (three As make a B; nine make a C). # tiles are obstacles that only
-          a placed # merges away. If the new letter then makes a group too, it merges again. Merges score
-          points (a letter's rung is its place in the alphabet: A 1, B 2 …). Make a Z to win. Hover a tile to see what would merge.
+          How to play: place the Next letter (beside the title) on an empty tile of the shape it
+          comes with, a kite or a dart (any empty tile once none of that shape is left). When it makes
+          a group of {MIN_GROUP} or more tiles with the same letter, they merge into the tile you
+          placed, one rung up the alphabet (three As make a B; nine make a C). If the new letter then
+          makes a group too, it merges again. A merge of exactly {MIN_GROUP} leaves rubble, a #, on its
+          farthest cleared tile; bigger merges leave none. # tiles are obstacles that only a placed #
+          or rubble merges away. Merges score points (a letter's rung is its place in the alphabet:
+          A 1, B 2 …). Make a Z to win. Hover a tile to see what would merge and where rubble lands.
         </p>
         <div className="mt-4 text-right">
           <button onClick={onClose} className="px-4 py-1.5 rounded bg-indigo-600 text-white text-sm">Done</button>

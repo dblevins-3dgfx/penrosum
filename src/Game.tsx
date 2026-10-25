@@ -7,7 +7,7 @@ import { parseBoardSize, parseOptions } from './lib/prefs';
 import {
   EMPTY, MIN_GROUP, WILD,
   type Cell, type Merge, type Options, type Shape,
-  applyPressure, canPlaceDealt, dealShape, shapeToPlace, deckFor, drawValue, highestTile, nextSpawn, outcome, place, previewAt, scoreMerges, scoreRubble, seedBoard,
+  canPlaceDealt, dealShape, dropRubble, shapeToPlace, deckFor, drawValue, highestTile, outcome, place, previewAt, scoreMerges, scoreRubble, seedBoard,
   valueToPlace,
 } from './lib/rules';
 import { fitView, toBoard } from './lib/view';
@@ -42,15 +42,14 @@ const BOARD_MARGIN = 8;
 // The value for the next move, drawn in advance so it can be shown
 const nextValueFor = (options: Options) => drawValue(Math.random, deckFor(options));
 
-// "Merged 3 tiles into 3, then 3 tiles into 12 (bonus on a dart)", with
-// values written by `label` (numbers, or letters under Q11's power-of-3 rules)
-const DOUBLED = { dart: ' (bonus on a dart)', shape: ' (bonus: all one shape)' };
+// "Merged 3 tiles into B, then 3 tiles into C", with values written by
+// `label`
 const describeMerges = (merges: Merge[], label: (v: number) => string) =>
   merges.length
-    ? `Merged ${merges.map(m => `${m.from.length + 1} tiles into ${label(m.sum)}${m.doubled ? DOUBLED[m.doubled] : ''}`).join(', then ')}`
+    ? `Merged ${merges.map(m => `${m.from.length + 1} tiles into ${label(m.sum)}`).join(', then ')}`
     : '';
 
-// The chip's outline when the next value is dealt a shape (Q10): a kite,
+// The chip's outline for the shape the next value was dealt: a kite,
 // or a dart with its notch at the bottom
 const CHIP_CLIP: Record<Shape, string> = {
   kite: 'polygon(50% 0, 100% 40%, 50% 100%, 0 40%)',
@@ -95,8 +94,7 @@ interface Snapshot {
   moves: number;
   score: number; // points from merges so far (Q12)
   lastMove: number | null;
-  spawnAt: number | null; // where the 'spawn' pressure rule's next 0 appears
-  nextShape: Shape | null; // the shape dealt with the next value (Q10 'dealt')
+  nextShape: Shape; // the shape dealt with the next value
   message: string;
 }
 
@@ -156,8 +154,8 @@ const Game = () => {
     setBoard({ size: newSize, tiles, bounds: boardBounds(tiles) });
     const cells = seedBoard(tiles);
     setState({
-      cells, next: nextValueFor(options), moves: 0, score: 0, lastMove: null, spawnAt: nextSpawn(cells, options),
-      nextShape: dealShape(options), message: '',
+      cells, next: nextValueFor(options), moves: 0, score: 0, lastMove: null,
+      nextShape: dealShape(), message: '',
     });
     setUndo([]);
     setHovered(-1);
@@ -174,8 +172,6 @@ const Game = () => {
     setOptions(updated);
     save(OPTIONS_STORAGE_KEY, JSON.stringify(updated));
     if (key === 'wild') setState(s => s && { ...s, next: nextValueFor(updated) });
-    if (key === 'shapes') setState(s => s && { ...s, nextShape: dealShape(updated) });
-    if (key === 'pressure') setState(s => s && { ...s, spawnAt: nextSpawn(s.cells, updated) });
   };
   const closePrefs = useCallback(() => setShowPrefs(false), []);
 
@@ -204,7 +200,7 @@ const Game = () => {
     if (!state || result.over || id < 0 || !canPlaceDealt(tiles, cells, id, state.nextShape)) return;
     const value = valueToPlace(tiles, cells, id, drawn, options);
     const { cells: placed, merges } = place(tiles, cells, id, value, options);
-    const { cells: after, zeros, spawnAt, rubbleMerges } = applyPressure(tiles, placed, merges, options, state.spawnAt);
+    const { cells: after, zeros, rubbleMerges } = dropRubble(tiles, placed, merges);
     const gained = scoreMerges(merges, options);
     const rubbleGained = scoreRubble(rubbleMerges, options);
     setUndo([...undo, state]);
@@ -214,12 +210,11 @@ const Game = () => {
       moves: state.moves + 1,
       score: state.score + gained + rubbleGained,
       lastMove: id,
-      spawnAt,
-      nextShape: dealShape(options),
+      nextShape: dealShape(),
       message: [
         drawn === WILD ? `Wild played as ${label(value)}.` : '',
         describeMerges(merges, label) + (gained ? ` (+${gained}).` : ''),
-        zeros.length === 1 ? 'A # dropped.' : zeros.length ? `${zeros.length} #s dropped.` : '',
+        zeros.length === 1 ? 'Rubble dropped a #.' : zeros.length ? `Rubble dropped ${zeros.length} #s.` : '',
         ...rubbleMerges.map(m => `Rubble merged ${m.from.length + 1} #s into one (+${scoreRubble([m], options)}).`),
       ].filter(Boolean).join(' '),
     });
@@ -251,7 +246,7 @@ const Game = () => {
     const px = 1 / view.scale; // one screen pixel, in board units
 
     const inGroup = new Set(preview?.merging);
-    // Under the 'dealt' shape rule, empty tiles of the other shape are shaded
+    // Empty tiles of the shape not dealt are shaded
     const mustBe = shapeToPlace(tiles, cells, state.nextShape);
     for (const t of tiles) {
       const v = cells[t.id];
@@ -272,16 +267,6 @@ const Game = () => {
       ctx.stroke();
     }
 
-    // Where the next 'spawn' 0 will appear: a dashed ring
-    if (state.spawnAt !== null && cells[state.spawnAt] === EMPTY) {
-      tracePath(ctx, tiles[state.spawnAt]);
-      ctx.setLineDash([6, 4]);
-      ctx.strokeStyle = '#64748b';
-      ctx.lineWidth = 2.5;
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-
     if (state.lastMove !== null) {
       tracePath(ctx, tiles[state.lastMove]);
       ctx.strokeStyle = '#d97706';
@@ -300,7 +285,7 @@ const Game = () => {
       drawNumber(ctx, t, label(preview.value), '#3730a3');
     }
 
-    // Where the move's rubble would land (Q9 'rubble'): a gray # with the
+    // Where the move's rubble would land: a gray # with the
     // merge outline
     for (const id of preview?.rubble ?? []) {
       const t = tiles[id];

@@ -9,8 +9,6 @@ const ALLOWED: { [K in keyof Options]: readonly Options[K][] } = {
   goal: ['highest', 'target'],
   target: TARGET_OPTIONS,
   wild: ['none', 'deck'],
-  pressure: ['none', 'mergeZero', 'spawn', 'rubble'],
-  shapes: ['none', 'dealt', 'dartDouble', 'sameBonus'],
   score: ['rungXTiles', 'rung', 'tiles', 'rungPlus'],
   chain: ['on', 'off'],
 };
