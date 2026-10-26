@@ -7,36 +7,22 @@
 
 export type Shape = 'kite' | 'dart';
 
-// Q14: whether the player keeps a hot spare (see swapSpare).
-//   off: no spare
-//   on:  a spare deal that can be swapped with the current one at any time
-export type SpareRule = 'off' | 'on';
-
 // Q15: what a tap on the board does on a touch screen (see tapAction).
 //   place:   places the next value at once
 //   preview: the first tap on a tile previews the move there, a second tap
 //            on the same tile places it
 export type TapRule = 'place' | 'preview';
 
-// Q16: how Undo works (see undosEarned, undosAfterUndo).
-//   unlimited: Undo is free, as far back as the start
-//   charges:   Undo is a power-up: each one spends a charge; a game starts
-//              with UNDO_START, earns more, and holds at most UNDO_MAX
-export type UndoRule = 'unlimited' | 'charges';
-
 export interface Options {
-  spare: SpareRule;
   tap: TapRule;
-  undo: UndoRule;
 }
 
 export const DEFAULT_OPTIONS: Options = {
-  spare: 'off',
   tap: 'place',
-  undo: 'unlimited',
 };
 
-// Undo charges (Q16): how many a game starts with, and the most held.
+// Undo is a power-up: each Undo spends a charge (see undosEarned,
+// undosAfterUndo). How many a game starts with, and the most held.
 export const UNDO_START = 3;
 export const UNDO_MAX = 5;
 
@@ -357,7 +343,7 @@ export const shapeInPlay = (tiles: Tile[], cells: Cell[], shape: Shape): Shape =
   return chance === 1 ? 'kite' : chance === 0 ? 'dart' : shape;
 };
 
-// Swapping with the hot spare (Q14), on `cells`, the board the deal will be
+// Swapping with the hot spare, on `cells`, the board the deal will be
 // played on. With an empty spare, the current deal is reserved as the spare
 // and a fresh one is dealt (`draw`); otherwise the two trade places. The
 // spare is held as it was dealt, so the deal coming into play takes the
@@ -369,7 +355,7 @@ export const swapSpare = (
   return { current: { ...next, shape: shapeInPlay(tiles, cells, next.shape) }, spare: current };
 };
 
-// The Undo charges a move earns (Q16): one for each rung its merges take the
+// The Undo charges a move earns: one for each rung its merges take the
 // highest tile up, so making a letter for the first time in a game (D, E,
 // F ...) earns one, and a merge that skips a rung (C to E) earns two.
 // `highestBefore` is the highest tile before the move (it never goes down:
@@ -383,7 +369,7 @@ export const undosEarned = (highestBefore: number, merges: Merge[]) => {
 // The charges held after a move earns `earned`, up to UNDO_MAX.
 export const addUndos = (held: number, earned: number) => Math.min(UNDO_MAX, held + earned);
 
-// The charges held after an Undo (Q16). `held` is the count now; `restored`
+// The charges held after an Undo. `held` is the count now; `restored`
 // is the count saved with the position Undo goes back to, from before the
 // undone move. The lower of the two, less the one spent: so whatever the
 // undone move earned is taken back, and spending is never refunded.

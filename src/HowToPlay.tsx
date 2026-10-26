@@ -1,5 +1,5 @@
 import Dialog from './Dialog';
-import { MIN_GROUP, type Options } from './lib/rules';
+import { MIN_GROUP, UNDO_MAX, UNDO_START, type Options } from './lib/rules';
 
 interface ChoiceProps<T extends string> {
   label: string;
@@ -45,26 +45,10 @@ const HowToPlay = ({ options, setOption, onClose }: HowToPlayProps) => (
         Rules to try: the open questions in the spec. Changes apply at once; the game carries on.
       </p>
       <Choice
-        label="Q14. Keep a hot spare?"
-        value={options.spare}
-        options={[['off', 'No'], ['on', 'Yes']]}
-        onChange={v => setOption('spare', v)}
-      />
-      <p className="text-xs text-slate-500 mb-3">
-        With a spare: tap <b>Spare ⇄</b> to keep the next value for later (a new one is dealt), then
-        tap it any time to swap the next value with the spare.
-      </p>
-      <Choice
         label="Q15. On a touch screen, what does a tap do?"
         value={options.tap}
         options={[['place', 'Place at once'], ['preview', 'Preview, tap again to place']]}
         onChange={v => setOption('tap', v)}
-      />
-      <Choice
-        label="Q16. How does Undo work?"
-        value={options.undo}
-        options={[['unlimited', 'Unlimited'], ['charges', 'Charges: start with 3, +1 per new letter, up to 5']]}
-        onChange={v => setOption('undo', v)}
       />
     </div>
     <div className="text-sm text-slate-700 space-y-2">
@@ -85,6 +69,11 @@ const HowToPlay = ({ options, setOption, onClose }: HowToPlayProps) => (
         A merge scores its new letter's rung (its place in the alphabet: A 1, B 2 …) times the tiles
         merged, times 2, 3 … for later merges in a chain. The game ends when the board is full; make
         the top 10 on your board size. Making a Z wins outright.
+      </p>
+      <p>
+        Tap <b>Spare ⇄</b> to keep the next value for later (a new one is dealt); after that, tap it
+        any time to swap the next value with the spare. <b>Undo</b> is a power-up: you start with{' '}
+        {UNDO_START} and earn one each time you make a new highest letter (up to {UNDO_MAX}).
       </p>
       <p className="text-slate-500">
         Hover a tile (or, with Q15's preview, tap it once) to see what would merge and where rubble lands.

@@ -117,8 +117,8 @@ interface Snapshot {
   score: number; // points from merges so far
   lastMove: number | null;
   nextShape: Shape; // the shape dealt with the next value
-  spare: Deal | null; // the hot spare (Q14), if one is held
-  undos: number; // Undo charges held (Q16), counted whatever the option
+  spare: Deal | null; // the hot spare, if one is held
+  undos: number; // Undo charges held
   message: string;
 }
 
@@ -204,13 +204,11 @@ const Game = () => {
     if (!board) newGame(size);
   }, [board, size, newGame]);
 
-  // A changed option applies at once, and the game carries on. Turning the
-  // hot spare off drops any spare held.
+  // A changed option applies at once, and the game carries on.
   const setOption = <K extends keyof Options>(key: K, value: Options[K]) => {
     const updated = { ...options, [key]: value };
     setOptions(updated);
     save(OPTIONS_STORAGE_KEY, JSON.stringify(updated));
-    if (key === 'spare' && value === 'off') setState(s => s && { ...s, spare: null });
   };
   const closeHelp = useCallback(() => setShowHelp(false), []);
   const closeScores = useCallback(() => setShowScores(false), []);
@@ -230,20 +228,19 @@ const Game = () => {
   const label = valueLabel;
   const drawn = state?.next ?? 1;
 
-  // Undo charges (Q16) count only when Undo is a power-up
-  const charged = options.undo === 'charges';
-  const canUndo = !!state && undo.length > 0 && (!charged || state.undos > 0);
+  // Undo is a power-up: it needs a charge
+  const canUndo = !!state && undo.length > 0 && state.undos > 0;
 
-  // Steps back one move. With charges (Q16), it spends one, and takes back
-  // any the undone move earned.
+  // Steps back one move, spending a charge and taking back any the undone
+  // move earned.
   const undoMove = () => {
     if (!state || !canUndo) return;
     const restored = undo[undo.length - 1];
-    const undos = charged ? undosAfterUndo(state.undos, restored.undos) : restored.undos;
+    const undos = undosAfterUndo(state.undos, restored.undos);
     setState({
       ...restored,
       undos,
-      message: charged ? `Move undone. ${undos} Undo${undos === 1 ? '' : 's'} left.` : restored.message,
+      message: `Move undone. ${undos} Undo${undos === 1 ? '' : 's'} left.`,
     });
     setUndo(undo.slice(0, -1));
     setSelected(-1);
@@ -273,7 +270,7 @@ const Game = () => {
         describeMerges(merges, label) + (gained ? ` (+${gained}).` : ''),
         zeros.length === 1 ? 'Rubble dropped a #.' : zeros.length ? `Rubble dropped ${zeros.length} #s.` : '',
         ...rubbleMerges.map(m => `Rubble merged ${m.from.length + 1} #s into one (+${scoreRubble([m])}).`),
-        charged && earned
+        earned
           ? `New letter ${label(highestTile(placed))}! ${
             undos > state.undos ? `+${undos - state.undos} Undo` : `Undos full (${undos})`
           }.`
@@ -282,10 +279,10 @@ const Game = () => {
     });
   };
 
-  // Swaps the next value with the hot spare (Q14), or reserves it when no
+  // Swaps the next value with the hot spare, or reserves it when no
   // spare is held. Not a move: it changes only the deal.
   const swap = () => {
-    if (!state || result.over || options.spare !== 'on') return;
+    if (!state || result.over) return;
     const { current, spare } = swapSpare(
       tiles, cells, { value: state.next, shape: state.nextShape }, state.spare,
       () => ({ value: nextValue(), shape: dealShape(tiles, cells) }),
@@ -469,19 +466,17 @@ const Game = () => {
           <span className="text-sm text-slate-600">Next</span>
           <NextChip drawn={drawn} label={label(drawn)} shape={state?.nextShape ?? null}
             dealKey={`${moves}:${drawn}:${state?.nextShape}`} />
-          {options.spare === 'on' && (
-            <button onClick={swap} disabled={!state || result.over}
-              title={state?.spare ? 'Swap the next value with the spare' : 'Keep the next value as the spare'}
-              className="flex items-center gap-2 rounded-lg px-1.5 py-0.5 hover:bg-slate-100 disabled:opacity-40">
-              <span className="text-sm text-slate-600">Spare ⇄</span>
-              {state?.spare ? (
-                <NextChip role="Spare" drawn={state.spare.value} label={label(state.spare.value)} shape={state.spare.shape}
-                  dealKey={`${moves}:${state.spare.value}:${state.spare.shape}`} />
-              ) : (
-                <b aria-label="Spare: empty" className="inline-flex w-11 h-11 rounded-lg border-2 border-dashed border-slate-300" />
-              )}
-            </button>
-          )}
+          <button onClick={swap} disabled={!state || result.over}
+            title={state?.spare ? 'Swap the next value with the spare' : 'Keep the next value as the spare'}
+            className="flex items-center gap-2 rounded-lg px-1.5 py-0.5 hover:bg-slate-100 disabled:opacity-40">
+            <span className="text-sm text-slate-600">Spare ⇄</span>
+            {state?.spare ? (
+              <NextChip role="Spare" drawn={state.spare.value} label={label(state.spare.value)} shape={state.spare.shape}
+                dealKey={`${moves}:${state.spare.value}:${state.spare.shape}`} />
+            ) : (
+              <b aria-label="Spare: empty" className="inline-flex w-11 h-11 rounded-lg border-2 border-dashed border-slate-300" />
+            )}
+          </button>
         </div>
 
         <dl className="grid gap-2 grid-cols-[repeat(auto-fit,minmax(3.5rem,1fr))]">
@@ -495,8 +490,8 @@ const Game = () => {
 
         <div className="flex flex-wrap gap-2">
           <button onClick={undoMove} disabled={!canUndo} className={button}
-            title={charged ? `${state?.undos ?? 0} Undo charges (Q16)` : undefined}>
-            {charged ? `Undo (${state?.undos ?? 0})` : 'Undo'}
+            title={`${state?.undos ?? 0} Undo charges`}>
+            {`Undo (${state?.undos ?? 0})`}
           </button>
           <div className="relative">
             <button onClick={() => setShowSizes(s => !s)} aria-expanded={showSizes} aria-haspopup="menu"
