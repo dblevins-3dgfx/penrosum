@@ -6,6 +6,7 @@ import {
   boardFull, canPlace, drawValue, groupAt, highestTile, outcome, place, previewAt, resolveWild, seedBoard, valueToPlace,
   dropRubble,
   canPlaceDealt, dealShape, kiteChance, shapeToPlace,
+  type Deal, shapeInPlay, swapSpare,
   TOP_VALUE, floorPow3, mergeResult,
   type Merge, mergePoints, rungOf, scoreMerges, scoreRubble,
 } from './rules';
@@ -596,5 +597,47 @@ describe('scoring', () => {
     const star: Tile[] = [{ neighbors: [1, 2, 3, 4] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }];
     const { merges } = place(star, [EMPTY, 1, 1, 3, 3], 0, 1);
     expect(scoreMerges(merges)).toBe(2 * 3 + 3 * 3 * 2); // a B, then a C at x2
+  });
+});
+
+describe('hot spare (Q14)', () => {
+  // Kites 0 and 1, darts 2 and 3
+  const quad: Tile[] = [
+    { neighbors: [1], type: 'kite' }, { neighbors: [0], type: 'kite' },
+    { neighbors: [3], type: 'dart' }, { neighbors: [2], type: 'dart' },
+  ];
+  const open: Cell[] = [EMPTY, EMPTY, EMPTY, EMPTY];
+  const a: Deal = { value: 1, shape: 'kite' };
+  const b: Deal = { value: 9, shape: 'dart' };
+  const fresh: Deal = { value: 3, shape: 'kite' };
+  let draws = 0;
+  const draw = () => { draws++; return fresh; };
+
+  it('with an empty spare, reserves the current deal and deals a fresh one', () => {
+    draws = 0;
+    expect(swapSpare(quad, open, a, null, draw)).toEqual({ current: fresh, spare: a });
+    expect(draws).toBe(1);
+  });
+
+  it('otherwise trades the current deal and the spare, without dealing', () => {
+    draws = 0;
+    expect(swapSpare(quad, open, a, b, draw)).toEqual({ current: b, spare: a });
+    // and back again
+    expect(swapSpare(quad, open, b, a, draw)).toEqual({ current: a, spare: b });
+    expect(draws).toBe(0);
+  });
+
+  it('keeps a wildcard as it is', () => {
+    const wild: Deal = { value: WILD, shape: 'dart' };
+    expect(swapSpare(quad, open, wild, null, draw).spare).toEqual(wild);
+    expect(swapSpare(quad, open, a, wild, draw).current).toEqual(wild);
+  });
+
+  it('a spare coming into play takes the other shape when none of its own is empty', () => {
+    const noDarts: Cell[] = [EMPTY, EMPTY, 1, 3]; // both darts taken
+    expect(shapeInPlay(quad, noDarts, 'dart')).toBe('kite');
+    expect(shapeInPlay(quad, noDarts, 'kite')).toBe('kite');
+    expect(shapeInPlay(quad, open, 'dart')).toBe('dart');
+    expect(swapSpare(quad, noDarts, a, b, draw)).toEqual({ current: { value: 9, shape: 'kite' }, spare: a });
   });
 });

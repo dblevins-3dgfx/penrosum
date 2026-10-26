@@ -1,6 +1,6 @@
 # Penrosum: Specification
 
-Status: an experimental prototype. This describes the game as currently implemented (`Game` in `src/Game.tsx`, the How to play and Top 10 dialogs in `src/HowToPlay.tsx` and `src/Scoreboard.tsx`, rules in `src/lib/rules.ts`, the top 10 in `src/lib/scores.ts`, how values are written in `src/lib/labels.ts`, board in `src/lib/board.ts` and `penrose-board.ts`, fitting it to the screen in `src/lib/view.ts`, saved choices in `src/lib/prefs.ts`). No rule is an open question right now (see [Open questions](#5-open-questions)). Questions already decided are recorded under [Resolved questions](#8-resolved-questions).
+Status: an experimental prototype. This describes the game as currently implemented (`Game` in `src/Game.tsx`, the How to play and Top 10 dialogs in `src/HowToPlay.tsx` and `src/Scoreboard.tsx`, rules in `src/lib/rules.ts`, the top 10 in `src/lib/scores.ts`, how values are written in `src/lib/labels.ts`, board in `src/lib/board.ts` and `penrose-board.ts`, fitting it to the screen in `src/lib/view.ts`, saved choices in `src/lib/prefs.ts`). Rules not decided yet are listed under [Open questions](#5-open-questions), and each option is playable from the **How to play** dialog. Questions already decided are recorded under [Resolved questions](#8-resolved-questions).
 
 ## 1. Overview
 
@@ -15,7 +15,7 @@ A merging game on a Penrose tiling of kites and darts. Values climb a ladder of 
 | Tests | Vitest (`npm test`), for everything in `src/lib` |
 | Rendering | HTML5 Canvas 2D, sized to the board's square at the screen's pixel density |
 | Styling | Tailwind CSS v4 utility classes |
-| Persistence | The board size (`penrosum.boardSize`) and the top 10 for each board size (`penrosum.topTen`), in the browser's localStorage. A missing or unrecognized saved value falls back to its default, and a damaged or nonsensical top 10 entry is dropped (`parseScores`). The game in progress is in memory only. Data no longer used is deleted when the game loads: the top 10 from the fixed boards (`penrosum.scores`, set on tilings that no longer exist) and the rule options of decided questions (`penrosum.options`) |
+| Persistence | The rule options for open questions (`penrosum.options`; options of questions since decided are ignored, `parseOptions`), the board size (`penrosum.boardSize`) and the top 10 for each board size (`penrosum.topTen`), in the browser's localStorage. A missing or unrecognized saved value falls back to its default, and a damaged or nonsensical top 10 entry is dropped (`parseScores`). The game in progress is in memory only. Data no longer used is deleted when the game loads: the top 10 from the fixed boards (`penrosum.scores`, set on tilings that no longer exist) |
 
 ## 3. Board
 
@@ -53,9 +53,20 @@ A merging game on a Penrose tiling of kites and darts. Values climb a ladder of 
 
 ## 5. Open questions
 
-None right now. When a rule is undecided, each of its options is implemented, listed here with the first one as the default, and can be switched during play from the **How to play** dialog.
+Each option below is implemented, and can be switched during play from the **How to play** dialog; a change applies at once, without restarting the game. The first one listed is the default.
 
-Every question has a permanent number, Q1, Q2 and so on, given in the order the questions were opened. A number never changes and is never reused, so it means the same question here, in **Resolved questions** (section 8), in the game, and in pull requests and commits. The next new question is **Q14**.
+Every question has a permanent number, Q1, Q2 and so on, given in the order the questions were opened. A number never changes and is never reused, so it means the same question here, in **Resolved questions** (section 8), in the game, and in pull requests and commits. The next new question is **Q15**.
+
+### Q14. Keep a hot spare?
+
+A hot spare is a second deal held in reserve, like the hold piece in Tetris. It is a deal like any other: a value (or ★) and the shape it must go on.
+
+| Option | Behavior |
+|---|---|
+| No (`off`) | No spare |
+| Yes (`on`) | The spare starts each game empty. Tapping **Spare ⇄** with an empty spare keeps the next value (and its shape) as the spare, and a new next value is dealt. After that, tapping it swaps the next value with the spare, any number of times, at any point in the game (`swapSpare`). A swap isn't a move: it changes only the deal, not the board, the moves or the score. A spare coming into play takes the other shape if no empty tile of its own shape is left (`shapeInPlay`), so it can always be placed. A wildcard can be kept too, and saved for the right moment |
+
+The status line says what happened ("B kept as the spare.", "Swapped: B is next, A is the spare."). Undo steps back to before the last move, with the spare as it was then. Turning the option off drops any spare held. Still to think about: whether a swap should cost something (a move, points, or only once per deal), and whether the spare should be dealt a fresh shape when it comes into play.
 
 Still to think about: a move limit and a time limit.
 
@@ -78,7 +89,8 @@ Rotating a phone moves the panel between the side and the bottom; the game carri
 | Hover | The empty tile under the pointer is tinted blue and shows the value it would end up with: the value placed, or the result of its merges (including any chain reaction). The tiles those merges would clear get a blue outline. The tiles where the move's rubble would land show a gray # with a blue outline, and the #s that rubble would merge are outlined too. Occupied tiles show no preview |
 | Status line | Before the first move, a one-line hint on how to play (naming the dealt shape); then what a wildcard became ("Wild played as B.") the last move's merges and the points they scored ("Merged 3 tiles into B, then 3 tiles into C (+24).") any rubble dropped ("Rubble dropped a #.") and any rubble merges ("Rubble merged 3 #s into one (+3)."), or the result at the end of the game, with the score (see Rules: **End**) and, if the game made the top 10, its place ("#3 on the medium board!"). It wraps onto as many lines as it needs |
 | Top 10 | A dialog over the board, opened by **Top 10** and opened by itself when a game ends. A button for each board size (Small, Medium, Large) switches between their lists, starting on the current board's size. Each row shows the place, score, highest tile (with 🏆 for a Z win), moves and date; the game that just ended, if it made the list, is highlighted. An empty list says no game on that board has finished yet. A note says the lists are kept in this browser |
-| How to play | A dialog over the board: how to play, in a few short paragraphs. While a rule is an open question, its options appear here too, one row of buttons per question labeled with its number (none now) |
+| How to play | A dialog over the board: first the rules to try, one row of buttons per open question labeled with its number (now Q14), then how to play in a few short paragraphs |
+| Spare | With the hot spare on (Q14), a **Spare ⇄** button beside the Next chip (on its own line when the panel is narrow), showing the spare as a chip like the Next chip, or a dashed empty box. Tapping it keeps or swaps (see Q14); it is disabled when the game is over |
 | Dialogs | Escape, the ×, **Done** or a click outside closes a dialog |
 
 Pointer and touch both work: a tap or click places on the tile under it.

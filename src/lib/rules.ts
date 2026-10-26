@@ -1,11 +1,24 @@
 // Penrosum rules, as plain functions over the tile graph.
 //
 // The board is a list of tiles with neighbor lists (see penrose-board.ts).
-// The game state is one number per tile. No rules are open questions
-// right now (SPEC.md, "Open questions"); when one is, it gets an option
-// here so its choices can be tried side by side.
+// The game state is one number per tile. Rules that are still open
+// questions (SPEC.md, "Open questions") get an option here, so their
+// choices can be tried side by side.
 
 export type Shape = 'kite' | 'dart';
+
+// Q14: whether the player keeps a hot spare (see swapSpare).
+//   off: no spare
+//   on:  a spare deal that can be swapped with the current one at any time
+export type SpareRule = 'off' | 'on';
+
+export interface Options {
+  spare: SpareRule;
+}
+
+export const DEFAULT_OPTIONS: Options = {
+  spare: 'off',
+};
 
 // A merge needs this many matching tiles, counting the one just placed.
 export const MIN_GROUP = 3;
@@ -297,4 +310,30 @@ export const outcome = (cells: Cell[]): Outcome => {
   if (highest >= TOP_VALUE) return { over: true, won: true, highest };
   if (boardFull(cells)) return { over: true, won: false, highest };
   return { over: false };
+};
+
+// A deal: the next value and the shape it must go on.
+export interface Deal {
+  value: number;
+  shape: Shape;
+}
+
+// The shape a deal coming into play must go on: its own, or if no empty
+// tile of that shape is left, the other one (which then has one, unless
+// the board is full).
+export const shapeInPlay = (tiles: Tile[], cells: Cell[], shape: Shape): Shape => {
+  const chance = kiteChance(tiles, cells);
+  return chance === 1 ? 'kite' : chance === 0 ? 'dart' : shape;
+};
+
+// Swapping with the hot spare (Q14), on `cells`, the board the deal will be
+// played on. With an empty spare, the current deal is reserved as the spare
+// and a fresh one is dealt (`draw`); otherwise the two trade places. The
+// spare is held as it was dealt, so the deal coming into play takes the
+// other shape if no empty tile of its own is left (see shapeInPlay).
+export const swapSpare = (
+  tiles: Tile[], cells: Cell[], current: Deal, spare: Deal | null, draw: () => Deal,
+): { current: Deal; spare: Deal } => {
+  const next = spare ?? draw();
+  return { current: { ...next, shape: shapeInPlay(tiles, cells, next.shape) }, spare: current };
 };
