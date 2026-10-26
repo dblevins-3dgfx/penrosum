@@ -8,7 +8,7 @@ import { addScore, parseScores } from './lib/scores';
 import {
   EMPTY, MIN_GROUP, WILD,
   type Cell, type Deal, type Merge, type Options, type Shape,
-  canPlaceDealt, dealShape, dropRubble, shapeToPlace, drawValue, highestTile, outcome, place, previewAt, scoreMerges, scoreRubble, seedBoard, swapSpare,
+  canPlaceDealt, dealShape, dropRubble, shapeToPlace, drawValue, highestTile, outcome, place, previewAt, scoreMerges, scoreRubble, seedBoard, swapSpare, tapAction,
   valueToPlace,
 } from './lib/rules';
 import { fitView, toBoard } from './lib/view';
@@ -150,6 +150,8 @@ const Game = () => {
   const [state, setState] = useState<Snapshot | null>(null);
   const [undo, setUndo] = useState<Snapshot[]>([]);
   const [hovered, setHovered] = useState(-1);
+  // The tile a first tap selected, under the Q15 'preview' tap rule
+  const [selected, setSelected] = useState(-1);
   const [showHelp, setShowHelp] = useState(false);
   const [showSizes, setShowSizes] = useState(false);
   const [showScores, setShowScores] = useState(false);
@@ -182,6 +184,7 @@ const Game = () => {
     });
     setUndo([]);
     setHovered(-1);
+    setSelected(-1);
     setGameId(g => g + 1);
     setLatest(null);
     setSize(newSize);
@@ -222,6 +225,7 @@ const Game = () => {
     if (!undo.length) return;
     setState(undo[undo.length - 1]);
     setUndo(undo.slice(0, -1));
+    setSelected(-1);
   };
 
   const play = (id: number) => {
@@ -265,11 +269,30 @@ const Game = () => {
     });
   };
 
-  // What the hovered tile would do, for the preview
+  // A tap or click on the board. A mouse always places with one click; a
+  // touch follows the Q15 tap rule (tapAction): place at once, or preview
+  // on the first tap and place on a second tap on the same tile.
+  const tap = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const id = tileFromEvent(e);
+    if (e.pointerType === 'mouse') {
+      setSelected(-1);
+      play(id);
+      return;
+    }
+    const placeable = !!state && !result.over && id >= 0 && canPlaceDealt(tiles, cells, id, state.nextShape);
+    const action = tapAction(options.tap, selected, id, placeable);
+    setSelected(action.select);
+    if (action.place) play(id);
+  };
+
+  // The tile being previewed: the one under the mouse, or a tapped one
+  const previewed = hovered >= 0 ? hovered : selected;
+
+  // What the previewed tile would do
   const preview = useMemo(() => {
-    if (hovered < 0 || result.over || !canPlaceDealt(tiles, cells, hovered, state?.nextShape ?? null)) return null;
-    return previewAt(tiles, cells, hovered, drawn);
-  }, [hovered, cells, drawn, result.over, tiles, state?.nextShape]);
+    if (previewed < 0 || result.over || !canPlaceDealt(tiles, cells, previewed, state?.nextShape ?? null)) return null;
+    return previewAt(tiles, cells, previewed, drawn);
+  }, [previewed, cells, drawn, result.over, tiles, state?.nextShape]);
 
   // When the game ends, record it on its board size's scoreboard and show
   // the scoreboard
@@ -340,7 +363,7 @@ const Game = () => {
     }
 
     if (preview) {
-      const t = tiles[hovered];
+      const t = tiles[previewed];
       tracePath(ctx, t);
       ctx.fillStyle = inGroup.size ? '#c7d2fe' : '#e0e7ff';
       ctx.fill();
@@ -362,7 +385,7 @@ const Game = () => {
       ctx.stroke();
       drawNumber(ctx, t, label(0), '#475569');
     }
-  }, [tiles, cells, state, hovered, preview, view, space, label]);
+  }, [tiles, cells, state, previewed, preview, view, space, label]);
 
   const tileFromEvent = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!view) return -1;
@@ -375,7 +398,9 @@ const Game = () => {
   const score = state?.score ?? 0;
   const free = cells.filter(c => c === EMPTY).length;
   let status = state?.message || (moves === 0
-    ? `Place the Next letter on an empty ${shapeToPlace(tiles, cells, state?.nextShape ?? null) ?? 'tile'}. ${MIN_GROUP} or more matching tiles merge into the one you placed, a rung higher.`
+    ? `Place the Next letter on an empty ${shapeToPlace(tiles, cells, state?.nextShape ?? null) ?? 'tile'}${
+      options.tap === 'preview' ? ' (on a touch screen, tap once to preview and again to place)' : ''
+    }. ${MIN_GROUP} or more matching tiles merge into the one you placed, a rung higher.`
     : '');
   if (state && result.over) {
     status = result.won
@@ -395,7 +420,7 @@ const Game = () => {
   // The board takes a square at the start of the screen (left on a wide
   // screen, top on a tall one) and the panel takes the space left over
   return (
-    <div className="h-dvh flex flex-col landscape:flex-row overflow-hidden bg-slate-100 text-slate-900">
+    <div className="safe-area h-dvh flex flex-col landscape:flex-row overflow-hidden bg-slate-100 text-slate-900">
       <main
         ref={containerRef}
         className="relative shrink-0 portrait:w-full portrait:aspect-square portrait:max-h-[calc(100dvh-12rem)] landscape:h-full landscape:aspect-square landscape:max-w-[calc(100vw-16rem)]"
@@ -405,7 +430,7 @@ const Game = () => {
           className="absolute inset-0 w-full h-full touch-none cursor-pointer"
           onPointerMove={e => setHovered(tileFromEvent(e))}
           onPointerLeave={() => setHovered(-1)}
-          onPointerDown={e => play(tileFromEvent(e))}
+          onPointerDown={tap}
         />
       </main>
 

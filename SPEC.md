@@ -16,6 +16,8 @@ A merging game on a Penrose tiling of kites and darts. Values climb a ladder of 
 | Rendering | HTML5 Canvas 2D, sized to the board's square at the screen's pixel density |
 | Styling | Tailwind CSS v4 utility classes |
 | Persistence | The rule options for open questions (`penrosum.options`; options of questions since decided are ignored, `parseOptions`), the board size (`penrosum.boardSize`) and the top 10 for each board size (`penrosum.topTen`), in the browser's localStorage. A missing or unrecognized saved value falls back to its default, and a damaged or nonsensical top 10 entry is dropped (`parseScores`). The game in progress is in memory only. Data no longer used is deleted when the game loads: the top 10 from the fixed boards (`penrosum.scores`, set on tilings that no longer exist) |
+| Home screen | Installable as a home-screen web app (on an iPhone: Safari, Share, Add to Home Screen). `public/manifest.webmanifest` names it Penrosum and has it open full screen (`standalone`), with the icons `icon-192.png`, `icon-512.png` and `icon.svg`; `index.html` adds Apple's tags (`apple-touch-icon.png` at 180 x 180, full-screen capable, the title) and a theme color. The icon is a Penrose sun of five kites in the colors of A to E, on indigo. Opened from the home screen, it keeps its own storage, separate from Safari's, so its options and top 10 start fresh. It still needs the network to start (no offline play yet) |
+| Touch | The page reaches under the notch, rounded corners and home bar (`viewport-fit=cover`), and the layout pads itself back in by the safe-area insets (`.safe-area`), so nothing sits under them. Double-tap zoom, text selection, the long-press callout and the tap highlight are turned off (`src/index.css`) |
 
 ## 3. Board
 
@@ -55,7 +57,7 @@ A merging game on a Penrose tiling of kites and darts. Values climb a ladder of 
 
 Each option below is implemented, and can be switched during play from the **How to play** dialog; a change applies at once, without restarting the game. The first one listed is the default.
 
-Every question has a permanent number, Q1, Q2 and so on, given in the order the questions were opened. A number never changes and is never reused, so it means the same question here, in **Resolved questions** (section 8), in the game, and in pull requests and commits. The next new question is **Q15**.
+Every question has a permanent number, Q1, Q2 and so on, given in the order the questions were opened. A number never changes and is never reused, so it means the same question here, in **Resolved questions** (section 8), in the game, and in pull requests and commits. The next new question is **Q16**.
 
 ### Q14. Keep a hot spare?
 
@@ -67,6 +69,15 @@ A hot spare is a second deal held in reserve, like the hold piece in Tetris. It 
 | Yes (`on`) | The spare starts each game empty. Tapping **Spare ⇄** with an empty spare keeps the next value (and its shape) as the spare, and a new next value is dealt. After that, tapping it swaps the next value with the spare, any number of times, at any point in the game (`swapSpare`). A swap isn't a move: it changes only the deal, not the board, the moves or the score. A spare coming into play takes the other shape if no empty tile of its own shape is left (`shapeInPlay`), so it can always be placed. A wildcard can be kept too, and saved for the right moment |
 
 The status line says what happened ("B kept as the spare.", "Swapped: B is next, A is the spare."). Undo steps back to before the last move, with the spare as it was then. Turning the option off drops any spare held. Still to think about: whether a swap should cost something (a move, points, or only once per deal), and whether the spare should be dealt a fresh shape when it comes into play.
+
+### Q15. On a touch screen, what does a tap do?
+
+A touch screen has no hover, so the merge preview (see Screen: **Hover**) is never seen before a move unless a tap can show it (`TapRule`, `tapAction`). A mouse always places with one click, whatever the option.
+
+| Option | Behavior |
+|---|---|
+| Place at once (`place`) | A tap places the next value on the tile, as a click does |
+| Preview, tap again to place (`preview`) | The first tap on an empty tile the next value can go on selects it and shows the preview there, as hovering does. A second tap on the same tile places. A tap on another such tile moves the selection there; a tap anywhere else (a filled tile, the wrong shape, off the board) clears it. A new game, Undo or a move clears it too; a swap with the spare keeps it, and the preview follows the new deal. The opening hint says to tap twice |
 
 Still to think about: a move limit and a time limit.
 
@@ -86,21 +97,22 @@ Rotating a phone moves the panel between the side and the bottom; the game carri
 | New Game menu | Small, Medium and Large, each with its tile count; the current board's size is highlighted. It opens below the button with the panel at the side, and above it with the panel at the bottom, so it stays on screen. Picking one starts a new game on a new random board of that size and remembers the size for next time. Escape or a click outside closes the menu without starting a game |
 | Board | Scaled to fill its square (leaving 8 px around it) and centered. When the window changes size or the screen is rotated, the board is rescaled to fit. Empty tiles white with thin gray edges (one screen pixel wide at any scale), or light gray when they are the shape the next value wasn't dealt; #s slate gray with a gray "#"; lettered tiles colored by value, from pale yellow for A through yellow (B), red (C), purple (D) and blue (E) to green from F up, with the letter on the tile (on a kite at its centroid, on a dart along its axis toward the tip) |
 | Last move | Amber outline |
-| Hover | The empty tile under the pointer is tinted blue and shows the value it would end up with: the value placed, or the result of its merges (including any chain reaction). The tiles those merges would clear get a blue outline. The tiles where the move's rubble would land show a gray # with a blue outline, and the #s that rubble would merge are outlined too. Occupied tiles show no preview |
+| Hover | The empty tile under the pointer is tinted blue and shows the value it would end up with: the value placed, or the result of its merges (including any chain reaction). The tiles those merges would clear get a blue outline. The tiles where the move's rubble would land show a gray # with a blue outline, and the #s that rubble would merge are outlined too. Occupied tiles show no preview. On a touch screen, with Q15's preview option, a first tap on a tile shows the same preview |
 | Status line | Before the first move, a one-line hint on how to play (naming the dealt shape); then what a wildcard became ("Wild played as B.") the last move's merges and the points they scored ("Merged 3 tiles into B, then 3 tiles into C (+24).") any rubble dropped ("Rubble dropped a #.") and any rubble merges ("Rubble merged 3 #s into one (+3)."), or the result at the end of the game, with the score (see Rules: **End**) and, if the game made the top 10, its place ("#3 on the medium board!"). It wraps onto as many lines as it needs |
 | Top 10 | A dialog over the board, opened by **Top 10** and opened by itself when a game ends. A button for each board size (Small, Medium, Large) switches between their lists, starting on the current board's size. Each row shows the place, score, highest tile (with 🏆 for a Z win), moves and date; the game that just ended, if it made the list, is highlighted. An empty list says no game on that board has finished yet. A note says the lists are kept in this browser |
-| How to play | A dialog over the board: first the rules to try, one row of buttons per open question labeled with its number (now Q14), then how to play in a few short paragraphs |
+| How to play | A dialog over the board: first the rules to try, one row of buttons per open question labeled with its number (now Q14 and Q15), then how to play in a few short paragraphs |
 | Spare | With the hot spare on (Q14), a **Spare ⇄** button beside the Next chip (on its own line when the panel is narrow), showing the spare as a chip like the Next chip, or a dashed empty box. Tapping it keeps or swaps (see Q14); it is disabled when the game is over |
 | Dialogs | Escape, the ×, **Done** or a click outside closes a dialog |
 
-Pointer and touch both work: a tap or click places on the tile under it.
+Pointer and touch both work: a click places on the tile under it, and a tap does too, or previews first (Q15).
 
 ## 7. Known limitations
 
 - No sound, animation or skins yet (Penrogo's skin system could be brought over).
 - No saved games. The top 10 lives in one browser only, with no names and no sharing between devices.
 - Ideas not yet tried: how often wildcards should come up; letting the player choose what a wildcard becomes instead of it choosing the best; other special values.
-- Not yet tested on a physical touch device. On touch screens there is no hover, so the merge preview isn't seen before a move.
+- Not yet tested on a physical touch device (only in a browser emulating an iPhone). On touch screens there is no hover, so the merge preview is only seen with Q15's tap-to-preview.
+- No offline play: the home-screen app needs the network to start.
 
 ## 8. Resolved questions
 

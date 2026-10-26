@@ -13,15 +13,16 @@ describe('parseBoardSize', () => {
 describe('parseOptions', () => {
   it('uses the defaults when nothing is saved', () => {
     expect(parseOptions(null)).toEqual(DEFAULT_OPTIONS);
-    expect(DEFAULT_OPTIONS).toEqual({ spare: 'off' });
+    expect(DEFAULT_OPTIONS).toEqual({ spare: 'off', tap: 'place' });
   });
 
   it('keeps saved values that are allowed', () => {
-    expect(parseOptions(JSON.stringify({ spare: 'on' }))).toEqual({ spare: 'on' });
+    expect(parseOptions(JSON.stringify({ spare: 'on' }))).toEqual({ ...DEFAULT_OPTIONS, spare: 'on' });
+    expect(parseOptions(JSON.stringify({ tap: 'preview' }))).toEqual({ ...DEFAULT_OPTIONS, tap: 'preview' });
   });
 
   it('drops unknown keys and values that are not allowed, such as options of decided questions', () => {
-    const saved = { goal: 'target', wild: 'deck', pressure: 'spawn', shapes: 'dealt', score: 'tiles', deal: 'free', spare: 'maybe' };
+    const saved = { goal: 'target', wild: 'deck', pressure: 'spawn', shapes: 'dealt', score: 'tiles', deal: 'free', spare: 'maybe', tap: 'twice' };
     expect(parseOptions(JSON.stringify(saved))).toEqual(DEFAULT_OPTIONS);
   });
 

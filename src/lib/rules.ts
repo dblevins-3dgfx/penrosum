@@ -12,12 +12,31 @@ export type Shape = 'kite' | 'dart';
 //   on:  a spare deal that can be swapped with the current one at any time
 export type SpareRule = 'off' | 'on';
 
+// Q15: what a tap on the board does on a touch screen (see tapAction).
+//   place:   places the next value at once
+//   preview: the first tap on a tile previews the move there, a second tap
+//            on the same tile places it
+export type TapRule = 'place' | 'preview';
+
 export interface Options {
   spare: SpareRule;
+  tap: TapRule;
 }
 
 export const DEFAULT_OPTIONS: Options = {
   spare: 'off',
+  tap: 'place',
+};
+
+// What a tap on tile `tapped` (-1 off the board) does under the Q15 tap
+// rule: whether it places the next value there, and which tile is then
+// selected for the preview (-1 for none). `selected` is the tile selected
+// before the tap; `placeable` is whether the next value can go on `tapped`.
+// A tap where nothing can be placed only clears the selection.
+export const tapAction = (rule: TapRule, selected: number, tapped: number, placeable: boolean) => {
+  if (tapped < 0 || !placeable) return { place: false, select: -1 };
+  if (rule === 'place' || tapped === selected) return { place: true, select: -1 };
+  return { place: false, select: tapped };
 };
 
 // A merge needs this many matching tiles, counting the one just placed.
