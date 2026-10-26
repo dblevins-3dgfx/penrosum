@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseBoardSize, parseOptions } from './prefs';
-import { DEFAULT_OPTIONS } from './rules';
+import { DEFAULT_PREFS, parseBoardSize, parsePrefs } from './prefs';
 
 describe('parseBoardSize', () => {
   it('reads a saved size, or falls back to medium', () => {
@@ -10,24 +9,24 @@ describe('parseBoardSize', () => {
   });
 });
 
-describe('parseOptions', () => {
+describe('parsePrefs', () => {
   it('uses the defaults when nothing is saved', () => {
-    expect(parseOptions(null)).toEqual(DEFAULT_OPTIONS);
-    expect(DEFAULT_OPTIONS).toEqual({ tap: 'place' });
+    expect(parsePrefs(null)).toEqual(DEFAULT_PREFS);
+    expect(DEFAULT_PREFS).toEqual({ tap: 'place' });
   });
 
-  it('keeps saved values that are allowed', () => {
-    expect(parseOptions(JSON.stringify({ tap: 'preview' }))).toEqual({ ...DEFAULT_OPTIONS, tap: 'preview' });
+  it('keeps saved values that are allowed, so a Q15 choice carries over as Tap to preview', () => {
+    expect(parsePrefs(JSON.stringify({ tap: 'preview' }))).toEqual({ ...DEFAULT_PREFS, tap: 'preview' });
   });
 
   it('drops unknown keys and values that are not allowed, such as options of decided questions', () => {
     const saved = { goal: 'target', wild: 'deck', pressure: 'spawn', shapes: 'dealt', score: 'tiles', deal: 'free', spare: 'on', undo: 'charges', tap: 'twice' };
-    expect(parseOptions(JSON.stringify(saved))).toEqual(DEFAULT_OPTIONS);
+    expect(parsePrefs(JSON.stringify(saved))).toEqual(DEFAULT_PREFS);
   });
 
   it('survives damaged storage', () => {
-    expect(parseOptions('{not json')).toEqual(DEFAULT_OPTIONS);
-    expect(parseOptions('null')).toEqual(DEFAULT_OPTIONS);
-    expect(parseOptions('42')).toEqual(DEFAULT_OPTIONS);
+    expect(parsePrefs('{not json')).toEqual(DEFAULT_PREFS);
+    expect(parsePrefs('null')).toEqual(DEFAULT_PREFS);
+    expect(parsePrefs('42')).toEqual(DEFAULT_PREFS);
   });
 });

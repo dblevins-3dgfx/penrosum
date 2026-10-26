@@ -3,11 +3,11 @@ import {
   BOARD_SIZES, boardBounds, boardFor, centroid, findRosettes, tileAtPoint,
   type BoardSize, type BoardTile, type Rosette,
 } from './lib/board';
-import { parseBoardSize, parseOptions } from './lib/prefs';
+import { parseBoardSize, parsePrefs, type Prefs } from './lib/prefs';
 import { addScore, parseScores } from './lib/scores';
 import {
   EMPTY, MIN_GROUP, WILD,
-  type Cell, type Deal, type Merge, type Options, type Shape,
+  type Cell, type Deal, type Merge, type Shape,
   canPlaceDealt, dealShape, dropRubble, shapeToPlace, drawValue, highestTile, outcome, place, previewAt, scoreMerges, scoreRubble, seedBoard, swapSpare, tapAction,
   UNDO_START, addUndos, undosAfterUndo, undosEarned,
   addClears, canClear, clearTile, clearsEarned,
@@ -21,16 +21,18 @@ import { fitView, toBoard } from './lib/view';
 import { TOP_LABEL, TOP_VALUE, valueLabel } from './lib/labels';
 import { EMPTY_FILL, OFF_SHAPE_FILL, TILE_EDGE, colorsFor, fillFor, textFor } from './lib/colors';
 import HowToPlay from './HowToPlay';
+import Preferences from './Preferences';
 import Scoreboard from './Scoreboard';
 
-// The rule options, the board size and the scoreboards are remembered in
-// this browser (localStorage).
-const OPTIONS_STORAGE_KEY = 'penrosum.options';
+// The preferences, the board size and the scoreboards are remembered in
+// this browser (localStorage). The preferences keep the key the rule options
+// had, so the Q15 choice carries over as Tap to preview.
+const PREFS_STORAGE_KEY = 'penrosum.options';
 const SIZE_STORAGE_KEY = 'penrosum.boardSize';
 const SCORES_STORAGE_KEY = 'penrosum.topTen';
 // Stored data no longer used: the top 10 from the fixed boards (scored on
 // different tilings, so cleared when boards became random). Removed at
-// load. (Options of decided questions are simply ignored by parseOptions.)
+// load. (Options of decided questions are simply ignored by parsePrefs.)
 const RETIRED_STORAGE_KEYS = ['penrosum.scores'];
 try {
   for (const key of RETIRED_STORAGE_KEYS) localStorage.removeItem(key);
@@ -182,7 +184,7 @@ const drawNumber = (ctx: CanvasRenderingContext2D, t: BoardTile, text: string, c
 const Game = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [options, setOptions] = useState(() => load(OPTIONS_STORAGE_KEY, parseOptions));
+  const [prefs, setPrefs] = useState(() => load(PREFS_STORAGE_KEY, parsePrefs));
   const [size, setSize] = useState(() => load(SIZE_STORAGE_KEY, parseBoardSize));
   // The space for the board, in CSS pixels; measured before the first paint
   const [space, setSpace] = useState({ width: 0, height: 0 });
@@ -191,7 +193,7 @@ const Game = () => {
   const [state, setState] = useState<Snapshot | null>(null);
   const [undo, setUndo] = useState<Snapshot[]>([]);
   const [hovered, setHovered] = useState(-1);
-  // The tile a first tap selected, under the Q15 'preview' tap rule
+  // The tile a first tap selected, with Tap to preview on
   const [selected, setSelected] = useState(-1);
   // Whether the Clear power-up is armed: the next tap on a tile clears it
   const [clearing, setClearing] = useState(false);
@@ -225,6 +227,7 @@ const Game = () => {
     setSwapFirst(-1);
   };
   const [showHelp, setShowHelp] = useState(false);
+  const [showPrefs, setShowPrefs] = useState(false);
   const [showSizes, setShowSizes] = useState(false);
   const [showScores, setShowScores] = useState(false);
   const [scores, setScores] = useState(() => load(SCORES_STORAGE_KEY, parseScores));
@@ -271,13 +274,16 @@ const Game = () => {
     if (!board) newGame(size);
   }, [board, size, newGame]);
 
-  // A changed option applies at once, and the game carries on.
-  const setOption = <K extends keyof Options>(key: K, value: Options[K]) => {
-    const updated = { ...options, [key]: value };
-    setOptions(updated);
-    save(OPTIONS_STORAGE_KEY, JSON.stringify(updated));
+  // A changed preference applies at once, and the game carries on.
+  const setPref = <K extends keyof Prefs>(key: K, value: Prefs[K]) => {
+    const updated = { ...prefs, [key]: value };
+    setPrefs(updated);
+    save(PREFS_STORAGE_KEY, JSON.stringify(updated));
+    // A preview selected by a first tap belongs to the old tap rule
+    if (key === 'tap') setSelected(-1);
   };
   const closeHelp = useCallback(() => setShowHelp(false), []);
+  const closePrefs = useCallback(() => setShowPrefs(false), []);
   const closeScores = useCallback(() => setShowScores(false), []);
 
   // Escape cancels an armed power-up
@@ -513,8 +519,8 @@ const Game = () => {
   };
 
   // A tap or click on the board. A mouse always places with one click; a
-  // touch follows the Q15 tap rule (tapAction): place at once, or preview
-  // on the first tap and place on a second tap on the same tile.
+  // touch follows the Tap to preview preference (tapAction): place at once,
+  // or preview on the first tap and place on a second tap on the same tile.
   const tap = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const id = tileFromEvent(e);
     if (clearing) {
@@ -539,7 +545,7 @@ const Game = () => {
       return;
     }
     const placeable = !result.over && fits(id);
-    const action = tapAction(options.tap, selected, id, placeable);
+    const action = tapAction(prefs.tap, selected, id, placeable);
     setSelected(action.select);
     if (action.place) play(id);
   };
@@ -695,7 +701,7 @@ const Game = () => {
   const free = cells.filter(c => c === EMPTY).length;
   let status = state?.message || (moves === 0
     ? `Place the Next letter on an empty ${shapeToPlace(tiles, cells, state?.nextShape ?? null) ?? 'tile'}${
-      options.tap === 'preview' ? ' (on a touch screen, tap once to preview and again to place)' : ''
+      prefs.tap === 'preview' ? ' (on a touch screen, tap once to preview and again to place)' : ''
     }. ${MIN_GROUP} or more matching tiles merge into the one you placed, a rung higher.`
     : '');
   if (clearing) status = 'Clear: tap a letter or # to empty it (tap Clear again, or press Escape, to keep it).';
@@ -812,12 +818,14 @@ const Game = () => {
           </div>
           <button onClick={() => setShowScores(true)} className={button}>Top 10</button>
           <button onClick={() => setShowHelp(true)} className={button}>How to play</button>
+          <button onClick={() => setShowPrefs(true)} className={button} aria-label="Preferences" title="Preferences">⚙</button>
         </div>
 
         <p className="text-sm font-medium min-h-10" aria-live="polite">{status}</p>
       </aside>
 
-      {showHelp && <HowToPlay options={options} setOption={setOption} onClose={closeHelp} />}
+      {showHelp && <HowToPlay onClose={closeHelp} />}
+      {showPrefs && <Preferences prefs={prefs} setPref={setPref} onClose={closePrefs} />}
       {showScores && <Scoreboard scores={scores} size={board?.size ?? size} latest={latest} onClose={closeScores} />}
     </div>
   );

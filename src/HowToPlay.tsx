@@ -1,56 +1,11 @@
 import Dialog from './Dialog';
-import { ANY_SHAPE_MAX, BIG_MERGE, CLEAR_MAX, MIN_GROUP, SWAP_MAX, SWAP_SCORE_STEP, SWEEP_MAX, UNDO_MAX, UNDO_START, UPGRADE_MAX, type Options } from './lib/rules';
+import { ANY_SHAPE_MAX, BIG_MERGE, CLEAR_MAX, MIN_GROUP, SWAP_MAX, SWAP_SCORE_STEP, SWEEP_MAX, UNDO_MAX, UNDO_START, UPGRADE_MAX } from './lib/rules';
 
-interface ChoiceProps<T extends string> {
-  label: string;
-  value: T;
-  options: [T, string][];
-  onChange: (v: T) => void;
-}
-
-const Choice = <T extends string>({ label, value, options, onChange }: ChoiceProps<T>) => (
-  <fieldset className="mb-3">
-    <legend className="text-sm font-semibold text-slate-700 mb-1">{label}</legend>
-    <div className="flex flex-wrap gap-1">
-      {options.map(([v, text]) => (
-        <button
-          key={v}
-          onClick={() => onChange(v)}
-          aria-pressed={v === value}
-          className={`px-2 py-1 rounded text-sm border ${
-            v === value
-              ? 'bg-indigo-600 text-white border-indigo-600'
-              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-          }`}
-        >
-          {text}
-        </button>
-      ))}
-    </div>
-  </fieldset>
-);
-
-interface HowToPlayProps {
-  options: Options;
-  setOption: <K extends keyof Options>(key: K, value: Options[K]) => void;
-  onClose: () => void;
-}
-
-// How to play, in a dialog over the board, with the rules still being
-// tried (the open questions in the spec) as buttons.
-const HowToPlay = ({ options, setOption, onClose }: HowToPlayProps) => (
+// How to play, in a dialog over the board. (When a rule is an open
+// question in the spec, its options go at the top as buttons to try; none
+// is open now.)
+const HowToPlay = ({ onClose }: { onClose: () => void }) => (
   <Dialog title="How to play" onClose={onClose}>
-    <div className="mb-4 rounded-md bg-slate-50 p-3">
-      <p className="text-xs text-slate-500 mb-2">
-        Rules to try: the open questions in the spec. Changes apply at once; the game carries on.
-      </p>
-      <Choice
-        label="Q15. On a touch screen, what does a tap do?"
-        value={options.tap}
-        options={[['place', 'Place at once'], ['preview', 'Preview, tap again to place']]}
-        onChange={v => setOption('tap', v)}
-      />
-    </div>
     <div className="text-sm text-slate-700 space-y-2">
       <p>
         Place the Next letter (beside the title) on an empty tile of the shape it comes with, a kite
@@ -97,7 +52,7 @@ const HowToPlay = ({ options, setOption, onClose }: HowToPlayProps) => (
         tiles, to exchange what they hold. Each then merges if it matches its new neighbors.
       </p>
       <p className="text-slate-500">
-        Hover a tile (or, with Q15's preview, tap it once) to see what would merge and where rubble lands.
+        Hover a tile (or, with <b>Tap to preview</b> on in ⚙ Preferences, tap it once) to see what would merge and where rubble lands.
       </p>
     </div>
   </Dialog>

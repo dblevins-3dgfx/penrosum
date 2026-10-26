@@ -6,7 +6,7 @@ The board comes from [Penrogo](https://github.com/dblevins-3dgfx/penrogo). The g
 
 ## On a phone
 
-On an iPhone, open the game in Safari and use **Share → Add to Home Screen**: it then opens full screen from its own icon, like an app. (Its scores and settings are kept apart from Safari's.) In **How to play**, Q15's "Preview, tap again to place" lets a tap show what a move would do before you commit.
+On an iPhone, open the game in Safari and use **Share → Add to Home Screen**: it then opens full screen from its own icon, like an app. (Its scores and settings are kept apart from Safari's.) In **⚙ Preferences**, **Tap to preview** lets a tap show what a move would do before you commit.
 
 ## Running
 
@@ -44,12 +44,12 @@ One-time setup, needed before the first deploy: repository **Settings → Pages 
 - `src/lib/view.ts`: fits the board to the space on screen
 - `src/lib/colors.ts`: tile colors, shared by the board and the Next chip
 - `src/lib/labels.ts`: how values are written (as letters)
-- `src/lib/prefs.ts`: reads the saved rule options and board size
+- `src/lib/prefs.ts`: the player's preferences, and reading them and the board size from storage
 - `src/lib/scores.ts`: the top 10 for each board size
 - `src/lib/rules.ts`: the rules (and an option for each open question, when there are any)
 - `src/lib/*.test.ts`: unit tests for the above
 - `src/Game.tsx`: the game screen (state, drawing, controls)
-- `src/Dialog.tsx`, `src/HowToPlay.tsx`, `src/Scoreboard.tsx`: the dialogs (How to play, Top 10)
+- `src/Dialog.tsx`, `src/HowToPlay.tsx`, `src/Scoreboard.tsx`, `src/Preferences.tsx`: the dialogs (How to play, Top 10, Preferences)
 - `src/main.tsx`, `src/index.css`, `index.html`: Vite entry point, Tailwind setup, and the touch and home-screen settings
 - `public/`: the web app manifest and icons
 - `SPEC.md`: the game as implemented, and the open questions
