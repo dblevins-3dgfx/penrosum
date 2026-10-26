@@ -7,6 +7,7 @@ import {
   dropRubble,
   canPlaceDealt, dealShape, kiteChance, shapeToPlace,
   type Deal, shapeInPlay, swapSpare, tapAction,
+  UNDO_MAX, UNDO_START, addUndos, undosAfterUndo, undosEarned,
   TOP_VALUE, floorPow3, mergeResult,
   type Merge, mergePoints, rungOf, scoreMerges, scoreRubble,
 } from './rules';
@@ -663,5 +664,46 @@ describe('tapping the board (Q15)', () => {
       expect(tapAction(rule, 5, 5, false)).toEqual({ place: false, select: -1 });
       expect(tapAction(rule, 5, -1, false)).toEqual({ place: false, select: -1 });
     }
+  });
+});
+
+describe('Undo as a power-up (Q16)', () => {
+  const merge = (sum: number): Merge => ({ into: 0, from: [1, 2], sum });
+
+  it('a game starts with 3 charges and holds at most 5', () => {
+    expect(UNDO_START).toBe(3);
+    expect(UNDO_MAX).toBe(5);
+    expect(addUndos(3, 1)).toBe(4);
+    expect(addUndos(4, 3)).toBe(5);
+    expect(addUndos(5, 1)).toBe(5);
+  });
+
+  it('making a letter for the first time in the game earns a charge', () => {
+    expect(undosEarned(9, [merge(27)])).toBe(1); // first D
+    expect(undosEarned(27, [merge(81)])).toBe(1); // first E
+  });
+
+  it('making a letter already on the board earns nothing', () => {
+    expect(undosEarned(27, [merge(27)])).toBe(0);
+    expect(undosEarned(27, [merge(3)])).toBe(0);
+    expect(undosEarned(9, [])).toBe(0);
+  });
+
+  it('one charge for each rung the highest tile climbs, in a chain or by skipping a rung', () => {
+    expect(undosEarned(9, [merge(27), merge(81)])).toBe(2); // D then E in one chain
+    expect(undosEarned(9, [merge(81)])).toBe(2); // C straight to E
+  });
+
+  it('a merge of #s earns nothing', () => {
+    expect(undosEarned(0, [merge(0)])).toBe(0);
+  });
+
+  it('an Undo spends a charge and takes back what the undone move earned', () => {
+    // 3 held; a move earns one (4); Undo goes back to the 3 from before it
+    expect(undosAfterUndo(4, 3)).toBe(2);
+    // a second Undo, to a position saved with 3, from the 2 now held
+    expect(undosAfterUndo(2, 3)).toBe(1);
+    // never below zero
+    expect(undosAfterUndo(0, 3)).toBe(0);
   });
 });

@@ -9,6 +9,7 @@ import {
   EMPTY, MIN_GROUP, WILD,
   type Cell, type Deal, type Merge, type Options, type Shape,
   canPlaceDealt, dealShape, dropRubble, shapeToPlace, drawValue, highestTile, outcome, place, previewAt, scoreMerges, scoreRubble, seedBoard, swapSpare, tapAction,
+  UNDO_START, addUndos, undosAfterUndo, undosEarned,
   valueToPlace,
 } from './lib/rules';
 import { fitView, toBoard } from './lib/view';
@@ -117,6 +118,7 @@ interface Snapshot {
   lastMove: number | null;
   nextShape: Shape; // the shape dealt with the next value
   spare: Deal | null; // the hot spare (Q14), if one is held
+  undos: number; // Undo charges held (Q16), counted whatever the option
   message: string;
 }
 
@@ -187,7 +189,7 @@ const Game = () => {
     const cells = seedBoard(tiles);
     setState({
       cells, next: nextValue(), moves: 0, score: 0, lastMove: null,
-      nextShape: dealShape(tiles, cells), spare: null, message: '',
+      nextShape: dealShape(tiles, cells), spare: null, undos: UNDO_START, message: '',
     });
     setUndo([]);
     setHovered(-1);
@@ -228,9 +230,21 @@ const Game = () => {
   const label = valueLabel;
   const drawn = state?.next ?? 1;
 
+  // Undo charges (Q16) count only when Undo is a power-up
+  const charged = options.undo === 'charges';
+  const canUndo = !!state && undo.length > 0 && (!charged || state.undos > 0);
+
+  // Steps back one move. With charges (Q16), it spends one, and takes back
+  // any the undone move earned.
   const undoMove = () => {
-    if (!undo.length) return;
-    setState(undo[undo.length - 1]);
+    if (!state || !canUndo) return;
+    const restored = undo[undo.length - 1];
+    const undos = charged ? undosAfterUndo(state.undos, restored.undos) : restored.undos;
+    setState({
+      ...restored,
+      undos,
+      message: charged ? `Move undone. ${undos} Undo${undos === 1 ? '' : 's'} left.` : restored.message,
+    });
     setUndo(undo.slice(0, -1));
     setSelected(-1);
   };
@@ -242,6 +256,8 @@ const Game = () => {
     const { cells: after, zeros, rubbleMerges } = dropRubble(tiles, placed, merges);
     const gained = scoreMerges(merges);
     const rubbleGained = scoreRubble(rubbleMerges);
+    const earned = undosEarned(highestTile(cells), merges);
+    const undos = addUndos(state.undos, earned);
     setUndo([...undo, state]);
     setState({
       cells: after,
@@ -251,11 +267,17 @@ const Game = () => {
       lastMove: id,
       nextShape: dealShape(tiles, after),
       spare: state.spare,
+      undos,
       message: [
         drawn === WILD ? `Wild played as ${label(value)}.` : '',
         describeMerges(merges, label) + (gained ? ` (+${gained}).` : ''),
         zeros.length === 1 ? 'Rubble dropped a #.' : zeros.length ? `Rubble dropped ${zeros.length} #s.` : '',
         ...rubbleMerges.map(m => `Rubble merged ${m.from.length + 1} #s into one (+${scoreRubble([m])}).`),
+        charged && earned
+          ? `New letter ${label(highestTile(placed))}! ${
+            undos > state.undos ? `+${undos - state.undos} Undo` : `Undos full (${undos})`
+          }.`
+          : '',
       ].filter(Boolean).join(' '),
     });
   };
@@ -472,7 +494,10 @@ const Game = () => {
         </dl>
 
         <div className="flex flex-wrap gap-2">
-          <button onClick={undoMove} disabled={!undo.length} className={button}>Undo</button>
+          <button onClick={undoMove} disabled={!canUndo} className={button}
+            title={charged ? `${state?.undos ?? 0} Undo charges (Q16)` : undefined}>
+            {charged ? `Undo (${state?.undos ?? 0})` : 'Undo'}
+          </button>
           <div className="relative">
             <button onClick={() => setShowSizes(s => !s)} aria-expanded={showSizes} aria-haspopup="menu"
               className="px-3 py-1.5 rounded text-sm bg-indigo-600 text-white">

@@ -18,15 +18,27 @@ export type SpareRule = 'off' | 'on';
 //            on the same tile places it
 export type TapRule = 'place' | 'preview';
 
+// Q16: how Undo works (see undosEarned, undosAfterUndo).
+//   unlimited: Undo is free, as far back as the start
+//   charges:   Undo is a power-up: each one spends a charge; a game starts
+//              with UNDO_START, earns more, and holds at most UNDO_MAX
+export type UndoRule = 'unlimited' | 'charges';
+
 export interface Options {
   spare: SpareRule;
   tap: TapRule;
+  undo: UndoRule;
 }
 
 export const DEFAULT_OPTIONS: Options = {
   spare: 'off',
   tap: 'place',
+  undo: 'unlimited',
 };
+
+// Undo charges (Q16): how many a game starts with, and the most held.
+export const UNDO_START = 3;
+export const UNDO_MAX = 5;
 
 // What a tap on tile `tapped` (-1 off the board) does under the Q15 tap
 // rule: whether it places the next value there, and which tile is then
@@ -356,3 +368,23 @@ export const swapSpare = (
   const next = spare ?? draw();
   return { current: { ...next, shape: shapeInPlay(tiles, cells, next.shape) }, spare: current };
 };
+
+// The Undo charges a move earns (Q16): one for each rung its merges take the
+// highest tile up, so making a letter for the first time in a game (D, E,
+// F ...) earns one, and a merge that skips a rung (C to E) earns two.
+// `highestBefore` is the highest tile before the move (it never goes down:
+// a tile only leaves the board by merging into one at least as high). A
+// value placed without a merge earns nothing.
+export const undosEarned = (highestBefore: number, merges: Merge[]) => {
+  const made = merges.reduce((m, { sum }) => Math.max(m, sum), 0);
+  return Math.max(0, rungOf(made) - rungOf(highestBefore));
+};
+
+// The charges held after a move earns `earned`, up to UNDO_MAX.
+export const addUndos = (held: number, earned: number) => Math.min(UNDO_MAX, held + earned);
+
+// The charges held after an Undo (Q16). `held` is the count now; `restored`
+// is the count saved with the position Undo goes back to, from before the
+// undone move. The lower of the two, less the one spent: so whatever the
+// undone move earned is taken back, and spending is never refunded.
+export const undosAfterUndo = (held: number, restored: number) => Math.max(0, Math.min(held, restored) - 1);
