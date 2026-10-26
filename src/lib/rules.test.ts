@@ -601,7 +601,7 @@ describe('scoring', () => {
   });
 });
 
-describe('hot spare (Q14)', () => {
+describe('hot spare', () => {
   // Kites 0 and 1, darts 2 and 3
   const quad: Tile[] = [
     { neighbors: [1], type: 'kite' }, { neighbors: [0], type: 'kite' },
@@ -667,7 +667,7 @@ describe('tapping the board (Q15)', () => {
   });
 });
 
-describe('Undo as a power-up (Q16)', () => {
+describe('Undo as a power-up', () => {
   const merge = (sum: number): Merge => ({ into: 0, from: [1, 2], sum });
 
   it('a game starts with 3 charges and holds at most 5', () => {

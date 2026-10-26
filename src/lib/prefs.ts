@@ -6,9 +6,7 @@ import { BOARD_SIZES, DEFAULT_BOARD_SIZE, type BoardSize } from './board';
 import { DEFAULT_OPTIONS, type Options } from './rules';
 
 const ALLOWED: { [K in keyof Options]: readonly Options[K][] } = {
-  spare: ['off', 'on'],
   tap: ['place', 'preview'],
-  undo: ['unlimited', 'charges'],
 };
 
 // The rule options from their saved JSON (or null when nothing is saved).
