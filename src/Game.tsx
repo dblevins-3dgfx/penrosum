@@ -12,6 +12,7 @@ import {
   UNDO_START, addUndos, undosAfterUndo, undosEarned,
   addClears, canClear, clearTile, clearsEarned,
   ROSETTE_REWARD, addAnyShapes, anyShapesEarned, canPlace, newlyCompleted,
+  addUpgrades, canUpgrade, previewUpgradeAt, upgradeAt, upgradesEarned,
   valueToPlace,
 } from './lib/rules';
 import { fitView, toBoard } from './lib/view';
@@ -124,6 +125,7 @@ interface Snapshot {
   undos: number; // Undo charges held
   clears: number; // Clear charges held (issue #33)
   anyShapes: number; // Any shape charges held (issue #33)
+  upgrades: number; // Upgrade charges held (issue #33)
   completed: number[]; // the suns and stars (indices into board.rosettes) completed this game
   message: string;
 }
@@ -172,9 +174,18 @@ const Game = () => {
   // Whether the Any shape power-up is armed: the next value may go on
   // either shape. At most one power-up is armed at a time.
   const [anyShape, setAnyShape] = useState(false);
+  // Whether the Upgrade power-up is armed: the next tap on a letter raises it
+  const [upgrading, setUpgrading] = useState(false);
   const disarm = () => {
     setClearing(false);
     setAnyShape(false);
+    setUpgrading(false);
+  };
+  // Arms one power-up (or disarms it if armed), disarming the others
+  const toggle = (which: 'clear' | 'anyShape' | 'upgrade') => {
+    setClearing(c => which === 'clear' && !c);
+    setAnyShape(a => which === 'anyShape' && !a);
+    setUpgrading(u => which === 'upgrade' && !u);
   };
   const [showHelp, setShowHelp] = useState(false);
   const [showSizes, setShowSizes] = useState(false);
@@ -207,13 +218,12 @@ const Game = () => {
       cells, next: nextValue(), moves: 0, score: 0, lastMove: null,
       nextShape: dealShape(tiles, cells), spare: null, undos: UNDO_START, clears: 0,
       // a sun or star the seeding happens to fill earns nothing
-      anyShapes: 0, completed: newlyCompleted(rosettes, cells, []), message: '',
+      anyShapes: 0, upgrades: 0, completed: newlyCompleted(rosettes, cells, []), message: '',
     });
     setUndo([]);
     setHovered(-1);
     setSelected(-1);
-    setClearing(false);
-    setAnyShape(false);
+    disarm();
     setGameId(g => g + 1);
     setLatest(null);
     setSize(newSize);
@@ -235,15 +245,16 @@ const Game = () => {
 
   // Escape cancels an armed power-up
   useEffect(() => {
-    if (!clearing && !anyShape) return;
+    if (!clearing && !anyShape && !upgrading) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       setClearing(false);
       setAnyShape(false);
+      setUpgrading(false);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [clearing, anyShape]);
+  }, [clearing, anyShape, upgrading]);
 
   // Escape closes the board-size menu
   useEffect(() => {
@@ -285,52 +296,89 @@ const Game = () => {
     disarm();
   };
 
-  const play = (id: number) => {
-    if (!state || result.over || !fits(id)) return;
-    const value = valueToPlace(tiles, cells, id, drawn);
-    const { cells: placed, merges } = place(tiles, cells, id, value);
+  // Settles the merges a move made on tile `id` (from a placed value or an
+  // Upgrade): drops the rubble, adds the points and the power-ups earned
+  // (after spending `spent`), and writes the status line, starting with
+  // `lead`. `placed` is the board after the merges. Returns the new state
+  // apart from the deal and the move count.
+  const settle = (
+    base: Snapshot, id: number, placed: Cell[], merges: Merge[], lead: string,
+    spent: { anyShape?: boolean; upgrade?: boolean } = {},
+  ) => {
     const { cells: after, zeros, rubbleMerges } = dropRubble(tiles, placed, merges);
     const gained = scoreMerges(merges);
     const rubbleGained = scoreRubble(rubbleMerges);
-    const earned = undosEarned(highestTile(cells), merges);
-    const undos = addUndos(state.undos, earned);
+    const earned = undosEarned(highestTile(base.cells), merges);
+    const undos = addUndos(base.undos, earned);
     const clearEarned = clearsEarned(merges);
-    const clears = addClears(state.clears, clearEarned);
-    // Any shape: spend one if armed, then earn from suns and stars completed
-    const completedNow = newlyCompleted(rosettes, after, state.completed);
+    const clears = addClears(base.clears, clearEarned);
+    // Suns and stars completed earn Any shape
+    const completedNow = newlyCompleted(rosettes, after, base.completed);
     const shapesEarned = anyShapesEarned(rosettes, completedNow);
-    const held = state.anyShapes - (anyShape ? 1 : 0);
-    const anyShapes = addAnyShapes(held, shapesEarned);
+    const shapesHeld = base.anyShapes - (spent.anyShape ? 1 : 0);
+    const anyShapes = addAnyShapes(shapesHeld, shapesEarned);
     const kinds = completedNow.map(i => rosettes[i].kind);
-    setAnyShape(false);
-    setUndo([...undo, state]);
-    setState({
+    // Big merges earn Upgrade
+    const upgradeEarned = upgradesEarned(merges);
+    const upgradesHeld = base.upgrades - (spent.upgrade ? 1 : 0);
+    const upgrades = addUpgrades(upgradesHeld, upgradeEarned);
+    return {
       cells: after,
-      next: nextValue(),
-      moves: state.moves + 1,
-      score: state.score + gained + rubbleGained,
+      score: base.score + gained + rubbleGained,
       lastMove: id,
-      nextShape: dealShape(tiles, after),
-      spare: state.spare,
       undos,
       clears,
       anyShapes,
-      completed: [...state.completed, ...completedNow],
+      upgrades,
+      completed: [...base.completed, ...completedNow],
       message: [
-        drawn === WILD ? `Wild played as ${label(value)}.` : '',
+        lead,
         describeMerges(merges, label) + (gained ? ` (+${gained}).` : ''),
         zeros.length === 1 ? 'Rubble dropped a #.' : zeros.length ? `Rubble dropped ${zeros.length} #s.` : '',
         ...rubbleMerges.map(m => `Rubble merged ${m.from.length + 1} #s into one (+${scoreRubble([m])}).`),
         earned
           ? `New letter ${label(highestTile(placed))}! ${
-            undos > state.undos ? `+${undos - state.undos} Undo` : `Undos full (${undos})`
+            undos > base.undos ? `+${undos - base.undos} Undo` : `Undos full (${undos})`
           }.`
           : '',
-        clearEarned ? `Chain! ${clears > state.clears ? '+1 Clear' : `Clears full (${clears})`}.` : '',
+        clearEarned ? `Chain! ${clears > base.clears ? '+1 Clear' : `Clears full (${clears})`}.` : '',
         ...kinds.map(k => `${k === 'sun' ? 'Sun' : 'Star'}! +${ROSETTE_REWARD[k]} Any shape.`),
-        shapesEarned && anyShapes < held + shapesEarned ? `Any shapes full (${anyShapes}).` : '',
+        shapesEarned && anyShapes < shapesHeld + shapesEarned ? `Any shapes full (${anyShapes}).` : '',
+        upgradeEarned
+          ? `Big merge! ${upgrades > upgradesHeld ? `+${upgrades - upgradesHeld} Upgrade` : `Upgrades full (${upgrades})`}.`
+          : '',
       ].filter(Boolean).join(' '),
+    };
+  };
+
+  const play = (id: number) => {
+    if (!state || result.over || !fits(id)) return;
+    const value = valueToPlace(tiles, cells, id, drawn);
+    const { cells: placed, merges } = place(tiles, cells, id, value);
+    const settled = settle(state, id, placed, merges, drawn === WILD ? `Wild played as ${label(value)}.` : '', { anyShape });
+    setAnyShape(false);
+    setUndo([...undo, state]);
+    setState({
+      ...settled,
+      next: nextValue(),
+      moves: state.moves + 1,
+      nextShape: dealShape(tiles, settled.cells),
+      spare: state.spare,
     });
+  };
+
+  // Uses an armed Upgrade on tile `id`: raises its letter a rung, which
+  // then merges like a placed one (points, rubble and power-ups included).
+  // Not a move: the deal and the move count stay, but Undo can take it back.
+  // A tap where there is nothing to upgrade just disarms it.
+  const upgradeTile = (id: number) => {
+    setUpgrading(false);
+    if (!state || result.over || state.upgrades <= 0 || !canUpgrade(cells, id)) return;
+    const from = cells[id] as number;
+    const { cells: placed, merges } = upgradeAt(tiles, cells, id);
+    setUndo([...undo, state]);
+    setState({ ...state, ...settle(state, id, placed, merges, `Upgraded ${label(from)} to ${label(from * 3)}.`, { upgrade: true }) });
+    setSelected(-1);
   };
 
   // Swaps the next value with the hot spare, or reserves it when no
@@ -375,6 +423,10 @@ const Game = () => {
       clearAt(id);
       return;
     }
+    if (upgrading) {
+      upgradeTile(id);
+      return;
+    }
     if (e.pointerType === 'mouse') {
       setSelected(-1);
       play(id);
@@ -388,13 +440,16 @@ const Game = () => {
 
   // The tile being previewed: the one under the mouse, or a tapped one
   // (none while Clear is armed)
-  const previewed = clearing ? -1 : hovered >= 0 ? hovered : selected;
+  // (with Upgrade armed, the letter under the pointer)
+  const previewed = clearing ? -1 : upgrading ? (canUpgrade(cells, hovered) ? hovered : -1) : hovered >= 0 ? hovered : selected;
 
   // What the previewed tile would do
   const preview = useMemo(() => {
-    if (previewed < 0 || result.over || !fits(previewed)) return null;
+    if (previewed < 0 || result.over) return null;
+    if (upgrading) return previewUpgradeAt(tiles, cells, previewed);
+    if (!fits(previewed)) return null;
     return previewAt(tiles, cells, previewed, drawn);
-  }, [previewed, cells, drawn, result.over, tiles, state?.nextShape, anyShape]);
+  }, [previewed, cells, drawn, result.over, tiles, state?.nextShape, anyShape, upgrading]);
 
   // When the game ends, record it on its board size's scoreboard and show
   // the scoreboard
@@ -526,6 +581,7 @@ const Game = () => {
     }. ${MIN_GROUP} or more matching tiles merge into the one you placed, a rung higher.`
     : '');
   if (clearing) status = 'Clear: tap a letter or # to empty it (tap Cancel Clear, or press Escape, to keep it).';
+  if (upgrading) status = 'Upgrade: tap a letter to raise it a rung; it merges if it then matches (tap Cancel, or press Escape, to keep it).';
   if (anyShape) status = 'Any shape: place the Next letter on any empty tile, kite or dart (tap Cancel, or press Escape, to keep it).';
   if (state && result.over) {
     status = result.won
@@ -552,7 +608,7 @@ const Game = () => {
       >
         <canvas
           ref={canvasRef}
-          className={`absolute inset-0 w-full h-full touch-none ${clearing ? 'cursor-crosshair' : 'cursor-pointer'}`}
+          className={`absolute inset-0 w-full h-full touch-none ${clearing || upgrading ? 'cursor-crosshair' : 'cursor-pointer'}`}
           onPointerMove={e => setHovered(tileFromEvent(e))}
           onPointerLeave={() => setHovered(-1)}
           onPointerDown={tap}
@@ -592,19 +648,26 @@ const Game = () => {
             title={`${state?.undos ?? 0} Undo charges`}>
             {`Undo (${state?.undos ?? 0})`}
           </button>
-          <button onClick={() => { setAnyShape(false); setClearing(c => !c); }}
+          <button onClick={() => toggle('clear')}
             disabled={!clearing && (!state || result.over || state.clears <= 0)}
             aria-pressed={clearing}
             title="Clear: empty one tile of your choice (earned by chain reactions)"
             className={clearing ? 'px-3 py-1.5 rounded text-sm border border-red-600 bg-red-600 text-white' : button}>
             {clearing ? 'Cancel Clear' : `Clear (${state?.clears ?? 0})`}
           </button>
-          <button onClick={() => { setClearing(false); setAnyShape(a => !a); }}
+          <button onClick={() => toggle('anyShape')}
             disabled={!anyShape && (!state || result.over || state.anyShapes <= 0)}
             aria-pressed={anyShape}
             title="Any shape: place the next value on a kite or a dart (earned by completing suns and stars)"
             className={anyShape ? 'px-3 py-1.5 rounded text-sm border border-amber-600 bg-amber-500 text-white' : button}>
             {anyShape ? 'Cancel Any shape' : `Any shape (${state?.anyShapes ?? 0})`}
+          </button>
+          <button onClick={() => toggle('upgrade')}
+            disabled={!upgrading && (!state || result.over || state.upgrades <= 0)}
+            aria-pressed={upgrading}
+            title="Upgrade: raise one letter a rung (earned by merges of 5 or more tiles)"
+            className={upgrading ? 'px-3 py-1.5 rounded text-sm border border-emerald-700 bg-emerald-600 text-white' : button}>
+            {upgrading ? 'Cancel Upgrade' : `Upgrade (${state?.upgrades ?? 0})`}
           </button>
           <div className="relative">
             <button onClick={() => setShowSizes(s => !s)} aria-expanded={showSizes} aria-haspopup="menu"

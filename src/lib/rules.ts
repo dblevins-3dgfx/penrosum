@@ -146,7 +146,11 @@ export const place = (tiles: Tile[], cells: Cell[], id: number, value: number): 
 // away (in `merging` too).
 export const previewAt = (tiles: Tile[], cells: Cell[], id: number, drawn: number) => {
   const value = valueToPlace(tiles, cells, id, drawn);
-  const { cells: after, merges } = place(tiles, cells, id, value);
+  return previewOf(tiles, id, place(tiles, cells, id, value));
+};
+
+// The preview for a move on `id` that made `result`
+const previewOf = (tiles: Tile[], id: number, { cells: after, merges }: PlaceResult) => {
   const merging = merges.flatMap(m => m.from);
   const { zeros, rubbleMerges } = dropRubble(tiles, after, merges);
   return { value: after[id], merging: [...merging, ...rubbleMerges.flatMap(m => m.from)], rubble: zeros };
@@ -424,3 +428,40 @@ export const anyShapesEarned = (rosettes: RosetteTiles[], indices: number[]) =>
 
 // The charges held after earning `earned`, up to ANY_SHAPE_MAX.
 export const addAnyShapes = (held: number, earned: number) => Math.min(ANY_SHAPE_MAX, held + earned);
+
+// The Upgrade power-up (issue #33): spending a charge raises one letter a
+// rung (x3), and the tile then merges like a placed one. The most held.
+export const UPGRADE_MAX = 3;
+
+// The group size that counts as a big merge, which earns an Upgrade.
+export const BIG_MERGE = 5;
+
+// The Upgrade charges a move earns: one for each merge of letters with at
+// least BIG_MERGE tiles (chain reactions included). Merges of #s and rubble
+// merges don't count.
+export const upgradesEarned = (merges: Merge[]) =>
+  merges.filter(m => m.sum > 0 && m.from.length + 1 >= BIG_MERGE).length;
+
+// The charges held after earning `earned`, up to UPGRADE_MAX.
+export const addUpgrades = (held: number, earned: number) => Math.min(UPGRADE_MAX, held + earned);
+
+// Whether tile `id` can be upgraded: it holds a letter below Z (not a #,
+// which would stay a #, and not empty).
+export const canUpgrade = (cells: Cell[], id: number) => {
+  const v = id >= 0 && id < cells.length ? cells[id] : EMPTY;
+  return v !== EMPTY && v > 0 && v < TOP_VALUE;
+};
+
+// Upgrades tile `id` (see canUpgrade): it takes the next letter up and then
+// merges, with chain reactions, as if that letter had just been placed
+// there. The input is unchanged.
+export const upgradeAt = (tiles: Tile[], cells: Cell[], id: number): PlaceResult => {
+  const emptied = cells.slice();
+  const value = (cells[id] as number) * 3;
+  emptied[id] = EMPTY;
+  return place(tiles, emptied, id, value);
+};
+
+// What upgrading `id` would do, for the preview: as previewAt.
+export const previewUpgradeAt = (tiles: Tile[], cells: Cell[], id: number) =>
+  previewOf(tiles, id, upgradeAt(tiles, cells, id));
