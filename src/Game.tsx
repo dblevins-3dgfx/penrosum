@@ -3,12 +3,12 @@ import {
   BOARD_SIZES, boardBounds, boardFor, centroid, tileAtPoint,
   type BoardSize, type BoardTile,
 } from './lib/board';
-import { parseBoardSize } from './lib/prefs';
+import { parseBoardSize, parseOptions } from './lib/prefs';
 import { addScore, parseScores } from './lib/scores';
 import {
   EMPTY, MIN_GROUP, WILD,
-  type Cell, type Merge, type Shape,
-  canPlaceDealt, dealShape, dropRubble, shapeToPlace, drawValue, highestTile, outcome, place, previewAt, scoreMerges, scoreRubble, seedBoard,
+  type Cell, type Deal, type Merge, type Options, type Shape,
+  canPlaceDealt, dealShape, dropRubble, shapeToPlace, drawValue, highestTile, outcome, place, previewAt, scoreMerges, scoreRubble, seedBoard, swapSpare,
   valueToPlace,
 } from './lib/rules';
 import { fitView, toBoard } from './lib/view';
@@ -17,14 +17,15 @@ import { EMPTY_FILL, OFF_SHAPE_FILL, colorsFor, fillFor, textFor } from './lib/c
 import HowToPlay from './HowToPlay';
 import Scoreboard from './Scoreboard';
 
-// The board size and the scoreboards are remembered in this browser
-// (localStorage).
+// The rule options, the board size and the scoreboards are remembered in
+// this browser (localStorage).
+const OPTIONS_STORAGE_KEY = 'penrosum.options';
 const SIZE_STORAGE_KEY = 'penrosum.boardSize';
 const SCORES_STORAGE_KEY = 'penrosum.topTen';
 // Stored data no longer used: the top 10 from the fixed boards (scored on
-// different tilings, so cleared when boards became random) and the rule
-// options of decided questions. Removed once, at load.
-const RETIRED_STORAGE_KEYS = ['penrosum.scores', 'penrosum.options'];
+// different tilings, so cleared when boards became random). Removed at
+// load. (Options of decided questions are simply ignored by parseOptions.)
+const RETIRED_STORAGE_KEYS = ['penrosum.scores'];
 try {
   for (const key of RETIRED_STORAGE_KEYS) localStorage.removeItem(key);
 } catch {
@@ -67,16 +68,18 @@ const CHIP_CLIP: Record<Shape, string> = {
   dart: 'polygon(50% 0, 100% 100%, 50% 72%, 0 100%)',
 };
 
-// The next value as a chip in the tile's own colors (the wildcard in its
-// rainbow), shaped like a kite or dart when it was dealt a shape. Keyed by
-// the move count, so each new draw pops in.
-const NextChip = ({ drawn, label, shape, moves }: { drawn: number; label: string; shape: Shape | null; moves: number }) => {
+// A deal as a chip in the tile's own colors (the wildcard in its rainbow),
+// cut as a kite or dart. `dealKey` changes with each new deal, so it pops
+// in. Used for the next value and the hot spare (`role`).
+const NextChip = ({ drawn, label, shape, dealKey, role = 'Next' }: {
+  drawn: number; label: string; shape: Shape | null; dealKey: string; role?: string;
+}) => {
   const { fill, text } = colorsFor(drawn);
   const name = drawn === WILD ? 'wildcard' : label;
   return (
     <b
-      key={moves}
-      aria-label={`Next: ${name}${shape ? ` on a ${shape}` : ''}`}
+      key={dealKey}
+      aria-label={`${role}: ${name}${shape ? ` on a ${shape}` : ''}`}
       className={`next-chip inline-flex items-center justify-center text-2xl ${
         shape ? 'w-14 h-14' : 'min-w-11 h-11 px-2 rounded-lg border border-slate-400/60 shadow-sm'
       }`}
@@ -106,6 +109,7 @@ interface Snapshot {
   score: number; // points from merges so far
   lastMove: number | null;
   nextShape: Shape; // the shape dealt with the next value
+  spare: Deal | null; // the hot spare (Q14), if one is held
   message: string;
 }
 
@@ -137,6 +141,7 @@ const drawNumber = (ctx: CanvasRenderingContext2D, t: BoardTile, text: string, c
 const Game = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [options, setOptions] = useState(() => load(OPTIONS_STORAGE_KEY, parseOptions));
   const [size, setSize] = useState(() => load(SIZE_STORAGE_KEY, parseBoardSize));
   // The space for the board, in CSS pixels; measured before the first paint
   const [space, setSpace] = useState({ width: 0, height: 0 });
@@ -173,7 +178,7 @@ const Game = () => {
     const cells = seedBoard(tiles);
     setState({
       cells, next: nextValue(), moves: 0, score: 0, lastMove: null,
-      nextShape: dealShape(tiles, cells), message: '',
+      nextShape: dealShape(tiles, cells), spare: null, message: '',
     });
     setUndo([]);
     setHovered(-1);
@@ -187,6 +192,14 @@ const Game = () => {
     if (!board) newGame(size);
   }, [board, size, newGame]);
 
+  // A changed option applies at once, and the game carries on. Turning the
+  // hot spare off drops any spare held.
+  const setOption = <K extends keyof Options>(key: K, value: Options[K]) => {
+    const updated = { ...options, [key]: value };
+    setOptions(updated);
+    save(OPTIONS_STORAGE_KEY, JSON.stringify(updated));
+    if (key === 'spare' && value === 'off') setState(s => s && { ...s, spare: null });
+  };
   const closeHelp = useCallback(() => setShowHelp(false), []);
   const closeScores = useCallback(() => setShowScores(false), []);
 
@@ -226,6 +239,7 @@ const Game = () => {
       score: state.score + gained + rubbleGained,
       lastMove: id,
       nextShape: dealShape(tiles, after),
+      spare: state.spare,
       message: [
         drawn === WILD ? `Wild played as ${label(value)}.` : '',
         describeMerges(merges, label) + (gained ? ` (+${gained}).` : ''),
@@ -235,11 +249,27 @@ const Game = () => {
     });
   };
 
+  // Swaps the next value with the hot spare (Q14), or reserves it when no
+  // spare is held. Not a move: it changes only the deal.
+  const swap = () => {
+    if (!state || result.over || options.spare !== 'on') return;
+    const { current, spare } = swapSpare(
+      tiles, cells, { value: state.next, shape: state.nextShape }, state.spare,
+      () => ({ value: nextValue(), shape: dealShape(tiles, cells) }),
+    );
+    setState({
+      ...state, next: current.value, nextShape: current.shape, spare,
+      message: state.spare
+        ? `Swapped: ${label(current.value)} is next, ${label(spare.value)} is the spare.`
+        : `${label(spare.value)} kept as the spare.`,
+    });
+  };
+
   // What the hovered tile would do, for the preview
   const preview = useMemo(() => {
     if (hovered < 0 || result.over || !canPlaceDealt(tiles, cells, hovered, state?.nextShape ?? null)) return null;
     return previewAt(tiles, cells, hovered, drawn);
-  }, [hovered, cells, drawn, result.over, tiles]);
+  }, [hovered, cells, drawn, result.over, tiles, state?.nextShape]);
 
   // When the game ends, record it on its board size's scoreboard and show
   // the scoreboard
@@ -380,10 +410,24 @@ const Game = () => {
       </main>
 
       <aside className="flex-1 min-w-0 min-h-0 flex flex-col gap-3 p-4 bg-white border-slate-200 portrait:border-t landscape:border-l">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <h1 className="text-2xl font-bold text-indigo-700 mr-auto">Penrosum</h1>
           <span className="text-sm text-slate-600">Next</span>
-          <NextChip drawn={drawn} label={label(drawn)} shape={state?.nextShape ?? null} moves={moves} />
+          <NextChip drawn={drawn} label={label(drawn)} shape={state?.nextShape ?? null}
+            dealKey={`${moves}:${drawn}:${state?.nextShape}`} />
+          {options.spare === 'on' && (
+            <button onClick={swap} disabled={!state || result.over}
+              title={state?.spare ? 'Swap the next value with the spare' : 'Keep the next value as the spare'}
+              className="flex items-center gap-2 rounded-lg px-1.5 py-0.5 hover:bg-slate-100 disabled:opacity-40">
+              <span className="text-sm text-slate-600">Spare ⇄</span>
+              {state?.spare ? (
+                <NextChip role="Spare" drawn={state.spare.value} label={label(state.spare.value)} shape={state.spare.shape}
+                  dealKey={`${moves}:${state.spare.value}:${state.spare.shape}`} />
+              ) : (
+                <b aria-label="Spare: empty" className="inline-flex w-11 h-11 rounded-lg border-2 border-dashed border-slate-300" />
+              )}
+            </button>
+          )}
         </div>
 
         <dl className="grid gap-2 grid-cols-[repeat(auto-fit,minmax(3.5rem,1fr))]">
@@ -427,7 +471,7 @@ const Game = () => {
         <p className="text-sm font-medium min-h-10" aria-live="polite">{status}</p>
       </aside>
 
-      {showHelp && <HowToPlay onClose={closeHelp} />}
+      {showHelp && <HowToPlay options={options} setOption={setOption} onClose={closeHelp} />}
       {showScores && <Scoreboard scores={scores} size={board?.size ?? size} latest={latest} onClose={closeScores} />}
     </div>
   );
