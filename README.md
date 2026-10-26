@@ -4,6 +4,10 @@ A merging game on a Penrose tiling of kites and darts. Values climb a ladder of 
 
 The board comes from [Penrogo](https://github.com/dblevins-3dgfx/penrogo). The game ends when the board is full; each board size keeps a **Top 10** of scores in your browser. [SPEC.md](SPEC.md) describes the rules, and the decisions behind them; rules still being tried (its open questions) can be switched in the game's **How to play** dialog. **New Game** deals a new board every time, cut from a different part of the tiling at a random angle, in three square sizes (exactly 50, 100 and 200 tiles), fitted to the screen.
 
+## On a phone
+
+On an iPhone, open the game in Safari and use **Share → Add to Home Screen**: it then opens full screen from its own icon, like an app. (Its scores and settings are kept apart from Safari's.) In **How to play**, Q15's "Preview, tap again to place" lets a tap show what a move would do before you commit.
+
 ## Running
 
 Requires Node.js 20.19+ or 22.12+.
@@ -46,6 +50,7 @@ One-time setup, needed before the first deploy: repository **Settings → Pages 
 - `src/lib/*.test.ts`: unit tests for the above
 - `src/Game.tsx`: the game screen (state, drawing, controls)
 - `src/Dialog.tsx`, `src/HowToPlay.tsx`, `src/Scoreboard.tsx`: the dialogs (How to play, Top 10)
-- `src/main.tsx`, `src/index.css`, `index.html`: Vite entry point and Tailwind setup
+- `src/main.tsx`, `src/index.css`, `index.html`: Vite entry point, Tailwind setup, and the touch and home-screen settings
+- `public/`: the web app manifest and icons
 - `SPEC.md`: the game as implemented, and the open questions
 - `untested-requirements.md`: spec rules without unit tests, and why

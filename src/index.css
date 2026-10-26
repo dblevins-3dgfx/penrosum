@@ -9,3 +9,22 @@
 @media (prefers-reduced-motion: no-preference) {
   .next-chip { animation: next-pop 0.25s ease-out; }
 }
+
+/* On touch screens: no double-tap zoom, and no text selection loupe or
+   callout on a long press, so the game feels like an app */
+html {
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Keep the game clear of the notch, the rounded corners and the home bar
+   when it runs full screen (viewport-fit=cover in index.html) */
+.safe-area {
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}

@@ -50,10 +50,16 @@ const HowToPlay = ({ options, setOption, onClose }: HowToPlayProps) => (
         options={[['off', 'No'], ['on', 'Yes']]}
         onChange={v => setOption('spare', v)}
       />
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-slate-500 mb-3">
         With a spare: tap <b>Spare ⇄</b> to keep the next value for later (a new one is dealt), then
         tap it any time to swap the next value with the spare.
       </p>
+      <Choice
+        label="Q15. On a touch screen, what does a tap do?"
+        value={options.tap}
+        options={[['place', 'Place at once'], ['preview', 'Preview, tap again to place']]}
+        onChange={v => setOption('tap', v)}
+      />
     </div>
     <div className="text-sm text-slate-700 space-y-2">
       <p>
@@ -74,7 +80,9 @@ const HowToPlay = ({ options, setOption, onClose }: HowToPlayProps) => (
         merged, times 2, 3 … for later merges in a chain. The game ends when the board is full; make
         the top 10 on your board size. Making a Z wins outright.
       </p>
-      <p className="text-slate-500">Hover a tile to see what would merge and where rubble lands.</p>
+      <p className="text-slate-500">
+        Hover a tile (or, with Q15's preview, tap it once) to see what would merge and where rubble lands.
+      </p>
     </div>
   </Dialog>
 );

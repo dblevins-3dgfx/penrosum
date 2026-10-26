@@ -6,7 +6,7 @@ import {
   boardFull, canPlace, drawValue, groupAt, highestTile, outcome, place, previewAt, resolveWild, seedBoard, valueToPlace,
   dropRubble,
   canPlaceDealt, dealShape, kiteChance, shapeToPlace,
-  type Deal, shapeInPlay, swapSpare,
+  type Deal, shapeInPlay, swapSpare, tapAction,
   TOP_VALUE, floorPow3, mergeResult,
   type Merge, mergePoints, rungOf, scoreMerges, scoreRubble,
 } from './rules';
@@ -639,5 +639,29 @@ describe('hot spare (Q14)', () => {
     expect(shapeInPlay(quad, noDarts, 'kite')).toBe('kite');
     expect(shapeInPlay(quad, open, 'dart')).toBe('dart');
     expect(swapSpare(quad, noDarts, a, b, draw)).toEqual({ current: { value: 9, shape: 'kite' }, spare: a });
+  });
+});
+
+describe('tapping the board (Q15)', () => {
+  it('place: one tap places', () => {
+    expect(tapAction('place', -1, 5, true)).toEqual({ place: true, select: -1 });
+    expect(tapAction('place', 3, 5, true)).toEqual({ place: true, select: -1 });
+  });
+
+  it('preview: the first tap on a tile selects it, a second tap there places', () => {
+    expect(tapAction('preview', -1, 5, true)).toEqual({ place: false, select: 5 });
+    expect(tapAction('preview', 5, 5, true)).toEqual({ place: true, select: -1 });
+  });
+
+  it('preview: a tap on another tile moves the selection there', () => {
+    expect(tapAction('preview', 5, 7, true)).toEqual({ place: false, select: 7 });
+  });
+
+  it('a tap where nothing can be placed, or off the board, only clears the selection', () => {
+    for (const rule of ['place', 'preview'] as const) {
+      expect(tapAction(rule, 5, 7, false)).toEqual({ place: false, select: -1 });
+      expect(tapAction(rule, 5, 5, false)).toEqual({ place: false, select: -1 });
+      expect(tapAction(rule, 5, -1, false)).toEqual({ place: false, select: -1 });
+    }
   });
 });
