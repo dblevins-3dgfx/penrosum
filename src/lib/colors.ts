@@ -10,6 +10,10 @@ export interface TileColors {
 
 export const EMPTY_FILL = '#ffffff';
 
+// The tile edges on the board, also drawn around the Next and Spare chips
+// so a pale tile (A) stands out from a white background.
+export const TILE_EDGE = '#94a3b8';
+
 // An empty tile that the next value can't go on: not the shape it was dealt
 export const OFF_SHAPE_FILL = '#e2e8f0';
 
