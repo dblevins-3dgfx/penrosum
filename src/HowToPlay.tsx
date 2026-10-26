@@ -60,6 +60,12 @@ const HowToPlay = ({ options, setOption, onClose }: HowToPlayProps) => (
         options={[['place', 'Place at once'], ['preview', 'Preview, tap again to place']]}
         onChange={v => setOption('tap', v)}
       />
+      <Choice
+        label="Q16. How does Undo work?"
+        value={options.undo}
+        options={[['unlimited', 'Unlimited'], ['charges', 'Charges: start with 3, +1 per new letter, up to 5']]}
+        onChange={v => setOption('undo', v)}
+      />
     </div>
     <div className="text-sm text-slate-700 space-y-2">
       <p>
