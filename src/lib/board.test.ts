@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  BOARD_SIZES, MAX_TRIES, boardBounds, boardFor, centroid, edgeKey, isConnected, makeBoard, patchTiles, tileAtPoint,
+  BOARD_SIZES, MAX_TRIES, boardBounds, boardFor, centroid, edgeKey, findRosettes, isConnected, makeBoard, patchTiles, tileAtPoint,
   type BoardTile,
 } from './board';
 
@@ -142,5 +142,39 @@ describe('boardBounds', () => {
     expect(Math.max(...all.map(v => v.y))).toBeCloseTo(b.y + b.height, 9);
     expect(b.width).toBeLessThanOrEqual(801);
     expect(b.height).toBeLessThanOrEqual(601);
+  });
+});
+
+describe('findRosettes', () => {
+  it('finds the suns and stars: five kites or five darts meeting at their tips, in a ring', () => {
+    const rand = lcg(21);
+    let suns = 0, stars = 0;
+    for (let k = 0; k < 5; k++) {
+      const tiles = boardFor('large', rand);
+      for (const r of findRosettes(tiles)) {
+        r.kind === 'sun' ? suns++ : stars++;
+        expect(r.tiles).toHaveLength(5);
+        expect(new Set(r.tiles.map(id => tiles[id].type))).toEqual(new Set([r.kind === 'sun' ? 'kite' : 'dart']));
+        for (const id of r.tiles) {
+          const tip = tiles[id].verts[0];
+          expect(Math.hypot(tip.x - r.center.x, tip.y - r.center.y)).toBeLessThan(0.1);
+          // each touches two others of the five
+          expect(tiles[id].neighbors.filter(n => r.tiles.includes(n))).toHaveLength(2);
+        }
+      }
+    }
+    expect(suns).toBeGreaterThan(stars);
+    expect(stars).toBeGreaterThan(0);
+  });
+
+  it('finds the one at the patch\'s center, where the subdivided sun began', () => {
+    const tiles = makeBoard(360, 360);
+    expect(findRosettes(tiles).some(r => Math.hypot(r.center.x - 180, r.center.y - 180) < 1)).toBe(true);
+  });
+
+  it('a tile belongs to at most one', () => {
+    const tiles = boardFor('large', lcg(3));
+    const all = findRosettes(tiles).flatMap(r => r.tiles);
+    expect(new Set(all).size).toBe(all.length);
   });
 });
