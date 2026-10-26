@@ -378,12 +378,12 @@ const Game = () => {
     for (const id of preview?.rubble ?? []) {
       const t = tiles[id];
       tracePath(ctx, t);
-      ctx.fillStyle = '#cbd5e1';
+      ctx.fillStyle = fillFor(0);
       ctx.fill();
       ctx.strokeStyle = '#4f46e5';
       ctx.lineWidth = 3;
       ctx.stroke();
-      drawNumber(ctx, t, label(0), '#475569');
+      drawNumber(ctx, t, label(0), textFor(0));
     }
   }, [tiles, cells, state, previewed, preview, view, space, label]);
 
