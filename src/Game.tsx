@@ -13,7 +13,7 @@ import {
 } from './lib/rules';
 import { fitView, toBoard } from './lib/view';
 import { TOP_LABEL, TOP_VALUE, valueLabel } from './lib/labels';
-import { EMPTY_FILL, OFF_SHAPE_FILL, colorsFor, fillFor, textFor } from './lib/colors';
+import { EMPTY_FILL, OFF_SHAPE_FILL, TILE_EDGE, colorsFor, fillFor, textFor } from './lib/colors';
 import HowToPlay from './HowToPlay';
 import Scoreboard from './Scoreboard';
 
@@ -68,8 +68,13 @@ const CHIP_CLIP: Record<Shape, string> = {
   dart: 'polygon(50% 0, 100% 100%, 50% 72%, 0 100%)',
 };
 
+// A one-pixel outline in the board's edge color, traced around whatever
+// the wrapped element draws, so it follows a chip's kite or dart cut
+const CHIP_OUTLINE = [[1, 0], [-1, 0], [0, 1], [0, -1]]
+  .map(([x, y]) => `drop-shadow(${x}px ${y}px 0 ${TILE_EDGE})`).join(' ');
+
 // A deal as a chip in the tile's own colors (the wildcard in its rainbow),
-// cut as a kite or dart. `dealKey` changes with each new deal, so it pops
+// cut as a kite or dart and outlined like a board tile. `dealKey` changes with each new deal, so it pops
 // in. Used for the next value and the hot spare (`role`).
 const NextChip = ({ drawn, label, shape, dealKey, role = 'Next' }: {
   drawn: number; label: string; shape: Shape | null; dealKey: string; role?: string;
@@ -77,22 +82,24 @@ const NextChip = ({ drawn, label, shape, dealKey, role = 'Next' }: {
   const { fill, text } = colorsFor(drawn);
   const name = drawn === WILD ? 'wildcard' : label;
   return (
-    <b
-      key={dealKey}
-      aria-label={`${role}: ${name}${shape ? ` on a ${shape}` : ''}`}
-      className={`next-chip inline-flex items-center justify-center text-2xl ${
-        shape ? 'w-14 h-14' : 'min-w-11 h-11 px-2 rounded-lg border border-slate-400/60 shadow-sm'
-      }`}
-      style={{
-        background: fill,
-        color: text,
-        textShadow: drawn === WILD ? '0 1px 2px #0006' : undefined,
-        clipPath: shape ? CHIP_CLIP[shape] : undefined,
-        paddingBottom: shape === 'dart' ? '0.6rem' : undefined,
-      }}
-    >
-      {label}
-    </b>
+    <span className="inline-flex" style={{ filter: shape ? CHIP_OUTLINE : undefined }}>
+      <b
+        key={dealKey}
+        aria-label={`${role}: ${name}${shape ? ` on a ${shape}` : ''}`}
+        className={`next-chip inline-flex items-center justify-center text-2xl ${
+          shape ? 'w-14 h-14' : 'min-w-11 h-11 px-2 rounded-lg border border-slate-400/60 shadow-sm'
+        }`}
+        style={{
+          background: fill,
+          color: text,
+          textShadow: drawn === WILD ? '0 1px 2px #0006' : undefined,
+          clipPath: shape ? CHIP_CLIP[shape] : undefined,
+          paddingBottom: shape === 'dart' ? '0.6rem' : undefined,
+        }}
+      >
+        {label}
+      </b>
+    </span>
   );
 };
 
@@ -341,7 +348,7 @@ const Game = () => {
       tracePath(ctx, t);
       ctx.fillStyle = v !== EMPTY ? fillFor(v) : mustBe && t.type !== mustBe ? OFF_SHAPE_FILL : EMPTY_FILL;
       ctx.fill();
-      ctx.strokeStyle = '#94a3b8';
+      ctx.strokeStyle = TILE_EDGE;
       ctx.lineWidth = px;
       ctx.stroke();
       if (v !== EMPTY) drawNumber(ctx, t, label(v), textFor(v));
@@ -378,12 +385,12 @@ const Game = () => {
     for (const id of preview?.rubble ?? []) {
       const t = tiles[id];
       tracePath(ctx, t);
-      ctx.fillStyle = '#cbd5e1';
+      ctx.fillStyle = fillFor(0);
       ctx.fill();
       ctx.strokeStyle = '#4f46e5';
       ctx.lineWidth = 3;
       ctx.stroke();
-      drawNumber(ctx, t, label(0), '#475569');
+      drawNumber(ctx, t, label(0), textFor(0));
     }
   }, [tiles, cells, state, previewed, preview, view, space, label]);
 
