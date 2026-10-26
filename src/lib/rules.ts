@@ -3,31 +3,24 @@
 // The board is a list of tiles with neighbor lists (see penrose-board.ts).
 // The game state is one number per tile. Rules that are still open
 // questions (SPEC.md, "Open questions") get an option here, so their
-// choices can be tried side by side.
+// choices can be tried side by side (there are none open now).
 
 export type Shape = 'kite' | 'dart';
 
-// Q15: what a tap on the board does on a touch screen (see tapAction).
+// What a tap on the board does on a touch screen, a player preference
+// (Tap to preview; see tapAction).
 //   place:   places the next value at once
 //   preview: the first tap on a tile previews the move there, a second tap
 //            on the same tile places it
 export type TapRule = 'place' | 'preview';
-
-export interface Options {
-  tap: TapRule;
-}
-
-export const DEFAULT_OPTIONS: Options = {
-  tap: 'place',
-};
 
 // Undo is a power-up: each Undo spends a charge (see undosEarned,
 // undosAfterUndo). How many a game starts with, and the most held.
 export const UNDO_START = 3;
 export const UNDO_MAX = 5;
 
-// What a tap on tile `tapped` (-1 off the board) does under the Q15 tap
-// rule: whether it places the next value there, and which tile is then
+// What a tap on tile `tapped` (-1 off the board) does under the tap rule
+// (the Tap to preview preference): whether it places the next value there, and which tile is then
 // selected for the preview (-1 for none). `selected` is the tile selected
 // before the tap; `placeable` is whether the next value can go on `tapped`.
 // A tap where nothing can be placed only clears the selection.

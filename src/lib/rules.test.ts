@@ -648,7 +648,7 @@ describe('hot spare', () => {
   });
 });
 
-describe('tapping the board (Q15)', () => {
+describe('tapping the board (Tap to preview)', () => {
   it('place: one tap places', () => {
     expect(tapAction('place', -1, 5, true)).toEqual({ place: true, select: -1 });
     expect(tapAction('place', 3, 5, true)).toEqual({ place: true, select: -1 });

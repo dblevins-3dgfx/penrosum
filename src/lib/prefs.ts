@@ -3,14 +3,25 @@
 // saved value never breaks the game.
 
 import { BOARD_SIZES, DEFAULT_BOARD_SIZE, type BoardSize } from './board';
-import { DEFAULT_OPTIONS, type Options } from './rules';
+import type { TapRule } from './rules';
 
-const ALLOWED: { [K in keyof Options]: readonly Options[K][] } = {
+// The player's preferences, set in the Preferences dialog.
+export interface Prefs {
+  // Tap to preview: on a touch screen, a first tap previews the move and a
+  // second places it ('preview'), or a tap places at once ('place')
+  tap: TapRule;
+}
+
+export const DEFAULT_PREFS: Prefs = {
+  tap: 'place',
+};
+
+const ALLOWED: { [K in keyof Prefs]: readonly Prefs[K][] } = {
   tap: ['place', 'preview'],
 };
 
-// The rule options from their saved JSON (or null when nothing is saved).
-export const parseOptions = (raw: string | null): Options => {
+// The preferences from their saved JSON (or null when nothing is saved).
+export const parsePrefs = (raw: string | null): Prefs => {
   let saved: Record<string, unknown> = {};
   try {
     const parsed = JSON.parse(raw ?? '{}');
@@ -18,13 +29,13 @@ export const parseOptions = (raw: string | null): Options => {
   } catch {
     // Not JSON: use the defaults
   }
-  const options = { ...DEFAULT_OPTIONS };
-  for (const key of Object.keys(ALLOWED) as (keyof Options)[]) {
+  const prefs = { ...DEFAULT_PREFS };
+  for (const key of Object.keys(ALLOWED) as (keyof Prefs)[]) {
     if ((ALLOWED[key] as readonly unknown[]).includes(saved[key])) {
-      (options as Record<keyof Options, unknown>)[key] = saved[key];
+      (prefs as Record<keyof Prefs, unknown>)[key] = saved[key];
     }
   }
-  return options;
+  return prefs;
 };
 
 // The board size from its saved value.
