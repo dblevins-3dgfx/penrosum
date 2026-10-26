@@ -1,5 +1,5 @@
 import Dialog from './Dialog';
-import { MIN_GROUP, UNDO_MAX, UNDO_START, type Options } from './lib/rules';
+import { CLEAR_MAX, MIN_GROUP, UNDO_MAX, UNDO_START, type Options } from './lib/rules';
 
 interface ChoiceProps<T extends string> {
   label: string;
@@ -73,7 +73,9 @@ const HowToPlay = ({ options, setOption, onClose }: HowToPlayProps) => (
       <p>
         Tap <b>Spare ⇄</b> to keep the next value for later (a new one is dealt); after that, tap it
         any time to swap the next value with the spare. <b>Undo</b> is a power-up: you start with{' '}
-        {UNDO_START} and earn one each time you make a new highest letter (up to {UNDO_MAX}).
+        {UNDO_START} and earn one each time you make a new highest letter (up to {UNDO_MAX}).{' '}
+        <b>Clear</b> is a power-up too: a chain reaction (two or more merges in one move) earns one
+        (up to {CLEAR_MAX}); tap <b>Clear</b>, then a letter or #, to empty that tile.
       </p>
       <p className="text-slate-500">
         Hover a tile (or, with Q15's preview, tap it once) to see what would merge and where rubble lands.

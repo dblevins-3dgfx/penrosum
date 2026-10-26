@@ -374,3 +374,24 @@ export const addUndos = (held: number, earned: number) => Math.min(UNDO_MAX, hel
 // undone move. The lower of the two, less the one spent: so whatever the
 // undone move earned is taken back, and spending is never refunded.
 export const undosAfterUndo = (held: number, restored: number) => Math.max(0, Math.min(held, restored) - 1);
+
+// The Clear power-up (issue #33): spending a charge empties one filled
+// tile, a letter or a #. The most charges held.
+export const CLEAR_MAX = 3;
+
+// The Clear charges a move earns: one for a chain reaction, a move whose
+// placed tile merges two or more times. Rubble merges don't count.
+export const clearsEarned = (merges: Merge[]) => (merges.length >= 2 ? 1 : 0);
+
+// The charges held after a move earns `earned`, up to CLEAR_MAX.
+export const addClears = (held: number, earned: number) => Math.min(CLEAR_MAX, held + earned);
+
+// Whether Clear can be used on tile `id`: it holds a letter or a #.
+export const canClear = (cells: Cell[], id: number) => id >= 0 && id < cells.length && cells[id] !== EMPTY;
+
+// The board after clearing tile `id` (see canClear). The input is unchanged.
+export const clearTile = (cells: Cell[], id: number): Cell[] => {
+  const next = cells.slice();
+  next[id] = EMPTY;
+  return next;
+};

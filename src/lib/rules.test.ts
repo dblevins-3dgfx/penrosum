@@ -8,6 +8,7 @@ import {
   canPlaceDealt, dealShape, kiteChance, shapeToPlace,
   type Deal, shapeInPlay, swapSpare, tapAction,
   UNDO_MAX, UNDO_START, addUndos, undosAfterUndo, undosEarned,
+  CLEAR_MAX, addClears, canClear, clearTile, clearsEarned,
   TOP_VALUE, floorPow3, mergeResult,
   type Merge, mergePoints, rungOf, scoreMerges, scoreRubble,
 } from './rules';
@@ -705,5 +706,42 @@ describe('Undo as a power-up', () => {
     expect(undosAfterUndo(2, 3)).toBe(1);
     // never below zero
     expect(undosAfterUndo(0, 3)).toBe(0);
+  });
+});
+
+describe('the Clear power-up', () => {
+  const merge = (sum: number): Merge => ({ into: 0, from: [1, 2], sum });
+
+  it('a chain reaction (two or more merges in a move) earns one charge', () => {
+    expect(clearsEarned([merge(3), merge(9)])).toBe(1);
+    expect(clearsEarned([merge(3), merge(9), merge(27)])).toBe(1);
+  });
+
+  it('a single merge, or none, earns nothing', () => {
+    expect(clearsEarned([merge(3)])).toBe(0);
+    expect(clearsEarned([])).toBe(0);
+  });
+
+  it('earns from a real chain reaction', () => {
+    const star: Tile[] = [{ neighbors: [1, 2, 3, 4] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }];
+    expect(clearsEarned(place(star, [EMPTY, 1, 1, 3, 3], 0, 1).merges)).toBe(1);
+    expect(clearsEarned(place(star, [EMPTY, 1, 1, 3, 9], 0, 1).merges)).toBe(0);
+  });
+
+  it('holds at most 3', () => {
+    expect(CLEAR_MAX).toBe(3);
+    expect(addClears(0, 1)).toBe(1);
+    expect(addClears(3, 1)).toBe(3);
+  });
+
+  it('empties a tile holding a letter or a #, and nothing else', () => {
+    const c = cellsOf({ 0: 9, 1: 0 });
+    expect(canClear(c, 0)).toBe(true);
+    expect(canClear(c, 1)).toBe(true);
+    expect(canClear(c, 2)).toBe(false); // empty
+    expect(canClear(c, -1)).toBe(false); // off the board
+    expect(clearTile(c, 0)).toEqual(cellsOf({ 1: 0 }));
+    expect(clearTile(c, 1)).toEqual(cellsOf({ 0: 9 }));
+    expect(c).toEqual(cellsOf({ 0: 9, 1: 0 })); // input unchanged
   });
 });
