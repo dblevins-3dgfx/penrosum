@@ -10,6 +10,7 @@ import {
   type Cell, type Deal, type Merge, type Options, type Shape,
   canPlaceDealt, dealShape, dropRubble, shapeToPlace, drawValue, highestTile, outcome, place, previewAt, scoreMerges, scoreRubble, seedBoard, swapSpare, tapAction,
   UNDO_START, addUndos, undosAfterUndo, undosEarned,
+  addClears, canClear, clearTile, clearsEarned,
   valueToPlace,
 } from './lib/rules';
 import { fitView, toBoard } from './lib/view';
@@ -119,6 +120,7 @@ interface Snapshot {
   nextShape: Shape; // the shape dealt with the next value
   spare: Deal | null; // the hot spare, if one is held
   undos: number; // Undo charges held
+  clears: number; // Clear charges held (issue #33)
   message: string;
 }
 
@@ -161,6 +163,8 @@ const Game = () => {
   const [hovered, setHovered] = useState(-1);
   // The tile a first tap selected, under the Q15 'preview' tap rule
   const [selected, setSelected] = useState(-1);
+  // Whether the Clear power-up is armed: the next tap on a tile clears it
+  const [clearing, setClearing] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showSizes, setShowSizes] = useState(false);
   const [showScores, setShowScores] = useState(false);
@@ -189,11 +193,12 @@ const Game = () => {
     const cells = seedBoard(tiles);
     setState({
       cells, next: nextValue(), moves: 0, score: 0, lastMove: null,
-      nextShape: dealShape(tiles, cells), spare: null, undos: UNDO_START, message: '',
+      nextShape: dealShape(tiles, cells), spare: null, undos: UNDO_START, clears: 0, message: '',
     });
     setUndo([]);
     setHovered(-1);
     setSelected(-1);
+    setClearing(false);
     setGameId(g => g + 1);
     setLatest(null);
     setSize(newSize);
@@ -212,6 +217,14 @@ const Game = () => {
   };
   const closeHelp = useCallback(() => setShowHelp(false), []);
   const closeScores = useCallback(() => setShowScores(false), []);
+
+  // Escape cancels an armed Clear
+  useEffect(() => {
+    if (!clearing) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setClearing(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [clearing]);
 
   // Escape closes the board-size menu
   useEffect(() => {
@@ -244,6 +257,7 @@ const Game = () => {
     });
     setUndo(undo.slice(0, -1));
     setSelected(-1);
+    setClearing(false);
   };
 
   const play = (id: number) => {
@@ -255,6 +269,8 @@ const Game = () => {
     const rubbleGained = scoreRubble(rubbleMerges);
     const earned = undosEarned(highestTile(cells), merges);
     const undos = addUndos(state.undos, earned);
+    const clearEarned = clearsEarned(merges);
+    const clears = addClears(state.clears, clearEarned);
     setUndo([...undo, state]);
     setState({
       cells: after,
@@ -265,6 +281,7 @@ const Game = () => {
       nextShape: dealShape(tiles, after),
       spare: state.spare,
       undos,
+      clears,
       message: [
         drawn === WILD ? `Wild played as ${label(value)}.` : '',
         describeMerges(merges, label) + (gained ? ` (+${gained}).` : ''),
@@ -275,6 +292,7 @@ const Game = () => {
             undos > state.undos ? `+${undos - state.undos} Undo` : `Undos full (${undos})`
           }.`
           : '',
+        clearEarned ? `Chain! ${clears > state.clears ? '+1 Clear' : `Clears full (${clears})`}.` : '',
       ].filter(Boolean).join(' '),
     });
   };
@@ -295,11 +313,32 @@ const Game = () => {
     });
   };
 
+  // Uses an armed Clear on tile `id`: empties it and spends a charge. Not
+  // a move (the deal, moves and score stay), but Undo can take it back. A
+  // tap where there is nothing to clear just disarms it.
+  const clearAt = (id: number) => {
+    setClearing(false);
+    if (!state || result.over || state.clears <= 0 || !canClear(cells, id)) return;
+    setUndo([...undo, state]);
+    setState({
+      ...state,
+      cells: clearTile(cells, id),
+      clears: state.clears - 1,
+      lastMove: id,
+      message: `Cleared ${label(cells[id] as number)}. ${state.clears - 1} Clear${state.clears - 1 === 1 ? '' : 's'} left.`,
+    });
+    setSelected(-1);
+  };
+
   // A tap or click on the board. A mouse always places with one click; a
   // touch follows the Q15 tap rule (tapAction): place at once, or preview
   // on the first tap and place on a second tap on the same tile.
   const tap = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const id = tileFromEvent(e);
+    if (clearing) {
+      clearAt(id);
+      return;
+    }
     if (e.pointerType === 'mouse') {
       setSelected(-1);
       play(id);
@@ -312,7 +351,8 @@ const Game = () => {
   };
 
   // The tile being previewed: the one under the mouse, or a tapped one
-  const previewed = hovered >= 0 ? hovered : selected;
+  // (none while Clear is armed)
+  const previewed = clearing ? -1 : hovered >= 0 ? hovered : selected;
 
   // What the previewed tile would do
   const preview = useMemo(() => {
@@ -381,6 +421,14 @@ const Game = () => {
       ctx.stroke();
     }
 
+    // With Clear armed, the tile under the pointer that it would clear
+    if (clearing && canClear(cells, hovered)) {
+      tracePath(ctx, tiles[hovered]);
+      ctx.strokeStyle = '#dc2626';
+      ctx.lineWidth = 4;
+      ctx.stroke();
+    }
+
     if (state.lastMove !== null) {
       tracePath(ctx, tiles[state.lastMove]);
       ctx.strokeStyle = '#d97706';
@@ -411,7 +459,7 @@ const Game = () => {
       ctx.stroke();
       drawNumber(ctx, t, label(0), textFor(0));
     }
-  }, [tiles, cells, state, previewed, preview, view, space, label]);
+  }, [tiles, cells, state, previewed, preview, view, space, label, clearing, hovered]);
 
   const tileFromEvent = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!view) return -1;
@@ -428,6 +476,7 @@ const Game = () => {
       options.tap === 'preview' ? ' (on a touch screen, tap once to preview and again to place)' : ''
     }. ${MIN_GROUP} or more matching tiles merge into the one you placed, a rung higher.`
     : '');
+  if (clearing) status = 'Clear: tap a letter or # to empty it (tap Cancel Clear, or press Escape, to keep it).';
   if (state && result.over) {
     status = result.won
       ? `You made ${TOP_LABEL}, the top of the alphabet, in ${moves} moves. You win! Score: ${score}.`
@@ -453,7 +502,7 @@ const Game = () => {
       >
         <canvas
           ref={canvasRef}
-          className="absolute inset-0 w-full h-full touch-none cursor-pointer"
+          className={`absolute inset-0 w-full h-full touch-none ${clearing ? 'cursor-crosshair' : 'cursor-pointer'}`}
           onPointerMove={e => setHovered(tileFromEvent(e))}
           onPointerLeave={() => setHovered(-1)}
           onPointerDown={tap}
@@ -492,6 +541,13 @@ const Game = () => {
           <button onClick={undoMove} disabled={!canUndo} className={button}
             title={`${state?.undos ?? 0} Undo charges`}>
             {`Undo (${state?.undos ?? 0})`}
+          </button>
+          <button onClick={() => setClearing(c => !c)}
+            disabled={!clearing && (!state || result.over || state.clears <= 0)}
+            aria-pressed={clearing}
+            title="Clear: empty one tile of your choice (earned by chain reactions)"
+            className={clearing ? 'px-3 py-1.5 rounded text-sm border border-red-600 bg-red-600 text-white' : button}>
+            {clearing ? 'Cancel Clear' : `Clear (${state?.clears ?? 0})`}
           </button>
           <div className="relative">
             <button onClick={() => setShowSizes(s => !s)} aria-expanded={showSizes} aria-haspopup="menu"
