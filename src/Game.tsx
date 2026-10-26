@@ -109,6 +109,26 @@ const NextChip = ({ drawn, label, shape, dealKey, role = 'Next' }: {
   );
 };
 
+// A power-up in the tray: a small tile with its symbol, its name and how
+// many charges are held. Armed (waiting for a tap on the board), it fills
+// with its own color; tapping it again cancels.
+const PowerUp = ({ symbol, name, count, title, onClick, disabled, armed = false, armedClass = '' }: {
+  symbol: string; name: string; count: number; title: string;
+  onClick: () => void; disabled: boolean; armed?: boolean; armedClass?: string;
+}) => (
+  <button onClick={onClick} disabled={disabled} aria-pressed={armed} title={armed ? `Cancel ${name}` : title}
+    aria-label={`${name} (${count})${armed ? ', armed' : ''}`}
+    className={`relative flex flex-col items-center justify-center h-12 rounded-md border text-slate-800 disabled:opacity-35 ${
+      armed ? `${armedClass} text-white` : 'bg-white border-slate-300 hover:bg-slate-50'
+    }`}>
+    <span className="text-lg leading-none font-bold">{symbol}</span>
+    <span className="text-[10px] leading-tight mt-0.5">{name}</span>
+    <span className={`absolute -top-1.5 -right-1.5 min-w-5 h-5 px-1 rounded-full text-[11px] font-bold leading-5 text-center ${
+      count ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500'
+    }`}>{count}</span>
+  </button>
+);
+
 interface Board {
   size: BoardSize;
   tiles: BoardTile[];
@@ -678,13 +698,13 @@ const Game = () => {
       options.tap === 'preview' ? ' (on a touch screen, tap once to preview and again to place)' : ''
     }. ${MIN_GROUP} or more matching tiles merge into the one you placed, a rung higher.`
     : '');
-  if (clearing) status = 'Clear: tap a letter or # to empty it (tap Cancel Clear, or press Escape, to keep it).';
+  if (clearing) status = 'Clear: tap a letter or # to empty it (tap Clear again, or press Escape, to keep it).';
   if (swapping) status = swapFirst < 0
-    ? 'Swap: tap the first tile to swap (a letter or #; tap Cancel, or press Escape, to keep it).'
+    ? 'Swap: tap the first tile to swap (a letter or #; tap Swap again, or press Escape, to keep it).'
     : `Swap: now tap a tile holding something other than ${label(cells[swapFirst] as number)} to swap it with.`;
-  if (sweeping) status = 'Sweep: tap a tile to clear every # on it and the tiles touching it (tap Cancel, or press Escape, to keep it).';
-  if (upgrading) status = 'Upgrade: tap a letter to raise it a rung; it merges if it then matches (tap Cancel, or press Escape, to keep it).';
-  if (anyShape) status = 'Any shape: place the Next letter on any empty tile, kite or dart (tap Cancel, or press Escape, to keep it).';
+  if (sweeping) status = 'Sweep: tap a tile to clear every # on it and the tiles touching it (tap Sweep again, or press Escape, to keep it).';
+  if (upgrading) status = 'Upgrade: tap a letter to raise it a rung; it merges if it then matches (tap Upgrade again, or press Escape, to keep it).';
+  if (anyShape) status = 'Any shape: place the Next letter on any empty tile, kite or dart (tap Shape again, or press Escape, to keep it).';
   if (state && result.over) {
     status = result.won
       ? `You made ${TOP_LABEL}, the top of the alphabet, in ${moves} moves. You win! Score: ${score}.`
@@ -706,7 +726,7 @@ const Game = () => {
     <div className="safe-area h-dvh flex flex-col landscape:flex-row overflow-hidden bg-slate-100 text-slate-900">
       <main
         ref={containerRef}
-        className="relative shrink-0 portrait:w-full portrait:aspect-square portrait:max-h-[calc(100dvh-12rem)] landscape:h-full landscape:aspect-square landscape:max-w-[calc(100vw-16rem)]"
+        className="relative shrink-0 portrait:w-full portrait:aspect-square portrait:max-h-[calc(100dvh-20rem)] landscape:h-full landscape:aspect-square landscape:max-w-[calc(100vw-16rem)]"
       >
         <canvas
           ref={canvasRef}
@@ -717,9 +737,9 @@ const Game = () => {
         />
       </main>
 
-      <aside className="flex-1 min-w-0 min-h-0 flex flex-col gap-3 p-4 bg-white border-slate-200 portrait:border-t landscape:border-l">
+      <aside className="flex-1 min-w-0 min-h-0 overflow-y-auto flex flex-col gap-3 p-4 bg-white border-slate-200 portrait:border-t landscape:border-l">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <h1 className="text-2xl font-bold text-indigo-700 mr-auto">Penrosum</h1>
+          <h1 className="portrait:text-xl landscape:text-2xl font-bold text-indigo-700 mr-auto">Penrosum</h1>
           <span className="text-sm text-slate-600">Next</span>
           <NextChip drawn={drawn} label={label(drawn)} shape={state?.nextShape ?? null}
             dealKey={`${moves}:${drawn}:${state?.nextShape}`} />
@@ -745,46 +765,28 @@ const Game = () => {
           ))}
         </dl>
 
+        {/* The power-ups, as a compact tray: one tile each, with its count */}
+        <div role="group" aria-label="Power-ups" className="grid grid-cols-6 gap-1">
+          <PowerUp symbol="↶" name="Undo" count={state?.undos ?? 0} onClick={undoMove} disabled={!canUndo}
+            title="Undo: step back one move (earned by making a new highest letter)" />
+          <PowerUp symbol="✕" name="Clear" count={state?.clears ?? 0} armed={clearing} armedClass="bg-red-600 border-red-700"
+            onClick={() => toggle('clear')} disabled={!clearing && (!state || over || (state?.clears ?? 0) <= 0)}
+            title="Clear: empty one tile of your choice (earned by chain reactions)" />
+          <PowerUp symbol="◇" name="Shape" count={state?.anyShapes ?? 0} armed={anyShape} armedClass="bg-amber-500 border-amber-600"
+            onClick={() => toggle('anyShape')} disabled={!anyShape && (!state || over || (state?.anyShapes ?? 0) <= 0)}
+            title="Any shape: place the next value on a kite or a dart (earned by completing suns and stars)" />
+          <PowerUp symbol="⇧" name="Upgrade" count={state?.upgrades ?? 0} armed={upgrading} armedClass="bg-emerald-600 border-emerald-700"
+            onClick={() => toggle('upgrade')} disabled={!upgrading && (!state || over || (state?.upgrades ?? 0) <= 0)}
+            title="Upgrade: raise one letter a rung (earned by merges of 5 or more tiles)" />
+          <PowerUp symbol="#" name="Sweep" count={state?.sweeps ?? 0} armed={sweeping} armedClass="bg-slate-600 border-slate-700"
+            onClick={() => toggle('sweep')} disabled={!sweeping && (!state || over || (state?.sweeps ?? 0) <= 0)}
+            title="Sweep: clear every # on a tile and the tiles touching it (earned by rubble merges)" />
+          <PowerUp symbol="⇆" name="Swap" count={state?.swaps ?? 0} armed={swapping} armedClass="bg-teal-600 border-teal-700"
+            onClick={() => toggle('swap')} disabled={!swapping && (!state || over || (state?.swaps ?? 0) <= 0)}
+            title="Swap: exchange two tiles (earned every 500 points)" />
+        </div>
+
         <div className="flex flex-wrap gap-2">
-          <button onClick={undoMove} disabled={!canUndo} className={button}
-            title={`${state?.undos ?? 0} Undo charges`}>
-            {`Undo (${state?.undos ?? 0})`}
-          </button>
-          <button onClick={() => toggle('clear')}
-            disabled={!clearing && (!state || result.over || state.clears <= 0)}
-            aria-pressed={clearing}
-            title="Clear: empty one tile of your choice (earned by chain reactions)"
-            className={clearing ? 'px-3 py-1.5 rounded text-sm border border-red-600 bg-red-600 text-white' : button}>
-            {clearing ? 'Cancel Clear' : `Clear (${state?.clears ?? 0})`}
-          </button>
-          <button onClick={() => toggle('anyShape')}
-            disabled={!anyShape && (!state || result.over || state.anyShapes <= 0)}
-            aria-pressed={anyShape}
-            title="Any shape: place the next value on a kite or a dart (earned by completing suns and stars)"
-            className={anyShape ? 'px-3 py-1.5 rounded text-sm border border-amber-600 bg-amber-500 text-white' : button}>
-            {anyShape ? 'Cancel Any shape' : `Any shape (${state?.anyShapes ?? 0})`}
-          </button>
-          <button onClick={() => toggle('upgrade')}
-            disabled={!upgrading && (!state || result.over || state.upgrades <= 0)}
-            aria-pressed={upgrading}
-            title="Upgrade: raise one letter a rung (earned by merges of 5 or more tiles)"
-            className={upgrading ? 'px-3 py-1.5 rounded text-sm border border-emerald-700 bg-emerald-600 text-white' : button}>
-            {upgrading ? 'Cancel Upgrade' : `Upgrade (${state?.upgrades ?? 0})`}
-          </button>
-          <button onClick={() => toggle('sweep')}
-            disabled={!sweeping && (!state || result.over || state.sweeps <= 0)}
-            aria-pressed={sweeping}
-            title="Sweep: clear every # on a tile and the tiles touching it (earned by rubble merges)"
-            className={sweeping ? 'px-3 py-1.5 rounded text-sm border border-slate-700 bg-slate-600 text-white' : button}>
-            {sweeping ? 'Cancel Sweep' : `Sweep (${state?.sweeps ?? 0})`}
-          </button>
-          <button onClick={() => toggle('swap')}
-            disabled={!swapping && (!state || result.over || state.swaps <= 0)}
-            aria-pressed={swapping}
-            title="Swap: exchange two tiles (earned every 500 points)"
-            className={swapping ? 'px-3 py-1.5 rounded text-sm border border-teal-700 bg-teal-600 text-white' : button}>
-            {swapping ? 'Cancel Swap' : `Swap (${state?.swaps ?? 0})`}
-          </button>
           <div className="relative">
             <button onClick={() => setShowSizes(s => !s)} aria-expanded={showSizes} aria-haspopup="menu"
               className="px-3 py-1.5 rounded text-sm bg-indigo-600 text-white">
