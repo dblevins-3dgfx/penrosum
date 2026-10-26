@@ -489,3 +489,49 @@ export const sweepAt = (tiles: Tile[], cells: Cell[], id: number): Cell[] => {
   for (const t of sweepTargets(tiles, cells, id)) next[t] = EMPTY;
   return next;
 };
+
+// The Swap power-up (issue #33): spending a charge exchanges what two tiles
+// hold, and each then merges if it matches. The most held.
+export const SWAP_MAX = 3;
+
+// Points per Swap charge earned.
+export const SWAP_SCORE_STEP = 500;
+
+// The Swap charges a move earns: one for each multiple of SWAP_SCORE_STEP
+// the score passes (from `before` to `after`).
+export const swapsEarned = (before: number, after: number) =>
+  Math.max(0, Math.floor(after / SWAP_SCORE_STEP) - Math.floor(before / SWAP_SCORE_STEP));
+
+// The charges held after earning `earned`, up to SWAP_MAX.
+export const addSwaps = (held: number, earned: number) => Math.min(SWAP_MAX, held + earned);
+
+// Whether tiles `a` and `b` can be swapped: two different tiles, both
+// filled (letters or #s), holding different values.
+export const canSwap = (cells: Cell[], a: number, b: number) =>
+  a !== b && a >= 0 && b >= 0 && a < cells.length && b < cells.length &&
+  cells[a] !== EMPTY && cells[b] !== EMPTY && cells[a] !== cells[b];
+
+// Swaps tiles `a` and `b` (see canSwap): each takes the other's value, then
+// merges, with chain reactions, as if just placed there: first `a`, then
+// `b` (unless a's merge emptied it). The merges come back in that order.
+// The input is unchanged.
+export const swapAt = (tiles: Tile[], cells: Cell[], a: number, b: number): PlaceResult => {
+  const swapped = cells.slice();
+  swapped[a] = cells[b];
+  swapped[b] = cells[a];
+  const settleAt = (board: Cell[], id: number): PlaceResult => {
+    const value = board[id];
+    if (value === EMPTY) return { cells: board, merges: [] };
+    const emptied = board.slice();
+    emptied[id] = EMPTY;
+    return place(tiles, emptied, id, value);
+  };
+  const first = settleAt(swapped, a);
+  const second = settleAt(first.cells, b);
+  return { cells: second.cells, merges: [...first.merges, ...second.merges] };
+};
+
+// What swapping `a` and `b` would do, for the preview of tile `b`: as
+// previewAt.
+export const previewSwapAt = (tiles: Tile[], cells: Cell[], a: number, b: number) =>
+  previewOf(tiles, b, swapAt(tiles, cells, a, b));

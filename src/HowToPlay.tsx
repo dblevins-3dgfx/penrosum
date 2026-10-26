@@ -1,5 +1,5 @@
 import Dialog from './Dialog';
-import { ANY_SHAPE_MAX, BIG_MERGE, CLEAR_MAX, MIN_GROUP, SWEEP_MAX, UNDO_MAX, UNDO_START, UPGRADE_MAX, type Options } from './lib/rules';
+import { ANY_SHAPE_MAX, BIG_MERGE, CLEAR_MAX, MIN_GROUP, SWAP_MAX, SWAP_SCORE_STEP, SWEEP_MAX, UNDO_MAX, UNDO_START, UPGRADE_MAX, type Options } from './lib/rules';
 
 interface ChoiceProps<T extends string> {
   label: string;
@@ -91,6 +91,10 @@ const HowToPlay = ({ options, setOption, onClose }: HowToPlayProps) => (
       <p>
         Each rubble merge (rubble landing and merging #s) earns a <b>Sweep</b> (up to {SWEEP_MAX}):
         tap <b>Sweep</b>, then a tile, to clear every # on it and the tiles touching it.
+      </p>
+      <p>
+        Every {SWAP_SCORE_STEP} points earns a <b>Swap</b> (up to {SWAP_MAX}): tap <b>Swap</b>, then two
+        tiles, to exchange what they hold. Each then merges if it matches its new neighbors.
       </p>
       <p className="text-slate-500">
         Hover a tile (or, with Q15's preview, tap it once) to see what would merge and where rubble lands.

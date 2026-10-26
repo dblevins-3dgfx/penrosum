@@ -12,6 +12,7 @@ import {
   ANY_SHAPE_MAX, type RosetteTiles, addAnyShapes, anyShapesEarned, newlyCompleted,
   BIG_MERGE, UPGRADE_MAX, addUpgrades, canUpgrade, previewUpgradeAt, upgradeAt, upgradesEarned,
   SWEEP_MAX, addSweeps, sweepAt, sweepTargets, sweepsEarned,
+  SWAP_MAX, SWAP_SCORE_STEP, addSwaps, canSwap, previewSwapAt, swapAt, swapsEarned,
   TOP_VALUE, floorPow3, mergeResult,
   type Merge, mergePoints, rungOf, scoreMerges, scoreRubble,
 } from './rules';
@@ -868,5 +869,52 @@ describe('the Sweep power-up', () => {
   it('finds nothing where no # is near, or off the board', () => {
     expect(sweepTargets(star, [EMPTY, 1, 3, EMPTY, EMPTY, 0], 0)).toEqual([]);
     expect(sweepTargets(star, [EMPTY, 0, 0, 0, 0, 0], -1)).toEqual([]);
+  });
+});
+
+describe('the Swap power-up', () => {
+  it('earns one for each 500 points the score passes', () => {
+    expect(SWAP_SCORE_STEP).toBe(500);
+    expect(swapsEarned(480, 520)).toBe(1);
+    expect(swapsEarned(400, 499)).toBe(0);
+    expect(swapsEarned(499, 1001)).toBe(2);
+    expect(swapsEarned(500, 500)).toBe(0);
+  });
+
+  it('holds at most 3', () => {
+    expect(SWAP_MAX).toBe(3);
+    expect(addSwaps(2, 2)).toBe(3);
+  });
+
+  it('swaps two different filled tiles with different values', () => {
+    const c: Cell[] = [1, 3, 3, EMPTY, 0];
+    expect(canSwap(c, 0, 1)).toBe(true);
+    expect(canSwap(c, 0, 4)).toBe(true); // a letter and a #
+    expect(canSwap(c, 1, 2)).toBe(false); // the same letter
+    expect(canSwap(c, 0, 0)).toBe(false); // one tile
+    expect(canSwap(c, 0, 3)).toBe(false); // an empty tile
+    expect(canSwap(c, -1, 0)).toBe(false);
+  });
+
+  it('exchanges the values', () => {
+    // the line 0-1-2-3, 4-5: nothing matches after
+    const { cells, merges } = swapAt(tiles, [1, 3, EMPTY, EMPTY, 9, EMPTY], 0, 4);
+    expect(cells).toEqual([9, 3, EMPTY, EMPTY, 1, EMPTY]);
+    expect(merges).toEqual([]);
+  });
+
+  it('then each swapped tile merges if it matches, chain reactions included', () => {
+    // A star: 0 in the middle, touching 1 to 4; 5 touches 4 only.
+    // Swapping the C at 5 with the A at 0 puts C beside two Cs: they merge
+    // into D at 0.
+    const star: Tile[] = [
+      { neighbors: [1, 2, 3, 4] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0, 5] }, { neighbors: [4] },
+    ];
+    const before: Cell[] = [1, 9, 9, EMPTY, 3, 9];
+    const { cells, merges } = swapAt(star, before, 0, 5);
+    expect(merges).toEqual([{ into: 0, from: [1, 2], sum: 27 }]);
+    expect(cells).toEqual([27, EMPTY, EMPTY, EMPTY, 3, 1]);
+    expect(before).toEqual([1, 9, 9, EMPTY, 3, 9]); // input unchanged
+    expect(previewSwapAt(star, before, 0, 5).merging).toEqual([1, 2]);
   });
 });

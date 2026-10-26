@@ -14,6 +14,7 @@ import {
   ROSETTE_REWARD, addAnyShapes, anyShapesEarned, canPlace, newlyCompleted,
   addUpgrades, canUpgrade, previewUpgradeAt, upgradeAt, upgradesEarned,
   addSweeps, sweepAt, sweepTargets, sweepsEarned,
+  SWAP_SCORE_STEP, addSwaps, canSwap, previewSwapAt, swapAt, swapsEarned,
   valueToPlace,
 } from './lib/rules';
 import { fitView, toBoard } from './lib/view';
@@ -128,6 +129,7 @@ interface Snapshot {
   anyShapes: number; // Any shape charges held (issue #33)
   upgrades: number; // Upgrade charges held (issue #33)
   sweeps: number; // Sweep charges held (issue #33)
+  swaps: number; // Swap charges held (issue #33)
   completed: number[]; // the suns and stars (indices into board.rosettes) completed this game
   message: string;
 }
@@ -181,18 +183,26 @@ const Game = () => {
   // Whether the Sweep power-up is armed: the next tap clears the #s on and
   // around a tile
   const [sweeping, setSweeping] = useState(false);
+  // Whether the Swap power-up is armed, and the first tile picked (-1 for
+  // none yet): the next tap on another tile swaps the two
+  const [swapping, setSwapping] = useState(false);
+  const [swapFirst, setSwapFirst] = useState(-1);
   const disarm = () => {
     setClearing(false);
     setAnyShape(false);
     setUpgrading(false);
     setSweeping(false);
+    setSwapping(false);
+    setSwapFirst(-1);
   };
   // Arms one power-up (or disarms it if armed), disarming the others
-  const toggle = (which: 'clear' | 'anyShape' | 'upgrade' | 'sweep') => {
+  const toggle = (which: 'clear' | 'anyShape' | 'upgrade' | 'sweep' | 'swap') => {
     setClearing(c => which === 'clear' && !c);
     setAnyShape(a => which === 'anyShape' && !a);
     setUpgrading(u => which === 'upgrade' && !u);
     setSweeping(w => which === 'sweep' && !w);
+    setSwapping(w => which === 'swap' && !w);
+    setSwapFirst(-1);
   };
   const [showHelp, setShowHelp] = useState(false);
   const [showSizes, setShowSizes] = useState(false);
@@ -225,7 +235,7 @@ const Game = () => {
       cells, next: nextValue(), moves: 0, score: 0, lastMove: null,
       nextShape: dealShape(tiles, cells), spare: null, undos: UNDO_START, clears: 0,
       // a sun or star the seeding happens to fill earns nothing
-      anyShapes: 0, upgrades: 0, sweeps: 0, completed: newlyCompleted(rosettes, cells, []), message: '',
+      anyShapes: 0, upgrades: 0, sweeps: 0, swaps: 0, completed: newlyCompleted(rosettes, cells, []), message: '',
     });
     setUndo([]);
     setHovered(-1);
@@ -252,17 +262,19 @@ const Game = () => {
 
   // Escape cancels an armed power-up
   useEffect(() => {
-    if (!clearing && !anyShape && !upgrading && !sweeping) return;
+    if (!clearing && !anyShape && !upgrading && !sweeping && !swapping) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       setClearing(false);
       setAnyShape(false);
       setUpgrading(false);
       setSweeping(false);
+      setSwapping(false);
+      setSwapFirst(-1);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [clearing, anyShape, upgrading, sweeping]);
+  }, [clearing, anyShape, upgrading, sweeping, swapping]);
 
   // Escape closes the board-size menu
   useEffect(() => {
@@ -311,7 +323,7 @@ const Game = () => {
   // apart from the deal and the move count.
   const settle = (
     base: Snapshot, id: number, placed: Cell[], merges: Merge[], lead: string,
-    spent: { anyShape?: boolean; upgrade?: boolean } = {},
+    spent: { anyShape?: boolean; upgrade?: boolean; swap?: boolean } = {},
   ) => {
     const { cells: after, zeros, rubbleMerges } = dropRubble(tiles, placed, merges);
     const gained = scoreMerges(merges);
@@ -333,15 +345,21 @@ const Game = () => {
     // Rubble merges earn Sweep
     const sweepEarned = sweepsEarned(rubbleMerges);
     const sweeps = addSweeps(base.sweeps, sweepEarned);
+    // Every 500 points earns a Swap
+    const score = base.score + gained + rubbleGained;
+    const swapEarned = swapsEarned(base.score, score);
+    const swapsHeld = base.swaps - (spent.swap ? 1 : 0);
+    const swaps = addSwaps(swapsHeld, swapEarned);
     return {
       cells: after,
-      score: base.score + gained + rubbleGained,
+      score,
       lastMove: id,
       undos,
       clears,
       anyShapes,
       upgrades,
       sweeps,
+      swaps,
       completed: [...base.completed, ...completedNow],
       message: [
         lead,
@@ -361,6 +379,9 @@ const Game = () => {
           : '',
         sweepEarned
           ? `Rubble merge! ${sweeps > base.sweeps ? `+${sweeps - base.sweeps} Sweep` : `Sweeps full (${sweeps})`}.`
+          : '',
+        swapEarned
+          ? `${Math.floor(score / SWAP_SCORE_STEP) * SWAP_SCORE_STEP} points! ${swaps > swapsHeld ? `+${swaps - swapsHeld} Swap` : `Swaps full (${swaps})`}.`
           : '',
       ].filter(Boolean).join(' '),
     };
@@ -447,6 +468,30 @@ const Game = () => {
     setSelected(-1);
   };
 
+  // A tap with Swap armed: the first picks a filled tile, the second picks
+  // the tile to swap it with, and the two swap and then merge where they
+  // match (points, rubble and power-ups included). Not a move; Undo can
+  // take it back. Tapping the first tile again unpicks it; tapping another
+  // tile holding the same value picks that one instead; a tap on an empty
+  // tile disarms Swap.
+  const swapTap = (id: number) => {
+    if (!state || result.over || state.swaps <= 0 || id < 0 || cells[id] === EMPTY) {
+      disarm();
+      return;
+    }
+    if (swapFirst < 0 || !canSwap(cells, swapFirst, id)) {
+      setSwapFirst(id === swapFirst ? -1 : id);
+      return;
+    }
+    const a = cells[swapFirst] as number;
+    const b = cells[id] as number;
+    const { cells: placed, merges } = swapAt(tiles, cells, swapFirst, id);
+    disarm();
+    setUndo([...undo, state]);
+    setState({ ...state, ...settle(state, id, placed, merges, `Swapped ${label(a)} and ${label(b)}.`, { swap: true }) });
+    setSelected(-1);
+  };
+
   // A tap or click on the board. A mouse always places with one click; a
   // touch follows the Q15 tap rule (tapAction): place at once, or preview
   // on the first tap and place on a second tap on the same tile.
@@ -464,6 +509,10 @@ const Game = () => {
       sweepTile(id);
       return;
     }
+    if (swapping) {
+      swapTap(id);
+      return;
+    }
     if (e.pointerType === 'mouse') {
       setSelected(-1);
       play(id);
@@ -478,15 +527,17 @@ const Game = () => {
   // The tile being previewed: the one under the mouse, or a tapped one
   // (none while Clear is armed)
   // (with Upgrade armed, the letter under the pointer)
-  const previewed = clearing || sweeping ? -1 : upgrading ? (canUpgrade(cells, hovered) ? hovered : -1) : hovered >= 0 ? hovered : selected;
+  const previewed = clearing || sweeping ? -1 :
+    swapping ? (swapFirst >= 0 && canSwap(cells, swapFirst, hovered) ? hovered : -1) : upgrading ? (canUpgrade(cells, hovered) ? hovered : -1) : hovered >= 0 ? hovered : selected;
 
   // What the previewed tile would do
   const preview = useMemo(() => {
     if (previewed < 0 || result.over) return null;
     if (upgrading) return previewUpgradeAt(tiles, cells, previewed);
+    if (swapping) return previewSwapAt(tiles, cells, swapFirst, previewed);
     if (!fits(previewed)) return null;
     return previewAt(tiles, cells, previewed, drawn);
-  }, [previewed, cells, drawn, result.over, tiles, state?.nextShape, anyShape, upgrading]);
+  }, [previewed, cells, drawn, result.over, tiles, state?.nextShape, anyShape, upgrading, swapping, swapFirst]);
 
   // When the game ends, record it on its board size's scoreboard and show
   // the scoreboard
@@ -572,6 +623,14 @@ const Game = () => {
       ctx.stroke();
     }
 
+    // With Swap armed, the first tile picked
+    if (swapping && swapFirst >= 0) {
+      tracePath(ctx, tiles[swapFirst]);
+      ctx.strokeStyle = '#0d9488';
+      ctx.lineWidth = 4;
+      ctx.stroke();
+    }
+
     if (state.lastMove !== null) {
       tracePath(ctx, tiles[state.lastMove]);
       ctx.strokeStyle = '#d97706';
@@ -602,7 +661,7 @@ const Game = () => {
       ctx.stroke();
       drawNumber(ctx, t, label(0), textFor(0));
     }
-  }, [tiles, cells, state, previewed, preview, view, space, label, clearing, sweeping, hovered, anyShape, rosettes]);
+  }, [tiles, cells, state, previewed, preview, view, space, label, clearing, sweeping, swapping, swapFirst, hovered, anyShape, rosettes]);
 
   const tileFromEvent = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!view) return -1;
@@ -620,6 +679,9 @@ const Game = () => {
     }. ${MIN_GROUP} or more matching tiles merge into the one you placed, a rung higher.`
     : '');
   if (clearing) status = 'Clear: tap a letter or # to empty it (tap Cancel Clear, or press Escape, to keep it).';
+  if (swapping) status = swapFirst < 0
+    ? 'Swap: tap the first tile to swap (a letter or #; tap Cancel, or press Escape, to keep it).'
+    : `Swap: now tap a tile holding something other than ${label(cells[swapFirst] as number)} to swap it with.`;
   if (sweeping) status = 'Sweep: tap a tile to clear every # on it and the tiles touching it (tap Cancel, or press Escape, to keep it).';
   if (upgrading) status = 'Upgrade: tap a letter to raise it a rung; it merges if it then matches (tap Cancel, or press Escape, to keep it).';
   if (anyShape) status = 'Any shape: place the Next letter on any empty tile, kite or dart (tap Cancel, or press Escape, to keep it).';
@@ -648,7 +710,7 @@ const Game = () => {
       >
         <canvas
           ref={canvasRef}
-          className={`absolute inset-0 w-full h-full touch-none ${clearing || upgrading || sweeping ? 'cursor-crosshair' : 'cursor-pointer'}`}
+          className={`absolute inset-0 w-full h-full touch-none ${clearing || upgrading || sweeping || swapping ? 'cursor-crosshair' : 'cursor-pointer'}`}
           onPointerMove={e => setHovered(tileFromEvent(e))}
           onPointerLeave={() => setHovered(-1)}
           onPointerDown={tap}
@@ -715,6 +777,13 @@ const Game = () => {
             title="Sweep: clear every # on a tile and the tiles touching it (earned by rubble merges)"
             className={sweeping ? 'px-3 py-1.5 rounded text-sm border border-slate-700 bg-slate-600 text-white' : button}>
             {sweeping ? 'Cancel Sweep' : `Sweep (${state?.sweeps ?? 0})`}
+          </button>
+          <button onClick={() => toggle('swap')}
+            disabled={!swapping && (!state || result.over || state.swaps <= 0)}
+            aria-pressed={swapping}
+            title="Swap: exchange two tiles (earned every 500 points)"
+            className={swapping ? 'px-3 py-1.5 rounded text-sm border border-teal-700 bg-teal-600 text-white' : button}>
+            {swapping ? 'Cancel Swap' : `Swap (${state?.swaps ?? 0})`}
           </button>
           <div className="relative">
             <button onClick={() => setShowSizes(s => !s)} aria-expanded={showSizes} aria-haspopup="menu"
