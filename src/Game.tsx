@@ -13,6 +13,7 @@ import {
   addClears, canClear, clearTile, clearsEarned,
   ROSETTE_REWARD, addAnyShapes, anyShapesEarned, canPlace, newlyCompleted,
   addUpgrades, canUpgrade, previewUpgradeAt, upgradeAt, upgradesEarned,
+  addSweeps, sweepAt, sweepTargets, sweepsEarned,
   valueToPlace,
 } from './lib/rules';
 import { fitView, toBoard } from './lib/view';
@@ -126,6 +127,7 @@ interface Snapshot {
   clears: number; // Clear charges held (issue #33)
   anyShapes: number; // Any shape charges held (issue #33)
   upgrades: number; // Upgrade charges held (issue #33)
+  sweeps: number; // Sweep charges held (issue #33)
   completed: number[]; // the suns and stars (indices into board.rosettes) completed this game
   message: string;
 }
@@ -176,16 +178,21 @@ const Game = () => {
   const [anyShape, setAnyShape] = useState(false);
   // Whether the Upgrade power-up is armed: the next tap on a letter raises it
   const [upgrading, setUpgrading] = useState(false);
+  // Whether the Sweep power-up is armed: the next tap clears the #s on and
+  // around a tile
+  const [sweeping, setSweeping] = useState(false);
   const disarm = () => {
     setClearing(false);
     setAnyShape(false);
     setUpgrading(false);
+    setSweeping(false);
   };
   // Arms one power-up (or disarms it if armed), disarming the others
-  const toggle = (which: 'clear' | 'anyShape' | 'upgrade') => {
+  const toggle = (which: 'clear' | 'anyShape' | 'upgrade' | 'sweep') => {
     setClearing(c => which === 'clear' && !c);
     setAnyShape(a => which === 'anyShape' && !a);
     setUpgrading(u => which === 'upgrade' && !u);
+    setSweeping(w => which === 'sweep' && !w);
   };
   const [showHelp, setShowHelp] = useState(false);
   const [showSizes, setShowSizes] = useState(false);
@@ -218,7 +225,7 @@ const Game = () => {
       cells, next: nextValue(), moves: 0, score: 0, lastMove: null,
       nextShape: dealShape(tiles, cells), spare: null, undos: UNDO_START, clears: 0,
       // a sun or star the seeding happens to fill earns nothing
-      anyShapes: 0, upgrades: 0, completed: newlyCompleted(rosettes, cells, []), message: '',
+      anyShapes: 0, upgrades: 0, sweeps: 0, completed: newlyCompleted(rosettes, cells, []), message: '',
     });
     setUndo([]);
     setHovered(-1);
@@ -245,16 +252,17 @@ const Game = () => {
 
   // Escape cancels an armed power-up
   useEffect(() => {
-    if (!clearing && !anyShape && !upgrading) return;
+    if (!clearing && !anyShape && !upgrading && !sweeping) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       setClearing(false);
       setAnyShape(false);
       setUpgrading(false);
+      setSweeping(false);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [clearing, anyShape, upgrading]);
+  }, [clearing, anyShape, upgrading, sweeping]);
 
   // Escape closes the board-size menu
   useEffect(() => {
@@ -322,6 +330,9 @@ const Game = () => {
     const upgradeEarned = upgradesEarned(merges);
     const upgradesHeld = base.upgrades - (spent.upgrade ? 1 : 0);
     const upgrades = addUpgrades(upgradesHeld, upgradeEarned);
+    // Rubble merges earn Sweep
+    const sweepEarned = sweepsEarned(rubbleMerges);
+    const sweeps = addSweeps(base.sweeps, sweepEarned);
     return {
       cells: after,
       score: base.score + gained + rubbleGained,
@@ -330,6 +341,7 @@ const Game = () => {
       clears,
       anyShapes,
       upgrades,
+      sweeps,
       completed: [...base.completed, ...completedNow],
       message: [
         lead,
@@ -346,6 +358,9 @@ const Game = () => {
         shapesEarned && anyShapes < shapesHeld + shapesEarned ? `Any shapes full (${anyShapes}).` : '',
         upgradeEarned
           ? `Big merge! ${upgrades > upgradesHeld ? `+${upgrades - upgradesHeld} Upgrade` : `Upgrades full (${upgrades})`}.`
+          : '',
+        sweepEarned
+          ? `Rubble merge! ${sweeps > base.sweeps ? `+${sweeps - base.sweeps} Sweep` : `Sweeps full (${sweeps})`}.`
           : '',
       ].filter(Boolean).join(' '),
     };
@@ -414,6 +429,24 @@ const Game = () => {
     setSelected(-1);
   };
 
+  // Uses an armed Sweep on tile `id`: clears every # on it and the tiles
+  // touching it, and spends a charge. Not a move; Undo can take it back. A
+  // tap with no # there just disarms it.
+  const sweepTile = (id: number) => {
+    setSweeping(false);
+    const targets = sweepTargets(tiles, cells, id);
+    if (!state || result.over || state.sweeps <= 0 || !targets.length) return;
+    setUndo([...undo, state]);
+    setState({
+      ...state,
+      cells: sweepAt(tiles, cells, id),
+      sweeps: state.sweeps - 1,
+      lastMove: id,
+      message: `Swept ${targets.length} #${targets.length === 1 ? '' : 's'}. ${state.sweeps - 1} Sweep${state.sweeps - 1 === 1 ? '' : 's'} left.`,
+    });
+    setSelected(-1);
+  };
+
   // A tap or click on the board. A mouse always places with one click; a
   // touch follows the Q15 tap rule (tapAction): place at once, or preview
   // on the first tap and place on a second tap on the same tile.
@@ -425,6 +458,10 @@ const Game = () => {
     }
     if (upgrading) {
       upgradeTile(id);
+      return;
+    }
+    if (sweeping) {
+      sweepTile(id);
       return;
     }
     if (e.pointerType === 'mouse') {
@@ -441,7 +478,7 @@ const Game = () => {
   // The tile being previewed: the one under the mouse, or a tapped one
   // (none while Clear is armed)
   // (with Upgrade armed, the letter under the pointer)
-  const previewed = clearing ? -1 : upgrading ? (canUpgrade(cells, hovered) ? hovered : -1) : hovered >= 0 ? hovered : selected;
+  const previewed = clearing || sweeping ? -1 : upgrading ? (canUpgrade(cells, hovered) ? hovered : -1) : hovered >= 0 ? hovered : selected;
 
   // What the previewed tile would do
   const preview = useMemo(() => {
@@ -525,9 +562,11 @@ const Game = () => {
       ctx.stroke();
     }
 
-    // With Clear armed, the tile under the pointer that it would clear
-    if (clearing && canClear(cells, hovered)) {
-      tracePath(ctx, tiles[hovered]);
+    // With Clear armed, the tile under the pointer that it would clear;
+    // with Sweep armed, the #s it would clear there
+    const doomed = clearing && canClear(cells, hovered) ? [hovered] : sweeping ? sweepTargets(tiles, cells, hovered) : [];
+    for (const id of doomed) {
+      tracePath(ctx, tiles[id]);
       ctx.strokeStyle = '#dc2626';
       ctx.lineWidth = 4;
       ctx.stroke();
@@ -563,7 +602,7 @@ const Game = () => {
       ctx.stroke();
       drawNumber(ctx, t, label(0), textFor(0));
     }
-  }, [tiles, cells, state, previewed, preview, view, space, label, clearing, hovered, anyShape, rosettes]);
+  }, [tiles, cells, state, previewed, preview, view, space, label, clearing, sweeping, hovered, anyShape, rosettes]);
 
   const tileFromEvent = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!view) return -1;
@@ -581,6 +620,7 @@ const Game = () => {
     }. ${MIN_GROUP} or more matching tiles merge into the one you placed, a rung higher.`
     : '');
   if (clearing) status = 'Clear: tap a letter or # to empty it (tap Cancel Clear, or press Escape, to keep it).';
+  if (sweeping) status = 'Sweep: tap a tile to clear every # on it and the tiles touching it (tap Cancel, or press Escape, to keep it).';
   if (upgrading) status = 'Upgrade: tap a letter to raise it a rung; it merges if it then matches (tap Cancel, or press Escape, to keep it).';
   if (anyShape) status = 'Any shape: place the Next letter on any empty tile, kite or dart (tap Cancel, or press Escape, to keep it).';
   if (state && result.over) {
@@ -608,7 +648,7 @@ const Game = () => {
       >
         <canvas
           ref={canvasRef}
-          className={`absolute inset-0 w-full h-full touch-none ${clearing || upgrading ? 'cursor-crosshair' : 'cursor-pointer'}`}
+          className={`absolute inset-0 w-full h-full touch-none ${clearing || upgrading || sweeping ? 'cursor-crosshair' : 'cursor-pointer'}`}
           onPointerMove={e => setHovered(tileFromEvent(e))}
           onPointerLeave={() => setHovered(-1)}
           onPointerDown={tap}
@@ -668,6 +708,13 @@ const Game = () => {
             title="Upgrade: raise one letter a rung (earned by merges of 5 or more tiles)"
             className={upgrading ? 'px-3 py-1.5 rounded text-sm border border-emerald-700 bg-emerald-600 text-white' : button}>
             {upgrading ? 'Cancel Upgrade' : `Upgrade (${state?.upgrades ?? 0})`}
+          </button>
+          <button onClick={() => toggle('sweep')}
+            disabled={!sweeping && (!state || result.over || state.sweeps <= 0)}
+            aria-pressed={sweeping}
+            title="Sweep: clear every # on a tile and the tiles touching it (earned by rubble merges)"
+            className={sweeping ? 'px-3 py-1.5 rounded text-sm border border-slate-700 bg-slate-600 text-white' : button}>
+            {sweeping ? 'Cancel Sweep' : `Sweep (${state?.sweeps ?? 0})`}
           </button>
           <div className="relative">
             <button onClick={() => setShowSizes(s => !s)} aria-expanded={showSizes} aria-haspopup="menu"

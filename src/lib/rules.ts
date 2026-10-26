@@ -465,3 +465,27 @@ export const upgradeAt = (tiles: Tile[], cells: Cell[], id: number): PlaceResult
 // What upgrading `id` would do, for the preview: as previewAt.
 export const previewUpgradeAt = (tiles: Tile[], cells: Cell[], id: number) =>
   previewOf(tiles, id, upgradeAt(tiles, cells, id));
+
+// The Sweep power-up (issue #33): spending a charge clears every # on a
+// tile and the tiles touching it. The most held.
+export const SWEEP_MAX = 3;
+
+// The Sweep charges a move earns: one for each rubble merge (rubble that
+// lands and merges #s).
+export const sweepsEarned = (rubbleMerges: Merge[]) => rubbleMerges.length;
+
+// The charges held after earning `earned`, up to SWEEP_MAX.
+export const addSweeps = (held: number, earned: number) => Math.min(SWEEP_MAX, held + earned);
+
+// The #s a Sweep on tile `id` clears: on it and on the tiles touching it.
+// Empty when there are none (the Sweep then does nothing).
+export const sweepTargets = (tiles: Tile[], cells: Cell[], id: number) =>
+  id < 0 || id >= tiles.length ? [] : [id, ...tiles[id].neighbors].filter(t => cells[t] === 0);
+
+// The board after a Sweep on tile `id` (see sweepTargets). The input is
+// unchanged.
+export const sweepAt = (tiles: Tile[], cells: Cell[], id: number): Cell[] => {
+  const next = cells.slice();
+  for (const t of sweepTargets(tiles, cells, id)) next[t] = EMPTY;
+  return next;
+};

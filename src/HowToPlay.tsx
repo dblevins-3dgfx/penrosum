@@ -1,5 +1,5 @@
 import Dialog from './Dialog';
-import { ANY_SHAPE_MAX, BIG_MERGE, CLEAR_MAX, MIN_GROUP, UNDO_MAX, UNDO_START, UPGRADE_MAX, type Options } from './lib/rules';
+import { ANY_SHAPE_MAX, BIG_MERGE, CLEAR_MAX, MIN_GROUP, SWEEP_MAX, UNDO_MAX, UNDO_START, UPGRADE_MAX, type Options } from './lib/rules';
 
 interface ChoiceProps<T extends string> {
   label: string;
@@ -87,6 +87,10 @@ const HowToPlay = ({ options, setOption, onClose }: HowToPlayProps) => (
         A merge of {BIG_MERGE} or more tiles earns an <b>Upgrade</b> (up to {UPGRADE_MAX}): tap{' '}
         <b>Upgrade</b>, then a letter, to raise it a rung. If it then matches its neighbors, it
         merges, chain reactions and all.
+      </p>
+      <p>
+        Each rubble merge (rubble landing and merging #s) earns a <b>Sweep</b> (up to {SWEEP_MAX}):
+        tap <b>Sweep</b>, then a tile, to clear every # on it and the tiles touching it.
       </p>
       <p className="text-slate-500">
         Hover a tile (or, with Q15's preview, tap it once) to see what would merge and where rubble lands.

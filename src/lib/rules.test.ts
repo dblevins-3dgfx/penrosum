@@ -11,6 +11,7 @@ import {
   CLEAR_MAX, addClears, canClear, clearTile, clearsEarned,
   ANY_SHAPE_MAX, type RosetteTiles, addAnyShapes, anyShapesEarned, newlyCompleted,
   BIG_MERGE, UPGRADE_MAX, addUpgrades, canUpgrade, previewUpgradeAt, upgradeAt, upgradesEarned,
+  SWEEP_MAX, addSweeps, sweepAt, sweepTargets, sweepsEarned,
   TOP_VALUE, floorPow3, mergeResult,
   type Merge, mergePoints, rungOf, scoreMerges, scoreRubble,
 } from './rules';
@@ -832,5 +833,40 @@ describe('the Upgrade power-up', () => {
 
   it('the preview shows what an upgrade would do', () => {
     expect(previewUpgradeAt(star, [3, 9, 9, EMPTY, EMPTY], 0)).toEqual({ value: 27, merging: [1, 2], rubble: [2] });
+  });
+});
+
+describe('the Sweep power-up', () => {
+  // A star: 0 in the middle, touching 1 to 4; 5 touches only 4
+  const star: Tile[] = [
+    { neighbors: [1, 2, 3, 4] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0, 5] }, { neighbors: [4] },
+  ];
+  const rubble = (n: number): Merge[] => Array.from({ length: n }, () => ({ into: 0, from: [1, 2], sum: 0 }));
+
+  it('each rubble merge earns one', () => {
+    expect(sweepsEarned(rubble(1))).toBe(1);
+    expect(sweepsEarned(rubble(2))).toBe(2);
+    expect(sweepsEarned([])).toBe(0);
+  });
+
+  it('holds at most 3', () => {
+    expect(SWEEP_MAX).toBe(3);
+    expect(addSweeps(2, 2)).toBe(3);
+  });
+
+  it('clears every # on the tile and the tiles touching it, and nothing else', () => {
+    const c: Cell[] = [EMPTY, 0, 3, 0, 0, 0];
+    expect(sweepTargets(star, c, 0)).toEqual([1, 3, 4]);
+    expect(sweepAt(star, c, 0)).toEqual([EMPTY, EMPTY, 3, EMPTY, EMPTY, 0]);
+    expect(c).toEqual([EMPTY, 0, 3, 0, 0, 0]); // input unchanged
+  });
+
+  it('includes the tile itself when it is a #', () => {
+    expect(sweepTargets(star, [EMPTY, 0, 3, 0, 0, 0], 4)).toEqual([4, 5]);
+  });
+
+  it('finds nothing where no # is near, or off the board', () => {
+    expect(sweepTargets(star, [EMPTY, 1, 3, EMPTY, EMPTY, 0], 0)).toEqual([]);
+    expect(sweepTargets(star, [EMPTY, 0, 0, 0, 0, 0], -1)).toEqual([]);
   });
 });
