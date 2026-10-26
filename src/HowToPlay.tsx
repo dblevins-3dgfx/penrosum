@@ -1,5 +1,5 @@
 import Dialog from './Dialog';
-import { ANY_SHAPE_MAX, CLEAR_MAX, MIN_GROUP, UNDO_MAX, UNDO_START, type Options } from './lib/rules';
+import { ANY_SHAPE_MAX, BIG_MERGE, CLEAR_MAX, MIN_GROUP, UNDO_MAX, UNDO_START, UPGRADE_MAX, type Options } from './lib/rules';
 
 interface ChoiceProps<T extends string> {
   label: string;
@@ -82,6 +82,11 @@ const HowToPlay = ({ options, setOption, onClose }: HowToPlayProps) => (
         where the tips meet. Fill all five tiles of one (with anything) to complete it: the ring turns
         gold and earns <b>Any shape</b>, one for a sun, two for a star (up to {ANY_SHAPE_MAX}). Tap{' '}
         <b>Any shape</b> to place the next value on a kite or a dart, whichever it was dealt.
+      </p>
+      <p>
+        A merge of {BIG_MERGE} or more tiles earns an <b>Upgrade</b> (up to {UPGRADE_MAX}): tap{' '}
+        <b>Upgrade</b>, then a letter, to raise it a rung. If it then matches its neighbors, it
+        merges, chain reactions and all.
       </p>
       <p className="text-slate-500">
         Hover a tile (or, with Q15's preview, tap it once) to see what would merge and where rubble lands.

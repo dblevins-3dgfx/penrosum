@@ -10,6 +10,7 @@ import {
   UNDO_MAX, UNDO_START, addUndos, undosAfterUndo, undosEarned,
   CLEAR_MAX, addClears, canClear, clearTile, clearsEarned,
   ANY_SHAPE_MAX, type RosetteTiles, addAnyShapes, anyShapesEarned, newlyCompleted,
+  BIG_MERGE, UPGRADE_MAX, addUpgrades, canUpgrade, previewUpgradeAt, upgradeAt, upgradesEarned,
   TOP_VALUE, floorPow3, mergeResult,
   type Merge, mergePoints, rungOf, scoreMerges, scoreRubble,
 } from './rules';
@@ -783,5 +784,53 @@ describe('suns, stars and the Any shape power-up', () => {
     expect(ANY_SHAPE_MAX).toBe(3);
     expect(addAnyShapes(2, 2)).toBe(3);
     expect(addAnyShapes(0, 1)).toBe(1);
+  });
+});
+
+describe('the Upgrade power-up', () => {
+  const merge = (tiles: number, sum: number): Merge => ({ into: 0, from: Array.from({ length: tiles - 1 }, (_, i) => i + 1), sum });
+  // A star: 0 in the middle, touching 1 to 4
+  const star: Tile[] = [{ neighbors: [1, 2, 3, 4] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }, { neighbors: [0] }];
+
+  it('a merge of 5 or more letters earns one, each in a chain counting', () => {
+    expect(BIG_MERGE).toBe(5);
+    expect(upgradesEarned([merge(5, 3)])).toBe(1);
+    expect(upgradesEarned([merge(7, 9)])).toBe(1);
+    expect(upgradesEarned([merge(5, 3), merge(5, 9)])).toBe(2);
+  });
+
+  it('smaller merges, and merges of #s, earn nothing', () => {
+    expect(upgradesEarned([merge(4, 3), merge(3, 9)])).toBe(0);
+    expect(upgradesEarned([merge(6, 0)])).toBe(0);
+  });
+
+  it('holds at most 3', () => {
+    expect(UPGRADE_MAX).toBe(3);
+    expect(addUpgrades(2, 2)).toBe(3);
+  });
+
+  it('upgrades a letter below Z, not a #, an empty tile or a Z', () => {
+    const c: Cell[] = [9, 0, EMPTY, TOP_VALUE, 1];
+    expect([0, 1, 2, 3, 4, -1].map(id => canUpgrade(c, id))).toEqual([true, false, false, false, true, false]);
+  });
+
+  it('raises the letter a rung', () => {
+    const { cells, merges } = upgradeAt(star, [9, EMPTY, EMPTY, 3, EMPTY], 0);
+    expect(cells[0]).toBe(27);
+    expect(merges).toEqual([]);
+  });
+
+  it('then merges as if just placed, chain reactions included', () => {
+    // A B in the middle with two Cs and two Ds around: B becomes C, merges
+    // with the Cs into D, which merges with the Ds into E
+    const before: Cell[] = [3, 9, 9, 27, 27];
+    const { cells, merges } = upgradeAt(star, before, 0);
+    expect(merges.map(m => m.sum)).toEqual([27, 81]);
+    expect(cells).toEqual([81, EMPTY, EMPTY, EMPTY, EMPTY]);
+    expect(before).toEqual([3, 9, 9, 27, 27]); // input unchanged
+  });
+
+  it('the preview shows what an upgrade would do', () => {
+    expect(previewUpgradeAt(star, [3, 9, 9, EMPTY, EMPTY], 0)).toEqual({ value: 27, merging: [1, 2], rubble: [2] });
   });
 });
