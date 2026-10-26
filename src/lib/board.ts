@@ -163,3 +163,30 @@ const pointInTriangle = (px: number, py: number, [a, b, c]: Point[]) => {
 // Index of the board tile containing (x, y), or -1.
 export const tileAtPoint = (tiles: BoardTile[], x: number, y: number) =>
   tiles.findIndex(t => toTriangles(t.verts).some(tri => pointInTriangle(x, y, tri)));
+
+// A sun (five kites meeting at their tips) or a star (five darts meeting
+// at their tips) lying wholly on the board: where its tips meet, and its
+// five tiles.
+export interface Rosette {
+  kind: 'sun' | 'star';
+  center: Point;
+  tiles: number[];
+}
+
+// Every sun and star on the board. A kite's and a dart's tip is its first
+// vertex, so five tiles of one shape sharing their first vertex make one.
+export const findRosettes = (tiles: BoardTile[]): Rosette[] => {
+  const byTip = new Map<string, number[]>();
+  for (const t of tiles) {
+    const v = t.verts[0];
+    const key = `${t.type}:${Math.round(v.x * 10)},${Math.round(v.y * 10)}`;
+    byTip.set(key, [...(byTip.get(key) ?? []), t.id]);
+  }
+  const rosettes: Rosette[] = [];
+  for (const ids of byTip.values()) {
+    if (ids.length !== 5) continue;
+    const first = tiles[ids[0]];
+    rosettes.push({ kind: first.type === 'kite' ? 'sun' : 'star', center: { ...first.verts[0] }, tiles: ids });
+  }
+  return rosettes;
+};

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  BOARD_SIZES, boardBounds, boardFor, centroid, tileAtPoint,
-  type BoardSize, type BoardTile,
+  BOARD_SIZES, boardBounds, boardFor, centroid, findRosettes, tileAtPoint,
+  type BoardSize, type BoardTile, type Rosette,
 } from './lib/board';
 import { parseBoardSize, parseOptions } from './lib/prefs';
 import { addScore, parseScores } from './lib/scores';
@@ -11,6 +11,7 @@ import {
   canPlaceDealt, dealShape, dropRubble, shapeToPlace, drawValue, highestTile, outcome, place, previewAt, scoreMerges, scoreRubble, seedBoard, swapSpare, tapAction,
   UNDO_START, addUndos, undosAfterUndo, undosEarned,
   addClears, canClear, clearTile, clearsEarned,
+  ROSETTE_REWARD, addAnyShapes, anyShapesEarned, canPlace, newlyCompleted,
   valueToPlace,
 } from './lib/rules';
 import { fitView, toBoard } from './lib/view';
@@ -109,6 +110,7 @@ interface Board {
   size: BoardSize;
   tiles: BoardTile[];
   bounds: ReturnType<typeof boardBounds>;
+  rosettes: Rosette[]; // its suns and stars
 }
 
 interface Snapshot {
@@ -121,6 +123,8 @@ interface Snapshot {
   spare: Deal | null; // the hot spare, if one is held
   undos: number; // Undo charges held
   clears: number; // Clear charges held (issue #33)
+  anyShapes: number; // Any shape charges held (issue #33)
+  completed: number[]; // the suns and stars (indices into board.rosettes) completed this game
   message: string;
 }
 
@@ -165,6 +169,13 @@ const Game = () => {
   const [selected, setSelected] = useState(-1);
   // Whether the Clear power-up is armed: the next tap on a tile clears it
   const [clearing, setClearing] = useState(false);
+  // Whether the Any shape power-up is armed: the next value may go on
+  // either shape. At most one power-up is armed at a time.
+  const [anyShape, setAnyShape] = useState(false);
+  const disarm = () => {
+    setClearing(false);
+    setAnyShape(false);
+  };
   const [showHelp, setShowHelp] = useState(false);
   const [showSizes, setShowSizes] = useState(false);
   const [showScores, setShowScores] = useState(false);
@@ -189,16 +200,20 @@ const Game = () => {
   // Starts a new game on a board of `newSize`
   const newGame = useCallback((newSize: BoardSize) => {
     const tiles = boardFor(newSize);
-    setBoard({ size: newSize, tiles, bounds: boardBounds(tiles) });
+    const rosettes = findRosettes(tiles);
+    setBoard({ size: newSize, tiles, bounds: boardBounds(tiles), rosettes });
     const cells = seedBoard(tiles);
     setState({
       cells, next: nextValue(), moves: 0, score: 0, lastMove: null,
-      nextShape: dealShape(tiles, cells), spare: null, undos: UNDO_START, clears: 0, message: '',
+      nextShape: dealShape(tiles, cells), spare: null, undos: UNDO_START, clears: 0,
+      // a sun or star the seeding happens to fill earns nothing
+      anyShapes: 0, completed: newlyCompleted(rosettes, cells, []), message: '',
     });
     setUndo([]);
     setHovered(-1);
     setSelected(-1);
     setClearing(false);
+    setAnyShape(false);
     setGameId(g => g + 1);
     setLatest(null);
     setSize(newSize);
@@ -218,13 +233,17 @@ const Game = () => {
   const closeHelp = useCallback(() => setShowHelp(false), []);
   const closeScores = useCallback(() => setShowScores(false), []);
 
-  // Escape cancels an armed Clear
+  // Escape cancels an armed power-up
   useEffect(() => {
-    if (!clearing) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setClearing(false);
+    if (!clearing && !anyShape) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setClearing(false);
+      setAnyShape(false);
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [clearing]);
+  }, [clearing, anyShape]);
 
   // Escape closes the board-size menu
   useEffect(() => {
@@ -235,11 +254,17 @@ const Game = () => {
   }, [showSizes]);
 
   const tiles = board?.tiles ?? [];
+  const rosettes = board?.rosettes ?? [];
   const cells = state?.cells ?? [];
   const result = outcome(cells);
   // How values are written: as letters
   const label = valueLabel;
   const drawn = state?.next ?? 1;
+
+  // Whether the next value can go on tile `id`: on its dealt shape, or with
+  // Any shape armed, on any empty tile
+  const fits = (id: number) =>
+    !!state && id >= 0 && (anyShape ? canPlace(cells, id) : canPlaceDealt(tiles, cells, id, state.nextShape));
 
   // Undo is a power-up: it needs a charge
   const canUndo = !!state && undo.length > 0 && state.undos > 0;
@@ -257,11 +282,11 @@ const Game = () => {
     });
     setUndo(undo.slice(0, -1));
     setSelected(-1);
-    setClearing(false);
+    disarm();
   };
 
   const play = (id: number) => {
-    if (!state || result.over || id < 0 || !canPlaceDealt(tiles, cells, id, state.nextShape)) return;
+    if (!state || result.over || !fits(id)) return;
     const value = valueToPlace(tiles, cells, id, drawn);
     const { cells: placed, merges } = place(tiles, cells, id, value);
     const { cells: after, zeros, rubbleMerges } = dropRubble(tiles, placed, merges);
@@ -271,6 +296,13 @@ const Game = () => {
     const undos = addUndos(state.undos, earned);
     const clearEarned = clearsEarned(merges);
     const clears = addClears(state.clears, clearEarned);
+    // Any shape: spend one if armed, then earn from suns and stars completed
+    const completedNow = newlyCompleted(rosettes, after, state.completed);
+    const shapesEarned = anyShapesEarned(rosettes, completedNow);
+    const held = state.anyShapes - (anyShape ? 1 : 0);
+    const anyShapes = addAnyShapes(held, shapesEarned);
+    const kinds = completedNow.map(i => rosettes[i].kind);
+    setAnyShape(false);
     setUndo([...undo, state]);
     setState({
       cells: after,
@@ -282,6 +314,8 @@ const Game = () => {
       spare: state.spare,
       undos,
       clears,
+      anyShapes,
+      completed: [...state.completed, ...completedNow],
       message: [
         drawn === WILD ? `Wild played as ${label(value)}.` : '',
         describeMerges(merges, label) + (gained ? ` (+${gained}).` : ''),
@@ -293,6 +327,8 @@ const Game = () => {
           }.`
           : '',
         clearEarned ? `Chain! ${clears > state.clears ? '+1 Clear' : `Clears full (${clears})`}.` : '',
+        ...kinds.map(k => `${k === 'sun' ? 'Sun' : 'Star'}! +${ROSETTE_REWARD[k]} Any shape.`),
+        shapesEarned && anyShapes < held + shapesEarned ? `Any shapes full (${anyShapes}).` : '',
       ].filter(Boolean).join(' '),
     });
   };
@@ -344,7 +380,7 @@ const Game = () => {
       play(id);
       return;
     }
-    const placeable = !!state && !result.over && id >= 0 && canPlaceDealt(tiles, cells, id, state.nextShape);
+    const placeable = !result.over && fits(id);
     const action = tapAction(options.tap, selected, id, placeable);
     setSelected(action.select);
     if (action.place) play(id);
@@ -356,9 +392,9 @@ const Game = () => {
 
   // What the previewed tile would do
   const preview = useMemo(() => {
-    if (previewed < 0 || result.over || !canPlaceDealt(tiles, cells, previewed, state?.nextShape ?? null)) return null;
+    if (previewed < 0 || result.over || !fits(previewed)) return null;
     return previewAt(tiles, cells, previewed, drawn);
-  }, [previewed, cells, drawn, result.over, tiles, state?.nextShape]);
+  }, [previewed, cells, drawn, result.over, tiles, state?.nextShape, anyShape]);
 
   // When the game ends, record it on its board size's scoreboard and show
   // the scoreboard
@@ -400,8 +436,8 @@ const Game = () => {
     const px = 1 / view.scale; // one screen pixel, in board units
 
     const inGroup = new Set(preview?.merging);
-    // Empty tiles of the shape not dealt are shaded
-    const mustBe = shapeToPlace(tiles, cells, state.nextShape);
+    // Empty tiles of the shape not dealt are shaded (none with Any shape armed)
+    const mustBe = anyShape ? null : shapeToPlace(tiles, cells, state.nextShape);
     for (const t of tiles) {
       const v = cells[t.id];
       tracePath(ctx, t);
@@ -412,6 +448,19 @@ const Game = () => {
       ctx.stroke();
       if (v !== EMPTY) drawNumber(ctx, t, label(v), textFor(v));
     }
+
+    // Where each sun and star's five tips meet: a small ring, filled gold
+    // once completed
+    rosettes.forEach((r, i) => {
+      ctx.beginPath();
+      ctx.arc(r.center.x, r.center.y, 4.5, 0, 2 * Math.PI);
+      const done = state.completed.includes(i);
+      ctx.fillStyle = done ? '#eab308' : '#ffffff';
+      ctx.fill();
+      ctx.strokeStyle = done ? '#a16207' : TILE_EDGE;
+      ctx.lineWidth = done ? 1.5 : 1.2;
+      ctx.stroke();
+    });
 
     // Tiles the hovered move would merge
     for (const id of inGroup) {
@@ -459,7 +508,7 @@ const Game = () => {
       ctx.stroke();
       drawNumber(ctx, t, label(0), textFor(0));
     }
-  }, [tiles, cells, state, previewed, preview, view, space, label, clearing, hovered]);
+  }, [tiles, cells, state, previewed, preview, view, space, label, clearing, hovered, anyShape, rosettes]);
 
   const tileFromEvent = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!view) return -1;
@@ -477,6 +526,7 @@ const Game = () => {
     }. ${MIN_GROUP} or more matching tiles merge into the one you placed, a rung higher.`
     : '');
   if (clearing) status = 'Clear: tap a letter or # to empty it (tap Cancel Clear, or press Escape, to keep it).';
+  if (anyShape) status = 'Any shape: place the Next letter on any empty tile, kite or dart (tap Cancel, or press Escape, to keep it).';
   if (state && result.over) {
     status = result.won
       ? `You made ${TOP_LABEL}, the top of the alphabet, in ${moves} moves. You win! Score: ${score}.`
@@ -542,12 +592,19 @@ const Game = () => {
             title={`${state?.undos ?? 0} Undo charges`}>
             {`Undo (${state?.undos ?? 0})`}
           </button>
-          <button onClick={() => setClearing(c => !c)}
+          <button onClick={() => { setAnyShape(false); setClearing(c => !c); }}
             disabled={!clearing && (!state || result.over || state.clears <= 0)}
             aria-pressed={clearing}
             title="Clear: empty one tile of your choice (earned by chain reactions)"
             className={clearing ? 'px-3 py-1.5 rounded text-sm border border-red-600 bg-red-600 text-white' : button}>
             {clearing ? 'Cancel Clear' : `Clear (${state?.clears ?? 0})`}
+          </button>
+          <button onClick={() => { setClearing(false); setAnyShape(a => !a); }}
+            disabled={!anyShape && (!state || result.over || state.anyShapes <= 0)}
+            aria-pressed={anyShape}
+            title="Any shape: place the next value on a kite or a dart (earned by completing suns and stars)"
+            className={anyShape ? 'px-3 py-1.5 rounded text-sm border border-amber-600 bg-amber-500 text-white' : button}>
+            {anyShape ? 'Cancel Any shape' : `Any shape (${state?.anyShapes ?? 0})`}
           </button>
           <div className="relative">
             <button onClick={() => setShowSizes(s => !s)} aria-expanded={showSizes} aria-haspopup="menu"

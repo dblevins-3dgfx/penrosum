@@ -9,6 +9,7 @@ import {
   type Deal, shapeInPlay, swapSpare, tapAction,
   UNDO_MAX, UNDO_START, addUndos, undosAfterUndo, undosEarned,
   CLEAR_MAX, addClears, canClear, clearTile, clearsEarned,
+  ANY_SHAPE_MAX, type RosetteTiles, addAnyShapes, anyShapesEarned, newlyCompleted,
   TOP_VALUE, floorPow3, mergeResult,
   type Merge, mergePoints, rungOf, scoreMerges, scoreRubble,
 } from './rules';
@@ -743,5 +744,44 @@ describe('the Clear power-up', () => {
     expect(clearTile(c, 0)).toEqual(cellsOf({ 1: 0 }));
     expect(clearTile(c, 1)).toEqual(cellsOf({ 0: 9 }));
     expect(c).toEqual(cellsOf({ 0: 9, 1: 0 })); // input unchanged
+  });
+});
+
+describe('suns, stars and the Any shape power-up', () => {
+  // A sun on tiles 0-4 and a star on tiles 5-9
+  const rosettes: RosetteTiles[] = [
+    { kind: 'sun', tiles: [0, 1, 2, 3, 4] },
+    { kind: 'star', tiles: [5, 6, 7, 8, 9] },
+  ];
+  const board = (filled: number[]): Cell[] => Array.from({ length: 12 }, (_, i) => (filled.includes(i) ? 1 : EMPTY));
+
+  it('a sun or star is completed when all five of its tiles are filled', () => {
+    expect(newlyCompleted(rosettes, board([0, 1, 2, 3]), [])).toEqual([]);
+    expect(newlyCompleted(rosettes, board([0, 1, 2, 3, 4]), [])).toEqual([0]);
+    expect(newlyCompleted(rosettes, board([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), [])).toEqual([0, 1]);
+  });
+
+  it('# tiles count as filled', () => {
+    const c = board([0, 1, 2, 3]);
+    c[4] = 0;
+    expect(newlyCompleted(rosettes, c, [])).toEqual([0]);
+  });
+
+  it('each counts once a game', () => {
+    expect(newlyCompleted(rosettes, board([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), [0])).toEqual([1]);
+    expect(newlyCompleted(rosettes, board([0, 1, 2, 3, 4]), [0])).toEqual([]);
+  });
+
+  it('a sun earns one Any shape, a star two', () => {
+    expect(anyShapesEarned(rosettes, [0])).toBe(1);
+    expect(anyShapesEarned(rosettes, [1])).toBe(2);
+    expect(anyShapesEarned(rosettes, [0, 1])).toBe(3);
+    expect(anyShapesEarned(rosettes, [])).toBe(0);
+  });
+
+  it('holds at most 3', () => {
+    expect(ANY_SHAPE_MAX).toBe(3);
+    expect(addAnyShapes(2, 2)).toBe(3);
+    expect(addAnyShapes(0, 1)).toBe(1);
   });
 });

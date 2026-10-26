@@ -1,5 +1,5 @@
 import Dialog from './Dialog';
-import { CLEAR_MAX, MIN_GROUP, UNDO_MAX, UNDO_START, type Options } from './lib/rules';
+import { ANY_SHAPE_MAX, CLEAR_MAX, MIN_GROUP, UNDO_MAX, UNDO_START, type Options } from './lib/rules';
 
 interface ChoiceProps<T extends string> {
   label: string;
@@ -76,6 +76,12 @@ const HowToPlay = ({ options, setOption, onClose }: HowToPlayProps) => (
         {UNDO_START} and earn one each time you make a new highest letter (up to {UNDO_MAX}).{' '}
         <b>Clear</b> is a power-up too: a chain reaction (two or more merges in one move) earns one
         (up to {CLEAR_MAX}); tap <b>Clear</b>, then a letter or #, to empty that tile.
+      </p>
+      <p>
+        Suns (five kites meeting at their tips) and stars (five darts) are marked by a small ring
+        where the tips meet. Fill all five tiles of one (with anything) to complete it: the ring turns
+        gold and earns <b>Any shape</b>, one for a sun, two for a star (up to {ANY_SHAPE_MAX}). Tap{' '}
+        <b>Any shape</b> to place the next value on a kite or a dart, whichever it was dealt.
       </p>
       <p className="text-slate-500">
         Hover a tile (or, with Q15's preview, tap it once) to see what would merge and where rubble lands.

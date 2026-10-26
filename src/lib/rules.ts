@@ -395,3 +395,32 @@ export const clearTile = (cells: Cell[], id: number): Cell[] => {
   next[id] = EMPTY;
   return next;
 };
+
+// The Any shape power-up (issue #33): spending a charge lets the next value
+// go on an empty tile of either shape, ignoring the shape it was dealt. The
+// most charges held.
+export const ANY_SHAPE_MAX = 3;
+
+// A sun (five kites) or a star (five darts) meeting at a point; see
+// findRosettes in board.ts.
+export interface RosetteTiles {
+  kind: 'sun' | 'star';
+  tiles: number[];
+}
+
+// What completing one earns: a star, the rarer, earns two.
+export const ROSETTE_REWARD = { sun: 1, star: 2 } as const;
+
+// The suns and stars (indices into `rosettes`) that `cells` completes for
+// the first time: all five tiles filled (letters or #), and not already
+// completed this game (`done`). Each counts once a game, so emptying one
+// and filling it again earns nothing.
+export const newlyCompleted = (rosettes: RosetteTiles[], cells: Cell[], done: readonly number[]) =>
+  rosettes.flatMap((r, i) => (!done.includes(i) && r.tiles.every(t => cells[t] !== EMPTY) ? [i] : []));
+
+// The Any shape charges earned by completing the suns and stars `indices`.
+export const anyShapesEarned = (rosettes: RosetteTiles[], indices: number[]) =>
+  indices.reduce((sum, i) => sum + ROSETTE_REWARD[rosettes[i].kind], 0);
+
+// The charges held after earning `earned`, up to ANY_SHAPE_MAX.
+export const addAnyShapes = (held: number, earned: number) => Math.min(ANY_SHAPE_MAX, held + earned);
