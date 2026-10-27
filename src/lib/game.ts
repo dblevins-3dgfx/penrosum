@@ -239,12 +239,11 @@ const swapWithSpare = (game: Game, rand: () => number): Game => {
   };
 };
 
-// The game after `action`. With no game yet, only a new game makes one.
-// The input is unchanged.
-export const gameReducer = (game: Game | null, action: GameAction, rand: () => number = Math.random): Game | null => {
-  if (action.type === 'newGame') return newGame(action.size, (game?.id ?? 0) + 1, rand);
-  if (!game) return game;
+// The game after `action`. The first game is made by newGame; a new game
+// after it counts up. The input is unchanged.
+export const gameReducer = (game: Game, action: GameAction, rand: () => number = Math.random): Game => {
   switch (action.type) {
+    case 'newGame': return newGame(action.size, game.id + 1, rand);
     case 'tap': return tap(game, action.id, action.pointerType, action.tapRule, rand);
     case 'undo': return undo(game);
     case 'swapSpare': return swapWithSpare(game, rand);

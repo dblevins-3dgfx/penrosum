@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { BoardSize } from './lib/board';
 import {
-  type Game, type GameAction, canUndo, doomedAt, gameReducer, placementArmed, previewFor, previewedTile, tapUseOf,
+  type GameAction, canUndo, doomedAt, gameReducer, newGame, placementArmed, previewFor, previewedTile, tapUseOf,
 } from './lib/game';
 import { TOP_VALUE } from './lib/labels';
 import { type ArmedPowerUp, powerUp } from './lib/powerups';
@@ -15,12 +15,12 @@ export type { Board, Snapshot } from './lib/game';
 // The game, held for the screen: the game itself is gameReducer in
 // src/lib/game.ts; this keeps it, dispatches actions to it, and does what
 // isn't pure: remembering the board size, Escape to disarm, and recording a
-// finished game on the top 10. `hovered` is the tile under the pointer
-// (for the preview); `onGameEnd` is called once when a game ends, after it
-// is recorded.
+// finished game on the top 10. The first game starts at once, on the board
+// size remembered, so there is always a game. `hovered` is the tile under
+// the pointer (for the preview); `onGameEnd` is called once when a game
+// ends, after it is recorded.
 export const useGame = (hovered: number, onGameEnd: () => void) => {
-  const [size, setSize] = useState(() => load(SIZE_STORAGE_KEY, parseBoardSize));
-  const [game, setGame] = useState<Game | null>(null);
+  const [game, setGame] = useState(() => newGame(load(SIZE_STORAGE_KEY, parseBoardSize), 1, Math.random));
   const dispatch = (action: GameAction) => setGame(g => gameReducer(g, action));
   const [scores, setScores] = useState(() => load(SCORES_STORAGE_KEY, parseScores));
   // Each game is recorded on the scoreboard once, the first time it ends
@@ -31,20 +31,15 @@ export const useGame = (hovered: number, onGameEnd: () => void) => {
   const onGameEndRef = useRef(onGameEnd);
   onGameEndRef.current = onGameEnd;
 
-  // Starts a new game on a board of `newSize`, and remembers the size
-  const newGame = (newSize: BoardSize) => {
-    setSize(newSize);
-    save(SIZE_STORAGE_KEY, newSize);
+  // Starts a new game on a board of `size`, and remembers the size
+  const startGame = (size: BoardSize) => {
+    save(SIZE_STORAGE_KEY, size);
     setLatest(null);
-    dispatch({ type: 'newGame', size: newSize });
+    dispatch({ type: 'newGame', size });
   };
 
-  useEffect(() => {
-    if (!game) setGame(g => g ?? gameReducer(null, { type: 'newGame', size }));
-  }, [game, size]);
-
   // Escape cancels an armed power-up
-  const armed = game?.armed ?? null;
+  const { armed } = game;
   useEffect(() => {
     if (!armed) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setGame(g => gameReducer(g, { type: 'disarm' }));
@@ -52,15 +47,12 @@ export const useGame = (hovered: number, onGameEnd: () => void) => {
     return () => window.removeEventListener('keydown', onKey);
   }, [armed]);
 
-  const state = game?.position ?? null;
-  const cells = state?.cells ?? [];
-  const result = outcome(cells);
+  const result = outcome(game.position.cells);
 
   // When the game ends, record it on its board size's scoreboard, then
   // tell the caller
-  const over = result.over;
   useEffect(() => {
-    if (!over || !game || recorded.current === game.id) return;
+    if (!result.over || recorded.current === game.id) return;
     recorded.current = game.id;
     const { position, board } = game;
     const entry = {
@@ -75,32 +67,29 @@ export const useGame = (hovered: number, onGameEnd: () => void) => {
       setLatest({ size: board.size, rank });
     }
     onGameEndRef.current();
-  }, [over, game, scores]);
+  }, [result.over, game, scores]);
 
-  const preview = useMemo(() => (game ? previewFor(game, hovered) : null), [game, hovered]);
-  const doomed = useMemo(() => (game ? doomedAt(game, hovered) : []), [game, hovered]);
+  const preview = useMemo(() => previewFor(game, hovered), [game, hovered]);
+  const doomed = useMemo(() => doomedAt(game, hovered), [game, hovered]);
 
   return {
-    size,
-    board: game?.board ?? null,
-    state,
-    tiles: game?.board.tiles ?? [],
-    cells,
+    board: game.board,
+    state: game.position,
+    cells: game.position.cells,
     result,
-    drawn: state?.next ?? 1,
     armed,
     armedPowerUp: armed ? powerUp(armed) : null,
-    tapUse: game ? tapUseOf(game) : undefined,
+    tapUse: tapUseOf(game),
     // A placement power-up (Any shape) is armed: the next value may go on either shape
-    placementArmed: !!game && placementArmed(game),
-    picked: game?.picked ?? -1,
-    canUndo: !!game && canUndo(game),
-    previewed: game ? previewedTile(game, hovered) : -1,
+    placementArmed: placementArmed(game),
+    picked: game.picked,
+    canUndo: canUndo(game),
+    previewed: previewedTile(game, hovered),
     preview,
     doomed,
     scores,
     latest,
-    newGame,
+    newGame: startGame,
     undoMove: () => dispatch({ type: 'undo' }),
     swap: () => dispatch({ type: 'swapSpare' }),
     toggle: (which: ArmedPowerUp) => dispatch({ type: 'toggle', which }),
