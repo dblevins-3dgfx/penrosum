@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import BoardCanvas from './BoardCanvas';
 import { BOARD_SIZES } from './lib/board';
-import { TILE_EDGE, colorsFor } from './lib/colors';
+import { DEFAULT_PALETTE, type Palette, colorsFor } from './lib/colors';
 import { TOP_LABEL, valueLabel } from './lib/labels';
 import { type ArmedPowerUp, POWER_UPS } from './lib/powerups';
 import { parsePrefs, type Prefs } from './lib/prefs';
@@ -15,6 +15,9 @@ import Scoreboard from './Scoreboard';
 // How values are written: as letters
 const label = valueLabel;
 
+// The colors everything is drawn in (a skin, issue #42, would pick another)
+const palette = DEFAULT_PALETTE;
+
 // The chip's outline for the shape the next value was dealt: a kite,
 // or a dart with its notch at the bottom
 const CHIP_CLIP: Record<Shape, string> = {
@@ -24,19 +27,19 @@ const CHIP_CLIP: Record<Shape, string> = {
 
 // A one-pixel outline in the board's edge color, traced around whatever
 // the wrapped element draws, so it follows a chip's kite or dart cut
-const CHIP_OUTLINE = [[1, 0], [-1, 0], [0, 1], [0, -1]]
-  .map(([x, y]) => `drop-shadow(${x}px ${y}px 0 ${TILE_EDGE})`).join(' ');
+const chipOutline = (edge: string) => [[1, 0], [-1, 0], [0, 1], [0, -1]]
+  .map(([x, y]) => `drop-shadow(${x}px ${y}px 0 ${edge})`).join(' ');
 
 // A deal as a chip in the tile's own colors (the wildcard in its rainbow),
 // cut as a kite or dart and outlined like a board tile. `dealKey` changes with each new deal, so it pops
 // in. Used for the next value and the hot spare (`role`).
-const NextChip = ({ drawn, label, shape, dealKey, role = 'Next' }: {
-  drawn: number; label: string; shape: Shape | null; dealKey: string; role?: string;
+const NextChip = ({ drawn, label, shape, dealKey, palette, role = 'Next' }: {
+  drawn: number; label: string; shape: Shape | null; dealKey: string; palette: Palette; role?: string;
 }) => {
-  const { fill, text } = colorsFor(drawn);
+  const { fill, text } = colorsFor(drawn, palette);
   const name = drawn === WILD ? 'wildcard' : label;
   return (
-    <span className="inline-flex" style={{ filter: shape ? CHIP_OUTLINE : undefined }}>
+    <span className="inline-flex" style={{ filter: shape ? chipOutline(palette.tileEdge) : undefined }}>
       <b
         key={dealKey}
         aria-label={`${role}: ${name}${shape ? ` on a ${shape}` : ''}`}
@@ -153,7 +156,7 @@ const Game = () => {
             // Empty tiles of the shape not dealt are shaded (none with Any shape armed)
             mustBe={game.anyShape ? null : shapeToPlace(board.tiles, cells, state.nextShape)}
             previewed={game.previewed} preview={game.preview} doomed={game.doomed}
-            picked={picked} pickColor={tapUse?.pickColor} crosshair={!!tapUse} label={label}
+            picked={tapUse?.canPick ? picked : -1} crosshair={!!tapUse} label={label} palette={palette}
             onHover={setHovered} onTap={(id, pointerType) => game.tapBoard(id, pointerType, prefs.tap)}
           />
         )}
@@ -163,14 +166,14 @@ const Game = () => {
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <h1 className="portrait:text-xl landscape:text-2xl font-bold text-indigo-700 mr-auto">Penrosum</h1>
           <span className="text-sm text-slate-600">Next</span>
-          <NextChip drawn={drawn} label={label(drawn)} shape={state?.nextShape ?? null}
+          <NextChip palette={palette} drawn={drawn} label={label(drawn)} shape={state?.nextShape ?? null}
             dealKey={`${moves}:${drawn}:${state?.nextShape}`} />
           <button onClick={game.swap} disabled={!state || result.over}
             title={state?.spare ? 'Swap the next value with the spare' : 'Keep the next value as the spare'}
             className="flex items-center gap-2 rounded-lg px-1.5 py-0.5 hover:bg-slate-100 disabled:opacity-40">
             <span className="text-sm text-slate-600">Spare ⇄</span>
             {state?.spare ? (
-              <NextChip role="Spare" drawn={state.spare.value} label={label(state.spare.value)} shape={state.spare.shape}
+              <NextChip palette={palette} role="Spare" drawn={state.spare.value} label={label(state.spare.value)} shape={state.spare.shape}
                 dealKey={`${moves}:${state.spare.value}:${state.spare.shape}`} />
             ) : (
               <b aria-label="Spare: empty" className="inline-flex w-11 h-11 rounded-lg border-2 border-dashed border-slate-300" />

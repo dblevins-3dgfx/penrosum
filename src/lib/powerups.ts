@@ -202,11 +202,10 @@ export type Preview = ReturnType<typeof previewAt>;
 // A power-up used by tapping the board once armed. `first` is the tile
 // picked by an earlier tap, for one that takes two (Swap), else -1.
 export interface TapUse {
-  // Swap: the first tap picks a tile (`canPick`), outlined in `pickColor`,
-  // and the second tap uses it. Tapping the picked tile again unpicks it,
+  // Swap: the first tap picks a tile (`canPick`), outlined in the
+  // palette's picked color, and the second tap uses it. Tapping the picked tile again unpicks it,
   // and a tap on another tile it can't be used with picks that one instead.
   canPick?: (cells: Cell[], id: number) => boolean;
-  pickColor?: string;
   // Whether a tap on `id` uses it; any other tap disarms it.
   canUse: (tiles: Tile[], cells: Cell[], id: number, first: number) => boolean;
   // The board after using it on `id`, with any merges it made (which then
@@ -307,7 +306,6 @@ export const POWER_UPS: PowerUp[] = [
       : `Swap: now tap a tile holding something other than ${label(cells[first] as number)} to swap it with.`),
     tap: {
       canPick: (cells, id) => id >= 0 && cells[id] !== EMPTY,
-      pickColor: '#0d9488',
       canUse: (_tiles, cells, id, first) => canSwap(cells, first, id),
       apply: (tiles, cells, id, first) => swapAt(tiles, cells, first, id),
       lead: (_tiles, cells, id, first, _held, label) => `Swapped ${label(cells[first] as number)} and ${label(cells[id] as number)}.`,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  EMPTY_FILL, OFF_SHAPE_FILL, RUNG_FILLS, WILD_COLORS, ZERO_FILL, colorsFor, fillFor, textFor,
+  DEFAULT_PALETTE, EMPTY_FILL, OFF_SHAPE_FILL, type Palette, RUNG_FILLS, WILD_COLORS, ZERO_FILL, colorsFor, fillFor, textFor,
 } from './colors';
 import { EMPTY, TOP_VALUE, WILD } from './rules';
 
@@ -21,12 +21,12 @@ const rungs = Array.from({ length: 26 }, (_, i) => 3 ** i);
 describe('tile colors', () => {
   it('gives every letter, A to Z, its own fill', () => {
     expect(RUNG_FILLS).toHaveLength(26);
-    expect(new Set(rungs.map(fillFor)).size).toBe(26);
+    expect(new Set(rungs.map(v => fillFor(v))).size).toBe(26);
     expect(rungs[25]).toBe(TOP_VALUE);
   });
 
   it('starts A to E as before: pale yellow, yellow, then on through the wheel', () => {
-    expect([1, 3, 9].map(fillFor)).toEqual(['#fef3c7', '#fcd34d', '#fb923c']);
+    expect([1, 3, 9].map(v => fillFor(v))).toEqual(['#fef3c7', '#fcd34d', '#fb923c']);
   });
 
   it('makes Z gold', () => {
@@ -35,7 +35,7 @@ describe('tile colors', () => {
 
   it('gives # its own slate, darker than the empty tiles of the other shape', () => {
     expect(fillFor(0)).toBe(ZERO_FILL);
-    expect(rungs.map(fillFor)).not.toContain(ZERO_FILL);
+    expect(rungs.map(v => fillFor(v))).not.toContain(ZERO_FILL);
     expect(luminance(ZERO_FILL)).toBeLessThan(luminance(OFF_SHAPE_FILL) - 0.2);
   });
 
@@ -67,5 +67,39 @@ describe('tile colors', () => {
 
   it('an empty tile is white', () => {
     expect(colorsFor(EMPTY).fill).toBe(EMPTY_FILL);
+  });
+});
+
+describe('palettes', () => {
+  it('gives every letter a fill and a letter color', () => {
+    expect(DEFAULT_PALETTE.rungFills).toHaveLength(26);
+    expect(DEFAULT_PALETTE.rungTexts).toHaveLength(26);
+  });
+
+  it('draws from the palette it is given, so a skin is just another palette', () => {
+    const skin: Palette = {
+      ...DEFAULT_PALETTE,
+      rungFills: DEFAULT_PALETTE.rungFills.map((_, i) => `#0000${String(i).padStart(2, '0')}`),
+      rungTexts: DEFAULT_PALETTE.rungTexts.map(() => '#ffffff'),
+      zeroFill: '#111111',
+      emptyFill: '#222222',
+      wild: { fill: '#333333', text: '#000000' },
+    };
+    expect(fillFor(3, skin)).toBe('#000001');
+    expect(textFor(3, skin)).toBe('#ffffff');
+    expect(fillFor(0, skin)).toBe('#111111');
+    expect(colorsFor(EMPTY, skin).fill).toBe('#222222');
+    expect(colorsFor(WILD, skin)).toEqual({ fill: '#333333', text: '#000000' });
+  });
+
+  it('keeps the outlines on the board apart: preview, would-empty, picked and last move', () => {
+    const { previewOutline, doomedOutline, pickedOutline, lastMoveOutline } = DEFAULT_PALETTE;
+    expect(new Set([previewOutline, doomedOutline, pickedOutline, lastMoveOutline]).size).toBe(4);
+  });
+
+  it('keeps the previewed letter readable on its tint', () => {
+    const { previewText, previewTint, previewTintMerging } = DEFAULT_PALETTE;
+    expect(contrast(previewText, previewTint)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(previewText, previewTintMerging)).toBeGreaterThanOrEqual(4.5);
   });
 });

@@ -1,5 +1,7 @@
-// Tile colors, shared by the board and the "Next" chip in the header so a
-// number looks the same in both places.
+// Colors, as a palette: every color the board and the Next and Spare chips
+// are drawn in. The drawing takes a palette rather than choosing its own
+// colors, so a skin (issue #42) is just another palette. DEFAULT_PALETTE is
+// the game's look.
 
 import { EMPTY, WILD, rungOf, type Cell } from './rules';
 
@@ -8,24 +10,44 @@ export interface TileColors {
   text: string;
 }
 
-export const EMPTY_FILL = '#ffffff';
+export interface Palette {
+  // One fill and one letter color per rung, A to Z (see rungOf)
+  rungFills: string[];
+  rungTexts: string[];
+  // The # tile
+  zeroFill: string;
+  zeroText: string;
+  emptyFill: string;
+  // An empty tile that the next value can't go on: not the shape it was dealt
+  offShapeFill: string;
+  // The tile edges on the board, also drawn around the Next and Spare chips
+  tileEdge: string;
+  // The wildcard, in the Next and Spare chips only
+  wild: TileColors;
+  // The merge preview: the previewed tile's tint (stronger when it would
+  // merge), the outline of it and of the tiles it would clear, and its letter
+  previewTint: string;
+  previewTintMerging: string;
+  previewOutline: string;
+  previewText: string;
+  // Outlines: the tiles an armed power-up would empty, the tile a power-up
+  // picked (Swap's first), and the last move
+  doomedOutline: string;
+  pickedOutline: string;
+  lastMoveOutline: string;
+  // The ring where a sun's or star's tips meet: open, and once completed
+  ringFill: string;
+  ringEdge: string;
+  ringDoneFill: string;
+  ringDoneEdge: string;
+}
 
-// The tile edges on the board, also drawn around the Next and Spare chips
-// so a pale tile (A) stands out from a white background.
-export const TILE_EDGE = '#94a3b8';
-
-// An empty tile that the next value can't go on: not the shape it was dealt
-export const OFF_SHAPE_FILL = '#e2e8f0';
-
-// The # tile: a darker slate than OFF_SHAPE_FILL, so obstacles stand
-// apart from empty tiles of the shape not dealt.
-export const ZERO_FILL = '#94a3b8';
-export const ZERO_TEXT = '#1e293b';
-
-// One fill per rung, A to Z (see rungOf), each different. A to J go
-// through the light shades of the color wheel (warm to cool); K to Y
-// through deep shades, with white letters; Z, the winning tile, is gold.
-export const RUNG_FILLS = [
+// A to J go through the light shades of the color wheel (warm to cool),
+// written in near-black; K to Y through deep shades, written in white; Z,
+// the winning tile, is gold.
+const DARK_TEXT = '#1e293b';
+const WHITE_TEXT = '#ffffff';
+const DEFAULT_RUNG_FILLS = [
   '#fef3c7', // A pale yellow
   '#fcd34d', // B yellow
   '#fb923c', // C orange
@@ -54,35 +76,59 @@ export const RUNG_FILLS = [
   '#eab308', // Z gold
 ];
 
-// The first rung written in white: from K, the deep shades.
-const FIRST_WHITE_RUNG = 11;
+export const DEFAULT_PALETTE: Palette = {
+  rungFills: DEFAULT_RUNG_FILLS,
+  // White from K (the 11th rung) to Y; near-black on the light shades and Z
+  rungTexts: DEFAULT_RUNG_FILLS.map((_, i) => (i >= 10 && i < 25 ? WHITE_TEXT : DARK_TEXT)),
+  // A darker slate than the off-shape fill, so obstacles stand apart from
+  // empty tiles of the shape not dealt
+  zeroFill: '#94a3b8',
+  zeroText: DARK_TEXT,
+  emptyFill: '#ffffff',
+  offShapeFill: '#e2e8f0',
+  tileEdge: '#94a3b8',
+  wild: {
+    fill: 'linear-gradient(135deg, #f472b6, #fcd34d, #34d399, #38bdf8, #c084fc)',
+    text: '#ffffff',
+  },
+  previewTint: '#e0e7ff',
+  previewTintMerging: '#c7d2fe',
+  previewOutline: '#4f46e5',
+  previewText: '#3730a3',
+  doomedOutline: '#dc2626',
+  pickedOutline: '#0d9488',
+  lastMoveOutline: '#d97706',
+  ringFill: '#ffffff',
+  ringEdge: '#94a3b8',
+  ringDoneFill: '#eab308',
+  ringDoneEdge: '#a16207',
+};
 
-const DARK_TEXT = '#1e293b';
-const WHITE_TEXT = '#ffffff';
+// The default palette's colors by name, for the tests and the chips
+export const RUNG_FILLS = DEFAULT_PALETTE.rungFills;
+export const ZERO_FILL = DEFAULT_PALETTE.zeroFill;
+export const EMPTY_FILL = DEFAULT_PALETTE.emptyFill;
+export const OFF_SHAPE_FILL = DEFAULT_PALETTE.offShapeFill;
+export const TILE_EDGE = DEFAULT_PALETTE.tileEdge;
+export const WILD_COLORS = DEFAULT_PALETTE.wild;
 
-// The fill for a value: its rung's, or the # fill for 0.
-export const fillFor = (value: number) => {
+// The fill for a value: its rung's, or the # fill for 0. A value that
+// isn't a power of 3 takes its rung's.
+export const fillFor = (value: number, palette: Palette = DEFAULT_PALETTE) => {
   const rung = rungOf(value);
-  return rung === 0 ? ZERO_FILL : RUNG_FILLS[Math.min(rung, RUNG_FILLS.length) - 1];
+  return rung === 0 ? palette.zeroFill : palette.rungFills[Math.min(rung, palette.rungFills.length) - 1];
 };
 
-// The letter color for a value: near-black on a # and on the light shades
-// and gold Z, white on the deep shades K to Y.
-export const textFor = (value: number) => {
+// The letter color for a value.
+export const textFor = (value: number, palette: Palette = DEFAULT_PALETTE) => {
   const rung = rungOf(value);
-  if (rung === 0) return ZERO_TEXT;
-  return rung >= FIRST_WHITE_RUNG && rung < RUNG_FILLS.length ? WHITE_TEXT : DARK_TEXT;
+  return rung === 0 ? palette.zeroText : palette.rungTexts[Math.min(rung, palette.rungTexts.length) - 1];
 };
 
-// The wildcard never sits on the board, so it gets a look no number has.
-export const WILD_COLORS: TileColors = {
-  fill: 'linear-gradient(135deg, #f472b6, #fcd34d, #34d399, #38bdf8, #c084fc)',
-  text: '#ffffff',
-};
-
-// How a board cell or a drawn value looks.
-export const colorsFor = (value: Cell): TileColors => {
-  if (value === EMPTY) return { fill: EMPTY_FILL, text: textFor(1) };
-  if (value === WILD) return WILD_COLORS;
-  return { fill: fillFor(value), text: textFor(value) };
+// How a board cell or a drawn value looks. The wildcard never sits on the
+// board, so it gets a look no number has.
+export const colorsFor = (value: Cell, palette: Palette = DEFAULT_PALETTE): TileColors => {
+  if (value === EMPTY) return { fill: palette.emptyFill, text: textFor(1, palette) };
+  if (value === WILD) return palette.wild;
+  return { fill: fillFor(value, palette), text: textFor(value, palette) };
 };
