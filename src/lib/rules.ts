@@ -133,7 +133,7 @@ export const place = (tiles: Tile[], cells: Cell[], id: number, value: number): 
 // number the tile would end up with, every tile its merges would clear,
 // where its rubble would land (`rubble`) and the 0s that rubble would merge
 // away (in `merging` too).
-export const previewAt = (tiles: Tile[], cells: Cell[], id: number, drawn: number) => {
+export const previewAt = (tiles: Tile[], cells: Cell[], id: number, drawn: Drawn) => {
   const value = valueToPlace(tiles, cells, id, drawn);
   return previewOf(tiles, id, place(tiles, cells, id, value));
 };
@@ -143,7 +143,9 @@ export const previewAt = (tiles: Tile[], cells: Cell[], id: number, drawn: numbe
 export const previewOf = (tiles: Tile[], id: number, { cells: after, merges }: PlaceResult) => {
   const merging = merges.flatMap(m => m.from);
   const { zeros, rubbleMerges } = dropRubble(tiles, after, merges);
-  return { value: after[id], merging: [...merging, ...rubbleMerges.flatMap(m => m.from)], rubble: zeros };
+  // The tile placed on always holds a number afterwards: the value placed,
+  // or what its merges made
+  return { value: after[id] as number, merging: [...merging, ...rubbleMerges.flatMap(m => m.from)], rubble: zeros };
 };
 
 // The largest power of 3 not above `n` (1, 3, 9, 27 ...), or 0 for 0.
@@ -188,15 +190,19 @@ export const scoreMerges = (merges: Merge[]) =>
 export const scoreRubble = (rubbleMerges: Merge[]) =>
   rubbleMerges.reduce((total, m) => total + mergePoints(m), 0);
 
-export type Deck = [number, number][]; // [value, chance], chances adding to 1
+// The wildcard, as a drawn value. It never sits on the board: placing it
+// places the number resolveWild picks. It is not a number, so a drawn
+// value (`Drawn`) can't be mistaken for one held by a tile.
+export const WILD = 'wild';
+
+// What the deck deals: a number, or the wildcard.
+export type Drawn = number | typeof WILD;
+
+export type Deck = [Drawn, number][]; // [value, chance], chances adding to 1
 
 // The numbers the deck deals, and how they share the draws that aren't
 // wildcards: 0 (#) a tenth, then 1, 3 and 9 (A, B, C) at 7 : 2 : 1.
-export const NUMBERS: Deck = [[0, 0.1], [1, 0.63], [3, 0.18], [9, 0.09]];
-
-// The wildcard, as a drawn value. It never sits on the board: placing it
-// places the number resolveWild picks.
-export const WILD = -1;
+export const NUMBERS: [number, number][] = [[0, 0.1], [1, 0.63], [3, 0.18], [9, 0.09]];
 
 // How often a drawn value is WILD.
 export const WILD_CHANCE = 0.05;
@@ -204,7 +210,7 @@ export const WILD_CHANCE = 0.05;
 // The value for each move is drawn at random from DECK and shown in
 // advance: WILD WILD_CHANCE of the time, otherwise a number from NUMBERS
 // in its proportions.
-export const DECK: Deck = [[WILD, WILD_CHANCE], ...NUMBERS.map(([v, w]) => [v, w * (1 - WILD_CHANCE)] as [number, number])];
+export const DECK: Deck = [[WILD, WILD_CHANCE], ...NUMBERS.map(([v, w]) => [v, w * (1 - WILD_CHANCE)] as [Drawn, number])];
 
 // What a wildcard placed on `id` becomes: the number that does best there.
 // It tries each number held by a neighbor and keeps the one whose move
@@ -228,7 +234,7 @@ export const resolveWild = (tiles: Tile[], cells: Cell[], id: number) => {
 
 // The number a drawn value places on `id`: itself, or for a wildcard the
 // number it resolves to.
-export const valueToPlace = (tiles: Tile[], cells: Cell[], id: number, drawn: number) =>
+export const valueToPlace = (tiles: Tile[], cells: Cell[], id: number, drawn: Drawn): number =>
   drawn === WILD ? resolveWild(tiles, cells, id) : drawn;
 
 export interface RubbleResult {
@@ -265,7 +271,7 @@ export const dropRubble = (tiles: Tile[], cells: Cell[], merges: Merge[]): Rubbl
 };
 
 // Draws a value from `deck`. `rand` returns a number in [0, 1).
-export const drawValue = (rand: () => number = Math.random, deck: Deck = DECK) => {
+export const drawValue = (rand: () => number = Math.random, deck: Deck = DECK): Drawn => {
   let r = rand();
   for (const [value, weight] of deck) {
     if (r < weight) return value;
@@ -325,7 +331,7 @@ export const outcome = (cells: Cell[]): Outcome => {
 
 // A deal: the next value and the shape it must go on.
 export interface Deal {
-  value: number;
+  value: Drawn;
   shape: Shape;
 }
 
