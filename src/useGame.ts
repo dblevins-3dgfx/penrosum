@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { BoardSize } from './lib/board';
 import {
-  type Game, type GameAction, canUndo, doomedAt, gameReducer, previewFor, previewedTile, tapUseOf,
+  type Game, type GameAction, canUndo, doomedAt, gameReducer, placementArmed, previewFor, previewedTile, tapUseOf,
 } from './lib/game';
 import { TOP_VALUE } from './lib/labels';
 import { type ArmedPowerUp, powerUp } from './lib/powerups';
@@ -91,7 +91,8 @@ export const useGame = (hovered: number, onGameEnd: () => void) => {
     armed,
     armedPowerUp: armed ? powerUp(armed) : null,
     tapUse: game ? tapUseOf(game) : undefined,
-    anyShape: armed === 'anyShape',
+    // A placement power-up (Any shape) is armed: the next value may go on either shape
+    placementArmed: !!game && placementArmed(game),
     picked: game?.picked ?? -1,
     canUndo: !!game && canUndo(game),
     previewed: game ? previewedTile(game, hovered) : -1,

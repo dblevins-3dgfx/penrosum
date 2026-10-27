@@ -219,8 +219,17 @@ export interface TapUse {
   doomed?: (tiles: Tile[], cells: Cell[], id: number) => number[];
 }
 
+// How a power-up is used:
+//   now:       it acts when its tray tile is tapped (Undo)
+//   placement: armed, it changes where the next value can go, and the
+//              next move spends it (Any shape)
+//   board:     armed, the next tap on the board uses it there (Clear,
+//              Upgrade, Sweep, Swap); see TapUse
+export type PowerUpKind = 'now' | 'placement' | 'board';
+
 export interface PowerUp {
   id: PowerUpId;
+  kind: PowerUpKind;
   symbol: string; // on its tile in the tray
   short: string; // its name on the tile
   name: string; // its name in the status line ("+1 Any shape")
@@ -240,13 +249,13 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 export const POWER_UPS: PowerUp[] = [
   {
-    id: 'undo', symbol: '↶', short: 'Undo', name: 'Undo', start: UNDO_START, max: UNDO_MAX,
+    id: 'undo', kind: 'now', symbol: '↶', short: 'Undo', name: 'Undo', start: UNDO_START, max: UNDO_MAX,
     title: 'Undo: step back one move (earned by making a new highest letter)',
     earned: ctx => undosEarned(ctx.highestBefore, ctx.merges),
     reason: (ctx, label) => `New letter ${label(ctx.highestAfter)}!`,
   },
   {
-    id: 'clear', symbol: '✕', short: 'Clear', name: 'Clear', start: 0, max: CLEAR_MAX,
+    id: 'clear', kind: 'board', symbol: '✕', short: 'Clear', name: 'Clear', start: 0, max: CLEAR_MAX,
     title: 'Clear: empty one tile of your choice (earned by chain reactions)',
     armedClass: 'bg-red-600 border-red-700',
     earned: ctx => clearsEarned(ctx.merges),
@@ -260,7 +269,7 @@ export const POWER_UPS: PowerUp[] = [
     },
   },
   {
-    id: 'anyShape', symbol: '◇', short: 'Shape', name: 'Any shape', start: 0, max: ANY_SHAPE_MAX,
+    id: 'anyShape', kind: 'placement', symbol: '◇', short: 'Shape', name: 'Any shape', start: 0, max: ANY_SHAPE_MAX,
     title: 'Any shape: place the next value on a kite or a dart (earned by completing suns and stars)',
     armedClass: 'bg-amber-500 border-amber-600',
     earned: ctx => anyShapesEarned(ctx.completed),
@@ -268,7 +277,7 @@ export const POWER_UPS: PowerUp[] = [
     hint: () => 'Any shape: place the Next letter on any empty tile, kite or dart (tap Shape again, or press Escape, to keep it).',
   },
   {
-    id: 'upgrade', symbol: '⇧', short: 'Upgrade', name: 'Upgrade', start: 0, max: UPGRADE_MAX,
+    id: 'upgrade', kind: 'board', symbol: '⇧', short: 'Upgrade', name: 'Upgrade', start: 0, max: UPGRADE_MAX,
     title: 'Upgrade: raise one letter a rung (earned by merges of 5 or more tiles)',
     armedClass: 'bg-emerald-600 border-emerald-700',
     earned: ctx => upgradesEarned(ctx.merges),
@@ -282,7 +291,7 @@ export const POWER_UPS: PowerUp[] = [
     },
   },
   {
-    id: 'sweep', symbol: '#', short: 'Sweep', name: 'Sweep', start: 0, max: SWEEP_MAX,
+    id: 'sweep', kind: 'board', symbol: '#', short: 'Sweep', name: 'Sweep', start: 0, max: SWEEP_MAX,
     title: 'Sweep: clear every # on a tile and the tiles touching it (earned by rubble merges)',
     armedClass: 'bg-slate-600 border-slate-700',
     earned: ctx => sweepsEarned(ctx.rubbleMerges),
@@ -296,7 +305,7 @@ export const POWER_UPS: PowerUp[] = [
     },
   },
   {
-    id: 'swap', symbol: '⇆', short: 'Swap', name: 'Swap', start: 0, max: SWAP_MAX,
+    id: 'swap', kind: 'board', symbol: '⇆', short: 'Swap', name: 'Swap', start: 0, max: SWAP_MAX,
     title: 'Swap: exchange two tiles (earned every 500 points)',
     armedClass: 'bg-teal-600 border-teal-700',
     earned: ctx => swapsEarned(ctx.scoreBefore, ctx.scoreAfter),

@@ -2,7 +2,7 @@
 // letter, 1 = A, 3 = B, 9 = C ... 3^25 = Z, and 0 is #. A number that isn't
 // a power of 3 (none arises in play) would be written as a number.
 
-import { TOP_VALUE, WILD } from './rules';
+import { TOP_VALUE, WILD, type Drawn } from './rules';
 
 export const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 export const ZERO_LABEL = '#';
@@ -15,7 +15,7 @@ const log3 = (n: number) => {
 };
 
 // How a value (or the wildcard) is written.
-export const valueLabel = (value: number) => {
+export const valueLabel = (value: Drawn) => {
   if (value === WILD) return '★';
   if (value === 0) return ZERO_LABEL;
   const e = log3(value);

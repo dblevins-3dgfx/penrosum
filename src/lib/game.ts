@@ -10,7 +10,7 @@ import {
   type ArmedPowerUp, type Charges, newlyCompleted, powerUp, startCharges, toggleArmed, undosAfterUndo,
 } from './powerups';
 import {
-  WILD, type Cell, type Deal, type Shape, type TapRule,
+  WILD, type Cell, type Deal, type Drawn, type Shape, type TapRule,
   canPlace, canPlaceDealt, dealShape, drawValue, outcome, place, previewAt, seedBoard, swapSpare,
   tapAction, valueToPlace,
 } from './rules';
@@ -26,7 +26,7 @@ export interface Board {
 // A position in the game: what Undo goes back to.
 export interface Snapshot {
   cells: Cell[];
-  next: number;
+  next: Drawn; // the value dealt for the next move, a number or the wildcard
   moves: number;
   score: number; // points from merges so far
   lastMove: number | null;
@@ -85,11 +85,14 @@ export const newGame = (size: BoardSize, id: number, rand: () => number): Game =
 // Whether the game has ended (board full, or a Z made).
 export const isOver = (game: Game) => outcome(game.position.cells).over;
 
+// Whether a power-up that changes placement (Any shape) is armed.
+export const placementArmed = (game: Game) => !!game.armed && powerUp(game.armed).kind === 'placement';
+
 // Whether the next value can go on tile `id`: on its dealt shape, or with
-// Any shape armed, on any empty tile.
+// a placement power-up (Any shape) armed, on any empty tile.
 export const fits = (game: Game, id: number) => {
   const { cells, nextShape } = game.position;
-  return id >= 0 && (game.armed === 'anyShape'
+  return id >= 0 && (placementArmed(game)
     ? canPlace(cells, id)
     : canPlaceDealt(game.board.tiles, cells, id, nextShape));
 };
@@ -141,7 +144,7 @@ const play = (game: Game, id: number, rand: () => number): Game => {
   const settled = settle(
     tiles, rosettes, position, id, placed, merges,
     position.next === WILD ? `Wild played as ${label(value)}.` : '',
-    game.armed === 'anyShape' ? 'anyShape' : undefined,
+    placementArmed(game) && game.armed ? game.armed : undefined,
   );
   return {
     ...game,

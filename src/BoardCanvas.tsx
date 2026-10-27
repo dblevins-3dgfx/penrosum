@@ -154,7 +154,7 @@ const BoardCanvas = ({
       ctx.strokeStyle = palette.previewOutline;
       ctx.lineWidth = 3;
       ctx.stroke();
-      drawNumber(ctx, t, label(preview.value as number), palette.previewText);
+      drawNumber(ctx, t, label(preview.value), palette.previewText);
     }
 
     // Where the move's rubble would land: a gray # with the

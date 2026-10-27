@@ -61,6 +61,14 @@ describe('the power-up table', () => {
   it('has Clear, Upgrade, Sweep and Swap used by tapping the board', () => {
     expect(POWER_UPS.filter(p => p.tap).map(p => p.id)).toEqual(['clear', 'upgrade', 'sweep', 'swap']);
   });
+
+  it('says how each is used: Undo at once, Any shape on placement, the rest on the board', () => {
+    expect(Object.fromEntries(POWER_UPS.map(p => [p.id, p.kind]))).toEqual({
+      undo: 'now', clear: 'board', anyShape: 'placement', upgrade: 'board', sweep: 'board', swap: 'board',
+    });
+    // A power-up is used on the board exactly when it says how a tap uses it
+    for (const p of POWER_UPS) expect(!!p.tap).toBe(p.kind === 'board');
+  });
 });
 
 describe('earnCharges', () => {

@@ -5,7 +5,7 @@ import { DEFAULT_PALETTE, type Palette, colorsFor } from './lib/colors';
 import { valueLabel } from './lib/labels';
 import { type ArmedPowerUp, POWER_UPS } from './lib/powerups';
 import { parsePrefs, type Prefs } from './lib/prefs';
-import { EMPTY, WILD, type Shape, highestTile, shapeToPlace } from './lib/rules';
+import { EMPTY, WILD, type Drawn, type Shape, highestTile, shapeToPlace } from './lib/rules';
 import { PREFS_STORAGE_KEY, load, save } from './storage';
 import { statusLine } from './lib/status';
 import { useGame } from './useGame';
@@ -35,7 +35,7 @@ const chipOutline = (edge: string) => [[1, 0], [-1, 0], [0, 1], [0, -1]]
 // cut as a kite or dart and outlined like a board tile. `dealKey` changes with each new deal, so it pops
 // in. Used for the next value and the hot spare (`role`).
 const NextChip = ({ drawn, label, shape, dealKey, palette, role = 'Next' }: {
-  drawn: number; label: string; shape: Shape | null; dealKey: string; palette: Palette; role?: string;
+  drawn: Drawn; label: string; shape: Shape | null; dealKey: string; palette: Palette; role?: string;
 }) => {
   const { fill, text } = colorsFor(drawn, palette);
   const name = drawn === WILD ? 'wildcard' : label;
@@ -153,7 +153,7 @@ const Game = () => {
             tiles={board.tiles} bounds={board.bounds} rosettes={board.rosettes} completed={state.completed}
             cells={cells} lastMove={state.lastMove}
             // Empty tiles of the shape not dealt are shaded (none with Any shape armed)
-            mustBe={game.anyShape ? null : shapeToPlace(board.tiles, cells, state.nextShape)}
+            mustBe={game.placementArmed ? null : shapeToPlace(board.tiles, cells, state.nextShape)}
             previewed={game.previewed} preview={game.preview} doomed={game.doomed}
             picked={tapUse?.canPick ? picked : -1} crosshair={!!tapUse} label={label} palette={palette}
             onHover={setHovered} onTap={(id, pointerType) => game.tapBoard(id, pointerType, prefs.tap)}
@@ -194,7 +194,8 @@ const Game = () => {
           {POWER_UPS.map(p => {
             const count = state?.charges[p.id] ?? 0;
             const isArmed = armed === p.id;
-            return p.id === 'undo' ? (
+            // A power-up that acts at once: Undo, the only one
+            return p.kind === 'now' ? (
               <PowerUpTile key={p.id} symbol={p.symbol} name={p.short} count={count} title={p.title}
                 onClick={game.undoMove} disabled={!game.canUndo} />
             ) : (

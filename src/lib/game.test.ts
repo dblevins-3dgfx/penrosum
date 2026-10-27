@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BoardTile } from './board';
-import { type Game, type GameAction, type Snapshot, canUndo, doomedAt, gameReducer, previewFor } from './game';
+import { type Game, type GameAction, type Snapshot, canUndo, doomedAt, gameReducer, placementArmed, previewFor } from './game';
 import { type Charges, startCharges } from './powerups';
 import { EMPTY, type Cell } from './rules';
 
@@ -230,6 +230,13 @@ describe('Any shape', () => {
     expect(placed.position.cells[3]).toBe(1);
     expect(placed.position.charges.anyShape).toBe(0);
     expect(placed.armed).toBeNull();
+  });
+
+  it('is the placement power-up: arming it, and only it, frees the shape', () => {
+    const g = gameOf(undefined, {}, { anyShape: 1, clear: 1 });
+    expect(placementArmed(run(g, { type: 'toggle', which: 'anyShape' }))).toBe(true);
+    expect(placementArmed(run(g, { type: 'toggle', which: 'clear' }))).toBe(false);
+    expect(placementArmed(g)).toBe(false);
   });
 });
 
