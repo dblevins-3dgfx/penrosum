@@ -3,7 +3,7 @@
 // colors, so a skin (issue #42) is just another palette. DEFAULT_PALETTE is
 // the game's look.
 
-import { EMPTY, WILD, rungOf, type Cell, type Drawn } from './rules';
+import { EMPTY, WILD, rungOf, type Cell, type Drawn, type Shape } from './rules';
 
 export interface TileColors {
   fill: string; // a CSS color, or for the wildcard a CSS gradient
@@ -123,6 +123,14 @@ export const fillFor = (value: number, palette: Palette = DEFAULT_PALETTE) => {
 export const textFor = (value: number, palette: Palette = DEFAULT_PALETTE) => {
   const rung = rungOf(value);
   return rung === 0 ? palette.zeroText : palette.rungTexts[Math.min(rung, palette.rungTexts.length) - 1];
+};
+
+// A board tile's fill: its value's, or for an empty tile, the off-shape
+// fill when it isn't the shape the next value must go on (`mustBe`, null
+// for either), else the empty fill.
+export const tileFill = (value: Cell, shape: Shape, mustBe: Shape | null, palette: Palette = DEFAULT_PALETTE) => {
+  if (value !== EMPTY) return fillFor(value, palette);
+  return mustBe && shape !== mustBe ? palette.offShapeFill : palette.emptyFill;
 };
 
 // How a board cell or a drawn value looks. The wildcard never sits on the

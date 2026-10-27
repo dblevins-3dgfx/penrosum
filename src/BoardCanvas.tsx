@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { centroid, tileAtPoint, type BoardTile, type Rosette, boardBounds } from './lib/board';
-import { type Palette, fillFor, textFor } from './lib/colors';
+import { type Palette, fillFor, textFor, tileFill } from './lib/colors';
 import type { Preview } from './lib/powerups';
 import { EMPTY, type Cell, type Shape } from './lib/rules';
 import { fitView, toBoard } from './lib/view';
@@ -31,6 +31,86 @@ const drawNumber = (ctx: CanvasRenderingContext2D, t: BoardTile, text: string, c
   ctx.textBaseline = 'middle';
   ctx.fillText(text, c.x, c.y);
 };
+
+// Outlines tile `t` in `color`, `width` board units wide.
+const outline = (ctx: CanvasRenderingContext2D, t: BoardTile, color: string, width: number) => {
+  tracePath(ctx, t);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.stroke();
+};
+
+// Every tile: its fill (see tileFill), a one-screen-pixel edge (`px` board
+// units), and its letter.
+const drawTiles = (
+  ctx: CanvasRenderingContext2D, tiles: BoardTile[], cells: Cell[], mustBe: Shape | null,
+  palette: Palette, label: (v: number) => string, px: number,
+) => {
+  for (const t of tiles) {
+    const v = cells[t.id];
+    tracePath(ctx, t);
+    ctx.fillStyle = tileFill(v, t.type, mustBe, palette);
+    ctx.fill();
+    ctx.strokeStyle = palette.tileEdge;
+    ctx.lineWidth = px;
+    ctx.stroke();
+    if (v !== EMPTY) drawNumber(ctx, t, label(v), textFor(v, palette));
+  }
+};
+
+// Where each sun and star's five tips meet: a small ring, filled gold once
+// completed.
+const drawRings = (ctx: CanvasRenderingContext2D, rosettes: Rosette[], completed: number[], palette: Palette) => {
+  rosettes.forEach((r, i) => {
+    const done = completed.includes(i);
+    ctx.beginPath();
+    ctx.arc(r.center.x, r.center.y, 4.5, 0, 2 * Math.PI);
+    ctx.fillStyle = done ? palette.ringDoneFill : palette.ringFill;
+    ctx.fill();
+    ctx.strokeStyle = done ? palette.ringDoneEdge : palette.ringEdge;
+    ctx.lineWidth = done ? 1.5 : 1.2;
+    ctx.stroke();
+  });
+};
+
+// Where the move's rubble would land: a # with the preview's outline.
+const drawRubble = (ctx: CanvasRenderingContext2D, t: BoardTile, palette: Palette, label: (v: number) => string) => {
+  tracePath(ctx, t);
+  ctx.fillStyle = fillFor(0, palette);
+  ctx.fill();
+  outline(ctx, t, palette.previewOutline, 3);
+  drawNumber(ctx, t, label(0), textFor(0, palette));
+};
+
+// The outlines over the tiles, in order: the tiles the previewed move
+// would merge, what an armed power-up would empty (Clear: a tile; Sweep:
+// #s), Swap's first tile picked, and the last move.
+const drawOutlines = (
+  ctx: CanvasRenderingContext2D, tiles: BoardTile[], merging: number[], doomed: number[], picked: number,
+  lastMove: number | null, palette: Palette,
+) => {
+  for (const id of new Set(merging)) outline(ctx, tiles[id], palette.previewOutline, 3);
+  for (const id of doomed) outline(ctx, tiles[id], palette.doomedOutline, 4);
+  if (picked >= 0) outline(ctx, tiles[picked], palette.pickedOutline, 4);
+  if (lastMove !== null) outline(ctx, tiles[lastMove], palette.lastMoveOutline, 3);
+};
+
+// The previewed tile: tinted (more strongly when it would merge),
+// outlined, with the letter it would end up with; then where its rubble
+// would land.
+const drawPreview = (
+  ctx: CanvasRenderingContext2D, tiles: BoardTile[], previewed: number, preview: Preview, palette: Palette,
+  label: (v: number) => string,
+) => {
+  const t = tiles[previewed];
+  tracePath(ctx, t);
+  ctx.fillStyle = preview.merging.length ? palette.previewTintMerging : palette.previewTint;
+  ctx.fill();
+  outline(ctx, t, palette.previewOutline, 3);
+  drawNumber(ctx, t, label(preview.value), palette.previewText);
+  for (const id of preview.rubble) drawRubble(ctx, tiles[id], palette, label);
+};
+
 
 export interface BoardCanvasProps {
   tiles: BoardTile[];
@@ -89,86 +169,10 @@ const BoardCanvas = ({
     ctx.setTransform(dpr * view.scale, 0, 0, dpr * view.scale, dpr * view.offsetX, dpr * view.offsetY);
     const px = 1 / view.scale; // one screen pixel, in board units
 
-    const inGroup = new Set(preview?.merging);
-    for (const t of tiles) {
-      const v = cells[t.id];
-      tracePath(ctx, t);
-      ctx.fillStyle = v !== EMPTY ? fillFor(v, palette) : mustBe && t.type !== mustBe ? palette.offShapeFill : palette.emptyFill;
-      ctx.fill();
-      ctx.strokeStyle = palette.tileEdge;
-      ctx.lineWidth = px;
-      ctx.stroke();
-      if (v !== EMPTY) drawNumber(ctx, t, label(v), textFor(v, palette));
-    }
-
-    // Where each sun and star's five tips meet: a small ring, filled gold
-    // once completed
-    rosettes.forEach((r, i) => {
-      ctx.beginPath();
-      ctx.arc(r.center.x, r.center.y, 4.5, 0, 2 * Math.PI);
-      const done = completed.includes(i);
-      ctx.fillStyle = done ? palette.ringDoneFill : palette.ringFill;
-      ctx.fill();
-      ctx.strokeStyle = done ? palette.ringDoneEdge : palette.ringEdge;
-      ctx.lineWidth = done ? 1.5 : 1.2;
-      ctx.stroke();
-    });
-
-    // Tiles the previewed move would merge
-    for (const id of inGroup) {
-      tracePath(ctx, tiles[id]);
-      ctx.strokeStyle = palette.previewOutline;
-      ctx.lineWidth = 3;
-      ctx.stroke();
-    }
-
-    // What the armed power-up would empty at the tile under the pointer
-    // (Clear: the tile; Sweep: its #s and its neighbors')
-    for (const id of doomed) {
-      tracePath(ctx, tiles[id]);
-      ctx.strokeStyle = palette.doomedOutline;
-      ctx.lineWidth = 4;
-      ctx.stroke();
-    }
-
-    // With Swap armed, the first tile picked
-    if (picked >= 0) {
-      tracePath(ctx, tiles[picked]);
-      ctx.strokeStyle = palette.pickedOutline;
-      ctx.lineWidth = 4;
-      ctx.stroke();
-    }
-
-    if (lastMove !== null) {
-      tracePath(ctx, tiles[lastMove]);
-      ctx.strokeStyle = palette.lastMoveOutline;
-      ctx.lineWidth = 3;
-      ctx.stroke();
-    }
-
-    if (preview) {
-      const t = tiles[previewed];
-      tracePath(ctx, t);
-      ctx.fillStyle = inGroup.size ? palette.previewTintMerging : palette.previewTint;
-      ctx.fill();
-      ctx.strokeStyle = palette.previewOutline;
-      ctx.lineWidth = 3;
-      ctx.stroke();
-      drawNumber(ctx, t, label(preview.value), palette.previewText);
-    }
-
-    // Where the move's rubble would land: a gray # with the
-    // merge outline
-    for (const id of preview?.rubble ?? []) {
-      const t = tiles[id];
-      tracePath(ctx, t);
-      ctx.fillStyle = fillFor(0, palette);
-      ctx.fill();
-      ctx.strokeStyle = palette.previewOutline;
-      ctx.lineWidth = 3;
-      ctx.stroke();
-      drawNumber(ctx, t, label(0), textFor(0, palette));
-    }
+    drawTiles(ctx, tiles, cells, mustBe, palette, label, px);
+    drawRings(ctx, rosettes, completed, palette);
+    drawOutlines(ctx, tiles, preview?.merging ?? [], doomed, picked, lastMove, palette);
+    if (preview) drawPreview(ctx, tiles, previewed, preview, palette, label);
   }, [tiles, rosettes, completed, cells, lastMove, mustBe, previewed, preview, doomed, picked, view, space, label, palette]);
 
   const tileFromEvent = (e: React.PointerEvent<HTMLCanvasElement>) => {

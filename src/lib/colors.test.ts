@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_PALETTE, EMPTY_FILL, OFF_SHAPE_FILL, type Palette, RUNG_FILLS, WILD_COLORS, ZERO_FILL, colorsFor, fillFor, textFor,
+  DEFAULT_PALETTE, EMPTY_FILL, OFF_SHAPE_FILL, type Palette, RUNG_FILLS, WILD_COLORS, ZERO_FILL, colorsFor, fillFor, textFor, tileFill,
 } from './colors';
 import { EMPTY, TOP_VALUE, WILD } from './rules';
 
@@ -101,5 +101,25 @@ describe('palettes', () => {
     const { previewText, previewTint, previewTintMerging } = DEFAULT_PALETTE;
     expect(contrast(previewText, previewTint)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(previewText, previewTintMerging)).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+describe('board tile fills', () => {
+  it('fills a filled tile in its value\'s color, whatever the shape', () => {
+    expect(tileFill(3, 'dart', 'kite')).toBe(fillFor(3));
+    expect(tileFill(0, 'kite', null)).toBe(ZERO_FILL);
+  });
+
+  it('shades an empty tile of the shape the next value can\'t go on, and only that', () => {
+    expect(tileFill(EMPTY, 'dart', 'kite')).toBe(OFF_SHAPE_FILL);
+    expect(tileFill(EMPTY, 'kite', 'kite')).toBe(EMPTY_FILL);
+    // Either shape will do (Any shape armed, or none of the dealt shape left)
+    expect(tileFill(EMPTY, 'dart', null)).toBe(EMPTY_FILL);
+  });
+
+  it('takes the colors from the palette given', () => {
+    const skin: Palette = { ...DEFAULT_PALETTE, emptyFill: '#010101', offShapeFill: '#020202' };
+    expect(tileFill(EMPTY, 'kite', null, skin)).toBe('#010101');
+    expect(tileFill(EMPTY, 'dart', 'kite', skin)).toBe('#020202');
   });
 });
