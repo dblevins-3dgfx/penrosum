@@ -36,7 +36,7 @@ const HowToPlay = ({ onClose }: { onClose: () => void }) => (
         Suns (five kites meeting at their tips) and stars (five darts) are marked by a small ring
         where the tips meet. Fill all five tiles of one (with anything) to complete it: the ring turns
         gold and earns <b>Any shape</b>, one for a sun, two for a star (up to {ANY_SHAPE_MAX}). Tap{' '}
-        <b>Any shape</b> to place the next value on a kite or a dart, whichever it was dealt.
+        <b>Shape</b> to place the next value on a kite or a dart, whichever it was dealt.
       </p>
       <p>
         A merge of {BIG_MERGE} or more tiles earns an <b>Upgrade</b> (up to {UPGRADE_MAX}): tap{' '}
