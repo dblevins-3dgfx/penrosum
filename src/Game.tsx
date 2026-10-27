@@ -2,11 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import BoardCanvas from './BoardCanvas';
 import { BOARD_SIZES } from './lib/board';
 import { DEFAULT_PALETTE, type Palette, colorsFor } from './lib/colors';
-import { TOP_LABEL, valueLabel } from './lib/labels';
+import { valueLabel } from './lib/labels';
 import { type ArmedPowerUp, POWER_UPS } from './lib/powerups';
 import { parsePrefs, type Prefs } from './lib/prefs';
-import { EMPTY, MIN_GROUP, WILD, type Shape, highestTile, shapeToPlace } from './lib/rules';
+import { EMPTY, WILD, type Shape, highestTile, shapeToPlace } from './lib/rules';
 import { PREFS_STORAGE_KEY, load, save } from './storage';
+import { statusLine } from './lib/status';
 import { useGame } from './useGame';
 import HowToPlay from './HowToPlay';
 import Preferences from './Preferences';
@@ -121,18 +122,16 @@ const Game = () => {
   const moves = state?.moves ?? 0;
   const score = state?.score ?? 0;
   const free = cells.filter(c => c === EMPTY).length;
-  let status = state?.message || (moves === 0
-    ? `Place the Next letter on an empty ${shapeToPlace(game.tiles, cells, state?.nextShape ?? null) ?? 'tile'}${
-      prefs.tap === 'preview' ? ' (on a touch screen, tap once to preview and again to place)' : ''
-    }. ${MIN_GROUP} or more matching tiles merge into the one you placed, a rung higher.`
-    : '');
-  if (armedPowerUp?.hint) status = armedPowerUp.hint(picked, cells, label);
-  if (state && result.over) {
-    status = result.won
-      ? `You made ${TOP_LABEL}, the top of the alphabet, in ${moves} moves. You win! Score: ${score}.`
-      : `Board full. Score: ${score} (highest tile ${label(result.highest)}, ${moves} moves).`;
-    if (latest) status += ` #${latest.rank} on the ${BOARD_SIZES.find(s => s.id === latest.size)?.name.toLowerCase()} board!`;
-  }
+  const status = state ? statusLine({
+    message: state.message,
+    moves,
+    dealtShape: shapeToPlace(game.tiles, cells, state.nextShape),
+    tapRule: prefs.tap,
+    hint: armedPowerUp?.hint?.(picked, cells, label) ?? null,
+    result,
+    score,
+    latest,
+  }, label) : '';
 
   const button = 'px-3 py-1.5 rounded text-sm border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-40';
   const stats: [string, string | number][] = [

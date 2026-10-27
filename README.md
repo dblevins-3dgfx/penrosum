@@ -46,6 +46,7 @@ One-time setup, needed before the first deploy: repository **Settings → Pages 
 - `src/lib/labels.ts`: how values are written (as letters)
 - `src/lib/prefs.ts`: the player's preferences, and reading them and the board size from storage
 - `src/lib/powerups.ts`: the power-ups' rules (what earns each, what each does), then the power-ups in one table (names, caps, what earns each, what using one on the board does), and which one is armed
+- `src/lib/status.ts`: the status line: what just happened, or what to do next
 - `src/lib/settle.ts`: what follows a move's merges: rubble, points, the power-ups earned and the status line
 - `src/lib/scores.ts`: the top 10 for each board size
 - `src/lib/rules.ts`: the core rules: placing, merging, chains, rubble, scoring, the deck, wildcards, shapes, the spare and the end (and an option for each open question, when there are any)
