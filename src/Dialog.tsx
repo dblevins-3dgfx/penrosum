@@ -10,7 +10,7 @@ const Dialog = ({ title, onClose, children }: { title: string; onClose: () => vo
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-20 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"

@@ -8,6 +8,16 @@
     <title>Penrosum</title>
     <meta name="description" content="A merging game on a Penrose tiling of kites and darts." />
     <meta name="theme-color" content="#f1f5f9" />
+    <!-- Apply the saved skin before the first paint, so a Night skin never
+         flashes white (the game keeps it in step after that) -->
+    <script>
+      try {
+        if (JSON.parse(localStorage.getItem('penrosum.options') || '{}').skin === 'night') {
+          document.documentElement.dataset.skin = 'night';
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#1a1613');
+        }
+      } catch (e) {}
+    </script>
     <!-- Installable as a home-screen web app (iPhone: Share, Add to Home Screen) -->
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />

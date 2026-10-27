@@ -28,3 +28,37 @@ body {
 .safe-area {
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
+
+/* The Night skin: the page around the board goes dark and warm. Tailwind's
+   classes read their colors from variables, so the skin redefines the ones
+   the screen uses: the light grays (page, panel, cards) become dark warm
+   browns, the dark grays (text) become soft creams, and the accents turn
+   to muted lavender, coral, amber and sage. The board and chips draw from
+   the skin's palette (NIGHT_PALETTE in src/lib/colors.ts). */
+:root[data-skin="night"] {
+  color-scheme: dark;
+  background: #1a1613;
+  --color-white: #241f1b;
+  --color-slate-50: #2d2723;
+  --color-slate-100: #1a1613;
+  --color-slate-200: #3a332e;
+  --color-slate-300: #4d443d;
+  --color-slate-400: #6b6058;
+  --color-slate-500: #a39588;
+  --color-slate-600: #bfb2a5;
+  --color-slate-700: #d6cabd;
+  --color-slate-800: #e6dccf;
+  --color-slate-900: #efe5d8;
+  --color-indigo-50: #2f2a38;
+  --color-indigo-600: #a99bd2;
+  --color-indigo-700: #c4b8e6;
+  --color-red-600: #d9826f;
+  --color-red-700: #b8604f;
+  --color-amber-100: #4a3d22;
+  --color-amber-500: #d6a85c;
+  --color-amber-600: #b8893f;
+  --color-emerald-600: #8fb58f;
+  --color-emerald-700: #6f966f;
+  --color-teal-600: #7fb3a6;
+  --color-teal-700: #5f9387;
+}

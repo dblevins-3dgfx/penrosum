@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import BoardCanvas from './BoardCanvas';
 import { BOARD_SIZES } from './lib/board';
-import { DEFAULT_PALETTE, type Palette, colorsFor } from './lib/colors';
+import { type Palette, SKINS, colorsFor } from './lib/colors';
 import { valueLabel } from './lib/labels';
 import { type ArmedPowerUp, POWER_UPS } from './lib/powerups';
 import { parsePrefs, type Prefs } from './lib/prefs';
@@ -16,8 +16,6 @@ import Scoreboard from './Scoreboard';
 // How values are written: as letters
 const label = valueLabel;
 
-// The colors everything is drawn in (a skin, issue #42, would pick another)
-const palette = DEFAULT_PALETTE;
 
 // The chip's outline for the shape the next value was dealt: a kite,
 // or a dart with its notch at the bottom
@@ -96,6 +94,15 @@ const Game = () => {
   const game = useGame(hovered, useCallback(() => setShowScores(true), []));
   const { board, state, cells, result, armed, armedPowerUp, tapUse, picked, latest } = game;
   const { moves, score, next: drawn } = state;
+
+  // The skin: the board and chips draw from its palette, and the page
+  // follows it (index.css, keyed by data-skin on <html>)
+  const skin = SKINS[prefs.skin];
+  const { palette } = skin;
+  useEffect(() => {
+    document.documentElement.dataset.skin = prefs.skin;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', skin.page);
+  }, [prefs.skin, skin.page]);
 
   // A new board: the pointer is over none of its tiles yet
   useEffect(() => setHovered(-1), [board]);

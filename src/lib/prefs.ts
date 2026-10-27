@@ -3,6 +3,7 @@
 // saved value never breaks the game.
 
 import { BOARD_SIZES, DEFAULT_BOARD_SIZE, type BoardSize } from './board';
+import { SKIN_IDS, type SkinId } from './colors';
 import type { TapRule } from './rules';
 
 // The player's preferences, set in the Preferences dialog.
@@ -10,14 +11,18 @@ export interface Prefs {
   // Tap to preview: on a touch screen, a first tap previews the move and a
   // second places it ('preview'), or a tap places at once ('place')
   tap: TapRule;
+  // The skin: the colors of the board and the page (see SKINS)
+  skin: SkinId;
 }
 
 export const DEFAULT_PREFS: Prefs = {
   tap: 'place',
+  skin: 'day',
 };
 
 const ALLOWED: { [K in keyof Prefs]: readonly Prefs[K][] } = {
   tap: ['place', 'preview'],
+  skin: SKIN_IDS,
 };
 
 // The preferences from their saved JSON (or null when nothing is saved).
