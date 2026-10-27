@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-  EMPTY, type Cell, type RosetteTiles, type Tile,
-  CLEAR_MAX, UPGRADE_MAX, place,
-} from './rules';
-import { type Charges, startCharges } from './powerups';
+import { EMPTY, type Cell, type Tile, place } from './rules';
+import { CLEAR_MAX, type Charges, type RosetteTiles, UPGRADE_MAX, startCharges } from './powerups';
 import { type Holdings, describeMerges, settle } from './settle';
 
 // The game before a move, with the starting charges unless `charges` says

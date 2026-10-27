@@ -4,10 +4,10 @@
 // written. A plain function, so the component only calls it.
 
 import { valueLabel } from './labels';
-import { type Charges, type PowerUpId, earnCharges } from './powerups';
+import { type Charges, type PowerUpId, type RosetteTiles, earnCharges, newlyCompleted } from './powerups';
 import {
-  type Cell, type Merge, type RosetteTiles, type Tile,
-  dropRubble, highestTile, newlyCompleted, scoreMerges, scoreRubble,
+  type Cell, type Merge, type Tile,
+  dropRubble, highestTile, scoreMerges, scoreRubble,
 } from './rules';
 
 // What a game holds between moves that settling changes: the board, the

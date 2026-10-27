@@ -45,10 +45,10 @@ One-time setup, needed before the first deploy: repository **Settings → Pages 
 - `src/lib/colors.ts`: tile colors, shared by the board and the Next chip
 - `src/lib/labels.ts`: how values are written (as letters)
 - `src/lib/prefs.ts`: the player's preferences, and reading them and the board size from storage
-- `src/lib/powerups.ts`: the power-ups in one table (names, caps, what earns each, what using one on the board does), and which one is armed
+- `src/lib/powerups.ts`: the power-ups' rules (what earns each, what each does), then the power-ups in one table (names, caps, what earns each, what using one on the board does), and which one is armed
 - `src/lib/settle.ts`: what follows a move's merges: rubble, points, the power-ups earned and the status line
 - `src/lib/scores.ts`: the top 10 for each board size
-- `src/lib/rules.ts`: the rules (and an option for each open question, when there are any)
+- `src/lib/rules.ts`: the core rules: placing, merging, chains, rubble, scoring, the deck, wildcards, shapes, the spare and the end (and an option for each open question, when there are any)
 - `src/lib/*.test.ts`: unit tests for the above
 - `src/Game.tsx`: the game screen (state, drawing, controls)
 - `src/Dialog.tsx`, `src/HowToPlay.tsx`, `src/Scoreboard.tsx`, `src/Preferences.tsx`: the dialogs (How to play, Top 10, Preferences)

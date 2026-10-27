@@ -1,5 +1,6 @@
 import Dialog from './Dialog';
-import { ANY_SHAPE_MAX, BIG_MERGE, CLEAR_MAX, MIN_GROUP, SWAP_MAX, SWAP_SCORE_STEP, SWEEP_MAX, UNDO_MAX, UNDO_START, UPGRADE_MAX } from './lib/rules';
+import { ANY_SHAPE_MAX, BIG_MERGE, CLEAR_MAX, SWAP_MAX, SWAP_SCORE_STEP, SWEEP_MAX, UNDO_MAX, UNDO_START, UPGRADE_MAX } from './lib/powerups';
+import { MIN_GROUP } from './lib/rules';
 
 // How to play, in a dialog over the board. (When a rule is an open
 // question in the spec, its options go at the top as buttons to try; none

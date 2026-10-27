@@ -5,13 +5,15 @@ import {
 } from './lib/board';
 import { parseBoardSize, parsePrefs, type Prefs } from './lib/prefs';
 import { addScore, parseScores } from './lib/scores';
-import { type ArmedPowerUp, type Charges, POWER_UPS, powerUp, startCharges, toggleArmed } from './lib/powerups';
+import {
+  type ArmedPowerUp, type Charges, POWER_UPS, newlyCompleted, powerUp, startCharges, toggleArmed, undosAfterUndo,
+} from './lib/powerups';
 import { settle } from './lib/settle';
 import {
   EMPTY, MIN_GROUP, WILD,
   type Cell, type Deal, type Shape,
   canPlaceDealt, dealShape, shapeToPlace, drawValue, highestTile, outcome, place, previewAt, seedBoard, swapSpare, tapAction,
-  undosAfterUndo, canPlace, newlyCompleted, valueToPlace,
+  canPlace, valueToPlace,
 } from './lib/rules';
 import { fitView, toBoard } from './lib/view';
 import { TOP_LABEL, TOP_VALUE, valueLabel } from './lib/labels';
