@@ -70,7 +70,7 @@ Every question has a permanent number, Q1, Q2 and so on, given in the order the 
 
 No question is open now.
 
-Still to think about: a move limit and a time limit; the next power-ups and other ways to earn them (#33); whether a swap with the spare should cost something.
+Still to think about: a move limit and a time limit; whether a swap with the spare should cost something.
 
 ## 6. Screen
 
