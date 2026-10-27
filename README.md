@@ -50,7 +50,10 @@ One-time setup, needed before the first deploy: repository **Settings → Pages 
 - `src/lib/scores.ts`: the top 10 for each board size
 - `src/lib/rules.ts`: the core rules: placing, merging, chains, rubble, scoring, the deck, wildcards, shapes, the spare and the end (and an option for each open question, when there are any)
 - `src/lib/*.test.ts`: unit tests for the above
-- `src/Game.tsx`: the game screen (state, drawing, controls)
+- `src/Game.tsx`: the game screen: the layout, the panel, the status line and the dialogs
+- `src/BoardCanvas.tsx`: the board, fitted to its space and drawn on a canvas, reporting the tile under the pointer
+- `src/useGame.ts`: the game's state and actions: the position and Undo, the deal and the spare, the power-ups, recording the top 10
+- `src/storage.ts`: what is remembered in this browser
 - `src/Dialog.tsx`, `src/HowToPlay.tsx`, `src/Scoreboard.tsx`, `src/Preferences.tsx`: the dialogs (How to play, Top 10, Preferences)
 - `src/main.tsx`, `src/index.css`, `index.html`: Vite entry point, Tailwind setup, and the touch and home-screen settings
 - `public/`: the web app manifest and icons

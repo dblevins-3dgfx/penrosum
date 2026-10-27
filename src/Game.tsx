@@ -1,64 +1,19 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import {
-  BOARD_SIZES, boardBounds, boardFor, centroid, findRosettes, tileAtPoint,
-  type BoardSize, type BoardTile, type Rosette,
-} from './lib/board';
-import { parseBoardSize, parsePrefs, type Prefs } from './lib/prefs';
-import { addScore, parseScores } from './lib/scores';
-import {
-  type ArmedPowerUp, type Charges, POWER_UPS, newlyCompleted, powerUp, startCharges, toggleArmed, undosAfterUndo,
-} from './lib/powerups';
-import { settle } from './lib/settle';
-import {
-  EMPTY, MIN_GROUP, WILD,
-  type Cell, type Deal, type Shape,
-  canPlaceDealt, dealShape, shapeToPlace, drawValue, highestTile, outcome, place, previewAt, seedBoard, swapSpare, tapAction,
-  canPlace, valueToPlace,
-} from './lib/rules';
-import { fitView, toBoard } from './lib/view';
-import { TOP_LABEL, TOP_VALUE, valueLabel } from './lib/labels';
-import { EMPTY_FILL, OFF_SHAPE_FILL, TILE_EDGE, colorsFor, fillFor, textFor } from './lib/colors';
+import { useCallback, useEffect, useState } from 'react';
+import BoardCanvas from './BoardCanvas';
+import { BOARD_SIZES } from './lib/board';
+import { TILE_EDGE, colorsFor } from './lib/colors';
+import { TOP_LABEL, valueLabel } from './lib/labels';
+import { type ArmedPowerUp, POWER_UPS } from './lib/powerups';
+import { parsePrefs, type Prefs } from './lib/prefs';
+import { EMPTY, MIN_GROUP, WILD, type Shape, highestTile, shapeToPlace } from './lib/rules';
+import { PREFS_STORAGE_KEY, load, save } from './storage';
+import { useGame } from './useGame';
 import HowToPlay from './HowToPlay';
 import Preferences from './Preferences';
 import Scoreboard from './Scoreboard';
 
-// The preferences, the board size and the scoreboards are remembered in
-// this browser (localStorage). The preferences keep the key the rule options
-// had, so the Q15 choice carries over as Tap to preview.
-const PREFS_STORAGE_KEY = 'penrosum.options';
-const SIZE_STORAGE_KEY = 'penrosum.boardSize';
-const SCORES_STORAGE_KEY = 'penrosum.topTen';
-// Stored data no longer used: the top 10 from the fixed boards (scored on
-// different tilings, so cleared when boards became random). Removed at
-// load. (Options of decided questions are simply ignored by parsePrefs.)
-const RETIRED_STORAGE_KEYS = ['penrosum.scores'];
-try {
-  for (const key of RETIRED_STORAGE_KEYS) localStorage.removeItem(key);
-} catch {
-  // Storage unavailable: nothing to clear
-}
-
-const load = <T,>(key: string, parse: (raw: string | null) => T): T => {
-  try {
-    return parse(localStorage.getItem(key));
-  } catch {
-    return parse(null);
-  }
-};
-
-const save = (key: string, value: string) => {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    // Storage unavailable (e.g. private mode): the choice lasts this visit
-  }
-};
-
-// Space kept clear around the board, in screen pixels.
-const BOARD_MARGIN = 8;
-
-// The value for the next move, drawn in advance so it can be shown
-const nextValue = () => drawValue();
+// How values are written: as letters
+const label = valueLabel;
 
 // The chip's outline for the shape the next value was dealt: a kite,
 // or a dart with its notch at the bottom
@@ -122,131 +77,23 @@ const PowerUpTile = ({ symbol, name, count, title, onClick, disabled, armed = fa
   </button>
 );
 
-interface Board {
-  size: BoardSize;
-  tiles: BoardTile[];
-  bounds: ReturnType<typeof boardBounds>;
-  rosettes: Rosette[]; // its suns and stars
-}
-
-interface Snapshot {
-  cells: Cell[];
-  next: number;
-  moves: number;
-  score: number; // points from merges so far
-  lastMove: number | null;
-  nextShape: Shape; // the shape dealt with the next value
-  spare: Deal | null; // the hot spare, if one is held
-  charges: Charges; // the power-up charges held
-  completed: number[]; // the suns and stars (indices into board.rosettes) completed this game
-  message: string;
-}
-
-
-const tracePath = (ctx: CanvasRenderingContext2D, t: BoardTile) => {
-  ctx.beginPath();
-  t.verts.forEach((v, i) => (i ? ctx.lineTo(v.x, v.y) : ctx.moveTo(v.x, v.y)));
-  ctx.closePath();
-};
-
-// Where a tile's number goes: the centroid for a kite; for a dart, a point
-// on its axis toward the tip, clear of the notch.
-const labelPoint = (t: BoardTile) => {
-  if (t.type === 'kite') return centroid(t.verts);
-  const [m, , a] = t.verts;
-  return { x: m.x + (a.x - m.x) * 0.45, y: m.y + (a.y - m.y) * 0.45 };
-};
-
-const drawNumber = (ctx: CanvasRenderingContext2D, t: BoardTile, text: string, color: string) => {
-  const c = labelPoint(t);
-  const size = text.length >= 3 ? 13 : 16;
-  ctx.fillStyle = color;
-  ctx.font = `bold ${t.type === 'dart' ? size - 2 : size}px system-ui, sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, c.x, c.y);
-};
-
+// The screen: the board in a square at the start (left on a wide screen,
+// top on a tall one) and the panel in the space left over, with the
+// dialogs over them. The game itself is useGame; the board's drawing is
+// BoardCanvas.
 const Game = () => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [prefs, setPrefs] = useState(() => load(PREFS_STORAGE_KEY, parsePrefs));
-  const [size, setSize] = useState(() => load(SIZE_STORAGE_KEY, parseBoardSize));
-  // The space for the board, in CSS pixels; measured before the first paint
-  const [space, setSpace] = useState({ width: 0, height: 0 });
-  // Made on mount, and by New Game
-  const [board, setBoard] = useState<Board | null>(null);
-  const [state, setState] = useState<Snapshot | null>(null);
-  const [undo, setUndo] = useState<Snapshot[]>([]);
   const [hovered, setHovered] = useState(-1);
-  // The tile a first tap selected, with Tap to preview on
-  const [selected, setSelected] = useState(-1);
-  // The power-up armed, if any: Clear, Upgrade, Sweep and Swap wait for a
-  // tap on the board, and Any shape lets the next value go on either shape
-  const [armed, setArmed] = useState<ArmedPowerUp | null>(null);
-  const anyShape = armed === 'anyShape';
-  // The armed power-up's entry, and how it is used if by tapping the board
-  const armedPowerUp = armed ? powerUp(armed) : null;
-  const tapUse = armedPowerUp?.tap;
-  // For a power-up that takes two taps (Swap), the tile the first one
-  // picked (-1 for none yet)
-  const [picked, setPicked] = useState(-1);
-  const disarm = () => {
-    setArmed(null);
-    setPicked(-1);
-  };
-  // Arms one power-up (or disarms it if armed), disarming the others
-  const toggle = (which: ArmedPowerUp) => {
-    setArmed(a => toggleArmed(a, which));
-    setPicked(-1);
-  };
   const [showHelp, setShowHelp] = useState(false);
   const [showPrefs, setShowPrefs] = useState(false);
   const [showSizes, setShowSizes] = useState(false);
   const [showScores, setShowScores] = useState(false);
-  const [scores, setScores] = useState(() => load(SCORES_STORAGE_KEY, parseScores));
-  // Each game is recorded on the scoreboard once, the first time it ends
-  // (Undo can reopen a finished game, but finishing it again doesn't count)
-  const [gameId, setGameId] = useState(0);
-  const recorded = useRef(-1);
-  // This game's place on the scoreboard, once it has ended and made it
-  const [latest, setLatest] = useState<{ size: BoardSize; rank: number } | null>(null);
+  // The top 10 opens by itself when a game ends
+  const game = useGame(hovered, useCallback(() => setShowScores(true), []));
+  const { board, state, cells, result, drawn, armed, armedPowerUp, tapUse, picked, latest } = game;
 
-  useLayoutEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const measure = () => setSpace({ width: el.clientWidth, height: el.clientHeight });
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  // Starts a new game on a board of `newSize`
-  const newGame = useCallback((newSize: BoardSize) => {
-    const tiles = boardFor(newSize);
-    const rosettes = findRosettes(tiles);
-    setBoard({ size: newSize, tiles, bounds: boardBounds(tiles), rosettes });
-    const cells = seedBoard(tiles);
-    setState({
-      cells, next: nextValue(), moves: 0, score: 0, lastMove: null,
-      nextShape: dealShape(tiles, cells), spare: null, charges: startCharges(),
-      // a sun or star the seeding happens to fill earns nothing
-      completed: newlyCompleted(rosettes, cells, []), message: '',
-    });
-    setUndo([]);
-    setHovered(-1);
-    setSelected(-1);
-    disarm();
-    setGameId(g => g + 1);
-    setLatest(null);
-    setSize(newSize);
-    save(SIZE_STORAGE_KEY, newSize);
-  }, []);
-
-  useEffect(() => {
-    if (!board) newGame(size);
-  }, [board, size, newGame]);
+  // A new board: the pointer is over none of its tiles yet
+  useEffect(() => setHovered(-1), [board]);
 
   // A changed preference applies at once, and the game carries on.
   const setPref = <K extends keyof Prefs>(key: K, value: Prefs[K]) => {
@@ -254,23 +101,11 @@ const Game = () => {
     setPrefs(updated);
     save(PREFS_STORAGE_KEY, JSON.stringify(updated));
     // A preview selected by a first tap belongs to the old tap rule
-    if (key === 'tap') setSelected(-1);
+    if (key === 'tap') game.clearSelection();
   };
   const closeHelp = useCallback(() => setShowHelp(false), []);
   const closePrefs = useCallback(() => setShowPrefs(false), []);
   const closeScores = useCallback(() => setShowScores(false), []);
-
-  // Escape cancels an armed power-up
-  useEffect(() => {
-    if (!armed) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      setArmed(null);
-      setPicked(-1);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [armed]);
 
   // Escape closes the board-size menu
   useEffect(() => {
@@ -280,269 +115,11 @@ const Game = () => {
     return () => window.removeEventListener('keydown', onKey);
   }, [showSizes]);
 
-  const tiles = board?.tiles ?? [];
-  const rosettes = board?.rosettes ?? [];
-  const cells = state?.cells ?? [];
-  const result = outcome(cells);
-  // How values are written: as letters
-  const label = valueLabel;
-  const drawn = state?.next ?? 1;
-
-  // Whether the next value can go on tile `id`: on its dealt shape, or with
-  // Any shape armed, on any empty tile
-  const fits = (id: number) =>
-    !!state && id >= 0 && (anyShape ? canPlace(cells, id) : canPlaceDealt(tiles, cells, id, state.nextShape));
-
-  // Undo is a power-up: it needs a charge
-  const canUndo = !!state && undo.length > 0 && state.charges.undo > 0;
-
-  // Steps back one move, spending a charge and taking back any the undone
-  // move earned.
-  const undoMove = () => {
-    if (!state || !canUndo) return;
-    const restored = undo[undo.length - 1];
-    const undos = undosAfterUndo(state.charges.undo, restored.charges.undo);
-    setState({
-      ...restored,
-      charges: { ...restored.charges, undo: undos },
-      message: `Move undone. ${undos} Undo${undos === 1 ? '' : 's'} left.`,
-    });
-    setUndo(undo.slice(0, -1));
-    setSelected(-1);
-    disarm();
-  };
-
-  const play = (id: number) => {
-    if (!state || result.over || !fits(id)) return;
-    const value = valueToPlace(tiles, cells, id, drawn);
-    const { cells: placed, merges } = place(tiles, cells, id, value);
-    const settled = settle(tiles, rosettes, state, id, placed, merges, drawn === WILD ? `Wild played as ${label(value)}.` : '', anyShape ? 'anyShape' : undefined);
-    setArmed(null);
-    setUndo([...undo, state]);
-    setState({
-      ...settled,
-      next: nextValue(),
-      moves: state.moves + 1,
-      nextShape: dealShape(tiles, settled.cells),
-      spare: state.spare,
-    });
-  };
-
-  // Swaps the next value with the hot spare, or reserves it when no
-  // spare is held. Not a move: it changes only the deal.
-  const swap = () => {
-    if (!state || result.over) return;
-    const { current, spare } = swapSpare(
-      tiles, cells, { value: state.next, shape: state.nextShape }, state.spare,
-      () => ({ value: nextValue(), shape: dealShape(tiles, cells) }),
-    );
-    setState({
-      ...state, next: current.value, nextShape: current.shape, spare,
-      message: state.spare
-        ? `Swapped: ${label(current.value)} is next, ${label(spare.value)} is the spare.`
-        : `${label(spare.value)} kept as the spare.`,
-    });
-  };
-
-  // A tap on the board with a power-up armed that is used there (Clear,
-  // Upgrade, Sweep, Swap): uses it on the tile and spends a charge, and its
-  // merges settle like a move's (points, rubble and power-ups earned). Not
-  // a move: the deal and the move count stay, but Undo can take it back. A
-  // tap where it can't be used disarms it, except that a power-up taking
-  // two taps picks (or unpicks) its first tile.
-  const useOnBoard = (id: number) => {
-    if (!state || !armed || !tapUse || result.over || state.charges[armed] <= 0) {
-      disarm();
-      return;
-    }
-    if (tapUse.canPick && !tapUse.canUse(tiles, cells, id, picked)) {
-      if (tapUse.canPick(cells, id)) setPicked(id === picked ? -1 : id);
-      else disarm();
-      return;
-    }
-    if (!tapUse.canUse(tiles, cells, id, picked)) {
-      disarm();
-      return;
-    }
-    const { cells: placed, merges } = tapUse.apply(tiles, cells, id, picked);
-    const lead = tapUse.lead(tiles, cells, id, picked, state.charges[armed], label);
-    disarm();
-    setUndo([...undo, state]);
-    setState({ ...state, ...settle(tiles, rosettes, state, id, placed, merges, lead, armed) });
-    setSelected(-1);
-  };
-
-  // A tap or click on the board. A mouse always places with one click; a
-  // touch follows the Tap to preview preference (tapAction): place at once,
-  // or preview on the first tap and place on a second tap on the same tile.
-  const tap = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    const id = tileFromEvent(e);
-    if (tapUse) {
-      useOnBoard(id);
-      return;
-    }
-    if (e.pointerType === 'mouse') {
-      setSelected(-1);
-      play(id);
-      return;
-    }
-    const placeable = !result.over && fits(id);
-    const action = tapAction(prefs.tap, selected, id, placeable);
-    setSelected(action.select);
-    if (action.place) play(id);
-  };
-
-  // The tile being previewed: the one under the mouse, or a tapped one;
-  // with a power-up armed that is used on the board, the tile under the
-  // pointer if it previews there (none for Clear and Sweep)
-  const previewed = tapUse
-    ? (tapUse.preview && tapUse.canUse(tiles, cells, hovered, picked) ? hovered : -1)
-    : hovered >= 0 ? hovered : selected;
-
-  // What the previewed tile would do
-  const preview = useMemo(() => {
-    if (previewed < 0 || result.over) return null;
-    if (tapUse?.preview) return tapUse.preview(tiles, cells, previewed, picked);
-    if (!fits(previewed)) return null;
-    return previewAt(tiles, cells, previewed, drawn);
-  }, [previewed, cells, drawn, result.over, tiles, state?.nextShape, anyShape, tapUse, picked]);
-
-  // When the game ends, record it on its board size's scoreboard and show
-  // the scoreboard
-  const over = result.over;
-  useEffect(() => {
-    if (!over || !state || !board || recorded.current === gameId) return;
-    recorded.current = gameId;
-    const entry = {
-      score: state.score, highest: highestTile(state.cells), moves: state.moves,
-      date: new Date().toISOString(), won: highestTile(state.cells) >= TOP_VALUE,
-    };
-    const { list, rank } = addScore(scores[board.size], entry);
-    if (rank) {
-      const updated = { ...scores, [board.size]: list };
-      setScores(updated);
-      save(SCORES_STORAGE_KEY, JSON.stringify(updated));
-      setLatest({ size: board.size, rank });
-    }
-    setShowScores(true);
-  }, [over, state, board, gameId, scores]);
-
-  const view = useMemo(
-    () => board && fitView(board.bounds, space.width, space.height, BOARD_MARGIN),
-    [board, space],
-  );
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext('2d');
-    if (!ctx || !view || !state) return;
-    // Sharp on high-density screens: the canvas has a pixel per device pixel
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.round(space.width * dpr);
-    canvas.height = Math.round(space.height * dpr);
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // Draw in board units from here on
-    ctx.setTransform(dpr * view.scale, 0, 0, dpr * view.scale, dpr * view.offsetX, dpr * view.offsetY);
-    const px = 1 / view.scale; // one screen pixel, in board units
-
-    const inGroup = new Set(preview?.merging);
-    // Empty tiles of the shape not dealt are shaded (none with Any shape armed)
-    const mustBe = anyShape ? null : shapeToPlace(tiles, cells, state.nextShape);
-    for (const t of tiles) {
-      const v = cells[t.id];
-      tracePath(ctx, t);
-      ctx.fillStyle = v !== EMPTY ? fillFor(v) : mustBe && t.type !== mustBe ? OFF_SHAPE_FILL : EMPTY_FILL;
-      ctx.fill();
-      ctx.strokeStyle = TILE_EDGE;
-      ctx.lineWidth = px;
-      ctx.stroke();
-      if (v !== EMPTY) drawNumber(ctx, t, label(v), textFor(v));
-    }
-
-    // Where each sun and star's five tips meet: a small ring, filled gold
-    // once completed
-    rosettes.forEach((r, i) => {
-      ctx.beginPath();
-      ctx.arc(r.center.x, r.center.y, 4.5, 0, 2 * Math.PI);
-      const done = state.completed.includes(i);
-      ctx.fillStyle = done ? '#eab308' : '#ffffff';
-      ctx.fill();
-      ctx.strokeStyle = done ? '#a16207' : TILE_EDGE;
-      ctx.lineWidth = done ? 1.5 : 1.2;
-      ctx.stroke();
-    });
-
-    // Tiles the hovered move would merge
-    for (const id of inGroup) {
-      tracePath(ctx, tiles[id]);
-      ctx.strokeStyle = '#4f46e5';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-    }
-
-    // What the armed power-up would empty at the tile under the pointer
-    // (Clear: the tile; Sweep: its #s and its neighbors')
-    const doomed = tapUse?.doomed?.(tiles, cells, hovered) ?? [];
-    for (const id of doomed) {
-      tracePath(ctx, tiles[id]);
-      ctx.strokeStyle = '#dc2626';
-      ctx.lineWidth = 4;
-      ctx.stroke();
-    }
-
-    // With Swap armed, the first tile picked
-    if (tapUse?.pickColor && picked >= 0) {
-      tracePath(ctx, tiles[picked]);
-      ctx.strokeStyle = tapUse.pickColor;
-      ctx.lineWidth = 4;
-      ctx.stroke();
-    }
-
-    if (state.lastMove !== null) {
-      tracePath(ctx, tiles[state.lastMove]);
-      ctx.strokeStyle = '#d97706';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-    }
-
-    if (preview) {
-      const t = tiles[previewed];
-      tracePath(ctx, t);
-      ctx.fillStyle = inGroup.size ? '#c7d2fe' : '#e0e7ff';
-      ctx.fill();
-      ctx.strokeStyle = '#4f46e5';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-      drawNumber(ctx, t, label(preview.value), '#3730a3');
-    }
-
-    // Where the move's rubble would land: a gray # with the
-    // merge outline
-    for (const id of preview?.rubble ?? []) {
-      const t = tiles[id];
-      tracePath(ctx, t);
-      ctx.fillStyle = fillFor(0);
-      ctx.fill();
-      ctx.strokeStyle = '#4f46e5';
-      ctx.lineWidth = 3;
-      ctx.stroke();
-      drawNumber(ctx, t, label(0), textFor(0));
-    }
-  }, [tiles, cells, state, previewed, preview, view, space, label, tapUse, picked, hovered, anyShape, rosettes]);
-
-  const tileFromEvent = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!view) return -1;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const p = toBoard(view, e.clientX - rect.left, e.clientY - rect.top);
-    return tileAtPoint(tiles, p.x, p.y);
-  };
-
   const moves = state?.moves ?? 0;
   const score = state?.score ?? 0;
   const free = cells.filter(c => c === EMPTY).length;
   let status = state?.message || (moves === 0
-    ? `Place the Next letter on an empty ${shapeToPlace(tiles, cells, state?.nextShape ?? null) ?? 'tile'}${
+    ? `Place the Next letter on an empty ${shapeToPlace(game.tiles, cells, state?.nextShape ?? null) ?? 'tile'}${
       prefs.tap === 'preview' ? ' (on a touch screen, tap once to preview and again to place)' : ''
     }. ${MIN_GROUP} or more matching tiles merge into the one you placed, a rung higher.`
     : '');
@@ -567,16 +144,19 @@ const Game = () => {
   return (
     <div className="safe-area h-dvh flex flex-col landscape:flex-row overflow-hidden bg-slate-100 text-slate-900">
       <main
-        ref={containerRef}
         className="relative shrink-0 portrait:w-full portrait:aspect-square portrait:max-h-[calc(100dvh-20rem)] landscape:h-full landscape:aspect-square landscape:max-w-[calc(100vw-16rem)]"
       >
-        <canvas
-          ref={canvasRef}
-          className={`absolute inset-0 w-full h-full touch-none ${tapUse ? 'cursor-crosshair' : 'cursor-pointer'}`}
-          onPointerMove={e => setHovered(tileFromEvent(e))}
-          onPointerLeave={() => setHovered(-1)}
-          onPointerDown={tap}
-        />
+        {board && state && (
+          <BoardCanvas
+            tiles={board.tiles} bounds={board.bounds} rosettes={board.rosettes} completed={state.completed}
+            cells={cells} lastMove={state.lastMove}
+            // Empty tiles of the shape not dealt are shaded (none with Any shape armed)
+            mustBe={game.anyShape ? null : shapeToPlace(board.tiles, cells, state.nextShape)}
+            previewed={game.previewed} preview={game.preview} doomed={game.doomed}
+            picked={picked} pickColor={tapUse?.pickColor} crosshair={!!tapUse} label={label}
+            onHover={setHovered} onTap={(id, pointerType) => game.tapBoard(id, pointerType, prefs.tap)}
+          />
+        )}
       </main>
 
       <aside className="flex-1 min-w-0 min-h-0 overflow-y-auto flex flex-col gap-3 p-4 bg-white border-slate-200 portrait:border-t landscape:border-l">
@@ -585,7 +165,7 @@ const Game = () => {
           <span className="text-sm text-slate-600">Next</span>
           <NextChip drawn={drawn} label={label(drawn)} shape={state?.nextShape ?? null}
             dealKey={`${moves}:${drawn}:${state?.nextShape}`} />
-          <button onClick={swap} disabled={!state || result.over}
+          <button onClick={game.swap} disabled={!state || result.over}
             title={state?.spare ? 'Swap the next value with the spare' : 'Keep the next value as the spare'}
             className="flex items-center gap-2 rounded-lg px-1.5 py-0.5 hover:bg-slate-100 disabled:opacity-40">
             <span className="text-sm text-slate-600">Spare ⇄</span>
@@ -614,11 +194,11 @@ const Game = () => {
             const isArmed = armed === p.id;
             return p.id === 'undo' ? (
               <PowerUpTile key={p.id} symbol={p.symbol} name={p.short} count={count} title={p.title}
-                onClick={undoMove} disabled={!canUndo} />
+                onClick={game.undoMove} disabled={!game.canUndo} />
             ) : (
               <PowerUpTile key={p.id} symbol={p.symbol} name={p.short} count={count} title={p.title}
                 armed={isArmed} armedClass={p.armedClass}
-                onClick={() => toggle(p.id as ArmedPowerUp)} disabled={!isArmed && (!state || over || count <= 0)} />
+                onClick={() => game.toggle(p.id as ArmedPowerUp)} disabled={!isArmed && (!state || result.over || count <= 0)} />
             );
           })}
         </div>
@@ -637,7 +217,7 @@ const Game = () => {
                   className="absolute left-0 z-30 w-48 rounded-md bg-white shadow-lg border border-slate-200 py-1 landscape:top-full landscape:mt-1 portrait:bottom-full portrait:mb-1">
                   {BOARD_SIZES.map(s => (
                     <button key={s.id} role="menuitem"
-                      onClick={() => { setShowSizes(false); newGame(s.id); }}
+                      onClick={() => { setShowSizes(false); game.newGame(s.id); }}
                       className="w-full text-left px-3 py-1.5 text-sm hover:bg-indigo-50 flex justify-between">
                       <span className={s.id === board?.size ? 'font-semibold text-indigo-700' : ''}>{s.name}</span>
                       <span className="text-slate-500">{s.tiles} tiles</span>
@@ -657,7 +237,7 @@ const Game = () => {
 
       {showHelp && <HowToPlay onClose={closeHelp} />}
       {showPrefs && <Preferences prefs={prefs} setPref={setPref} onClose={closePrefs} />}
-      {showScores && <Scoreboard scores={scores} size={board?.size ?? size} latest={latest} onClose={closeScores} />}
+      {showScores && <Scoreboard scores={game.scores} size={board?.size ?? game.size} latest={latest} onClose={closeScores} />}
     </div>
   );
 };
