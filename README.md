@@ -42,7 +42,7 @@ One-time setup, needed before the first deploy: repository **Settings → Pages 
 - `penrose-board.ts`: Penrose tiling generation and the tile adjacency graph (from Penrogo, unchanged)
 - `src/lib/board.ts`: board sizes, cuts this game's random square boards from the patch, and finds the tile under a point
 - `src/lib/view.ts`: fits the board to the space on screen
-- `src/lib/colors.ts`: tile colors, shared by the board and the Next chip
+- `src/lib/colors.ts`: the palette: every color the board and the Next and Spare chips are drawn in (`DEFAULT_PALETTE`; a skin would be another)
 - `src/lib/labels.ts`: how values are written (as letters)
 - `src/lib/prefs.ts`: the player's preferences, and reading them and the board size from storage
 - `src/lib/powerups.ts`: the power-ups' rules (what earns each, what each does), then the power-ups in one table (names, caps, what earns each, what using one on the board does), and which one is armed
