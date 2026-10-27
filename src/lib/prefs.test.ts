@@ -12,11 +12,18 @@ describe('parseBoardSize', () => {
 describe('parsePrefs', () => {
   it('uses the defaults when nothing is saved', () => {
     expect(parsePrefs(null)).toEqual(DEFAULT_PREFS);
-    expect(DEFAULT_PREFS).toEqual({ tap: 'place' });
+    expect(DEFAULT_PREFS).toEqual({ tap: 'place', skin: 'day' });
   });
 
   it('keeps saved values that are allowed, so a Q15 choice carries over as Tap to preview', () => {
     expect(parsePrefs(JSON.stringify({ tap: 'preview' }))).toEqual({ ...DEFAULT_PREFS, tap: 'preview' });
+  });
+
+  it('keeps a saved skin, and falls back to Day for one that doesn\'t exist', () => {
+    expect(parsePrefs(JSON.stringify({ skin: 'night' })).skin).toBe('night');
+    expect(parsePrefs(JSON.stringify({ skin: 'neon' })).skin).toBe('day');
+    // A saved Tap to preview is kept alongside it
+    expect(parsePrefs(JSON.stringify({ tap: 'preview', skin: 'night' }))).toEqual({ tap: 'preview', skin: 'night' });
   });
 
   it('drops unknown keys and values that are not allowed, such as options of decided questions', () => {

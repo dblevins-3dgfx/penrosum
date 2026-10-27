@@ -104,6 +104,81 @@ export const DEFAULT_PALETTE: Palette = {
   ringDoneEdge: '#a16207',
 };
 
+// Night: a calm skin for winding down. The board and the page go dark
+// and warm (no bright whites or blues), the letters take muted, earthy
+// shades, and the highlights are soft. Every letter still reads at a
+// contrast of at least 4.5 to 1 on its tile.
+const NIGHT_DARK_TEXT = '#1c1917';
+const NIGHT_LIGHT_TEXT = '#f3e9dc';
+const NIGHT_RUNG_FILLS = [
+  '#d6c7a1', // A sand
+  '#c9a86a', // B ochre
+  '#c98f62', // C clay
+  '#c47a6c', // D dusty red
+  '#b98095', // E mauve
+  '#a68aa8', // F heather
+  '#9393b3', // G dusk
+  '#82a0ad', // H slate blue
+  '#80a89b', // I sage teal
+  '#9bab7f', // J sage
+  '#8a4b2a', // K rust
+  '#7d3434', // L oxblood
+  '#7a3555', // M plum rose
+  '#5b3a6b', // N aubergine
+  '#3f3d6e', // O deep dusk
+  '#2f5266', // P deep slate
+  '#2f5a52', // Q deep teal
+  '#3d5a32', // R moss
+  '#5e4426', // S umber
+  '#5a2733', // T wine
+  '#47284f', // U dark plum
+  '#2c2f52', // V night blue
+  '#23434a', // W deep lagoon
+  '#29402a', // X forest
+  '#3a3330', // Y charcoal
+  '#c8a24a', // Z soft gold
+];
+
+export const NIGHT_PALETTE: Palette = {
+  rungFills: NIGHT_RUNG_FILLS,
+  // Light letters on the deep shades, K to Y; dark on the rest and Z
+  rungTexts: NIGHT_RUNG_FILLS.map((_, i) => (i >= 10 && i < 25 ? NIGHT_LIGHT_TEXT : NIGHT_DARK_TEXT)),
+  // A warm gray, lighter than the empty tiles, so obstacles stand out
+  zeroFill: '#5c534c',
+  zeroText: NIGHT_LIGHT_TEXT,
+  emptyFill: '#2b2622',
+  // The shape the next value can't go on recedes, darker still
+  offShapeFill: '#1b1714',
+  tileEdge: '#4d443d',
+  wild: {
+    fill: 'linear-gradient(135deg, #b98095, #c9a86a, #9bab7f, #82a0ad, #a68aa8)',
+    text: NIGHT_LIGHT_TEXT,
+  },
+  previewTint: '#3a3448',
+  previewTintMerging: '#4a4262',
+  previewOutline: '#b4a7d6',
+  previewText: '#f1ebff',
+  doomedOutline: '#d9826f',
+  pickedOutline: '#7fb3a6',
+  lastMoveOutline: '#d6a85c',
+  ringFill: '#2b2622',
+  ringEdge: '#6b6058',
+  ringDoneFill: '#c8a24a',
+  ringDoneEdge: '#8a6d2a',
+};
+
+// The skins a player can pick (a preference): a name and a palette. The
+// page around the board follows the skin too (see index.css).
+export const SKINS = {
+  // `page` is the page's background, also the browser's theme color
+  day: { name: 'Day', palette: DEFAULT_PALETTE, page: '#f1f5f9' },
+  night: { name: 'Night', palette: NIGHT_PALETTE, page: '#1a1613' },
+} as const;
+
+export type SkinId = keyof typeof SKINS;
+
+export const SKIN_IDS = Object.keys(SKINS) as SkinId[];
+
 // The default palette's colors by name, for the tests and the chips
 export const RUNG_FILLS = DEFAULT_PALETTE.rungFills;
 export const ZERO_FILL = DEFAULT_PALETTE.zeroFill;

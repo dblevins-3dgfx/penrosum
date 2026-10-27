@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import Dialog from './Dialog';
+import { SKINS, SKIN_IDS } from './lib/colors';
 import type { Prefs } from './lib/prefs';
 
 interface ToggleProps {
@@ -32,6 +33,33 @@ const Toggle = ({ label, hint, on, onChange }: ToggleProps) => {
   );
 };
 
+// The skin picker: a button per skin, each with a swatch of its empty
+// tile and first letters, the one in use marked.
+const SkinChoice = ({ skin, onChange }: { skin: Prefs['skin']; onChange: (skin: Prefs['skin']) => void }) => (
+  <fieldset className="py-2">
+    <legend className="text-sm font-semibold text-slate-700">Skin</legend>
+    <p className="text-xs text-slate-500 mb-2">The colors of the board and the page. Night is dark and calm, for winding down.</p>
+    <div className="flex gap-2">
+      {SKIN_IDS.map(id => {
+        const { name, palette } = SKINS[id];
+        return (
+          <button key={id} onClick={() => onChange(id)} aria-pressed={skin === id}
+            className={`flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm ${
+              skin === id ? 'border-indigo-600 ring-2 ring-indigo-600/40 font-semibold' : 'border-slate-300'
+            }`}>
+            <span aria-hidden="true" className="flex h-5 overflow-hidden rounded-sm border" style={{ borderColor: palette.tileEdge }}>
+              {[palette.emptyFill, ...palette.rungFills.slice(0, 4)].map(c => (
+                <span key={c} className="w-2.5" style={{ background: c }} />
+              ))}
+            </span>
+            {name}
+          </button>
+        );
+      })}
+    </div>
+  </fieldset>
+);
+
 interface PreferencesProps {
   prefs: Prefs;
   setPref: <K extends keyof Prefs>(key: K, value: Prefs[K]) => void;
@@ -48,6 +76,7 @@ const Preferences = ({ prefs, setPref, onClose }: PreferencesProps) => (
       on={prefs.tap === 'preview'}
       onChange={on => setPref('tap', on ? 'preview' : 'place')}
     />
+    <SkinChoice skin={prefs.skin} onChange={skin => setPref('skin', skin)} />
     <p className="mt-2 text-xs text-slate-500">Kept in this browser.</p>
   </Dialog>
 );
