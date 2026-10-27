@@ -5,6 +5,7 @@ import {
 } from './lib/board';
 import { parseBoardSize, parsePrefs, type Prefs } from './lib/prefs';
 import { addScore, parseScores } from './lib/scores';
+import { type ArmedPowerUp, toggleArmed } from './lib/powerups';
 import { settle } from './lib/settle';
 import {
   EMPTY, MIN_GROUP, WILD,
@@ -189,35 +190,24 @@ const Game = () => {
   const [hovered, setHovered] = useState(-1);
   // The tile a first tap selected, with Tap to preview on
   const [selected, setSelected] = useState(-1);
-  // Whether the Clear power-up is armed: the next tap on a tile clears it
-  const [clearing, setClearing] = useState(false);
-  // Whether the Any shape power-up is armed: the next value may go on
-  // either shape. At most one power-up is armed at a time.
-  const [anyShape, setAnyShape] = useState(false);
-  // Whether the Upgrade power-up is armed: the next tap on a letter raises it
-  const [upgrading, setUpgrading] = useState(false);
-  // Whether the Sweep power-up is armed: the next tap clears the #s on and
-  // around a tile
-  const [sweeping, setSweeping] = useState(false);
-  // Whether the Swap power-up is armed, and the first tile picked (-1 for
-  // none yet): the next tap on another tile swaps the two
-  const [swapping, setSwapping] = useState(false);
+  // The power-up armed, if any: Clear, Upgrade, Sweep and Swap wait for a
+  // tap on the board, and Any shape lets the next value go on either shape
+  const [armed, setArmed] = useState<ArmedPowerUp | null>(null);
+  const clearing = armed === 'clear';
+  const anyShape = armed === 'anyShape';
+  const upgrading = armed === 'upgrade';
+  const sweeping = armed === 'sweep';
+  const swapping = armed === 'swap';
+  // With Swap armed, the first tile picked (-1 for none yet): the next tap
+  // on another tile swaps the two
   const [swapFirst, setSwapFirst] = useState(-1);
   const disarm = () => {
-    setClearing(false);
-    setAnyShape(false);
-    setUpgrading(false);
-    setSweeping(false);
-    setSwapping(false);
+    setArmed(null);
     setSwapFirst(-1);
   };
   // Arms one power-up (or disarms it if armed), disarming the others
-  const toggle = (which: 'clear' | 'anyShape' | 'upgrade' | 'sweep' | 'swap') => {
-    setClearing(c => which === 'clear' && !c);
-    setAnyShape(a => which === 'anyShape' && !a);
-    setUpgrading(u => which === 'upgrade' && !u);
-    setSweeping(w => which === 'sweep' && !w);
-    setSwapping(w => which === 'swap' && !w);
+  const toggle = (which: ArmedPowerUp) => {
+    setArmed(a => toggleArmed(a, which));
     setSwapFirst(-1);
   };
   const [showHelp, setShowHelp] = useState(false);
@@ -282,19 +272,15 @@ const Game = () => {
 
   // Escape cancels an armed power-up
   useEffect(() => {
-    if (!clearing && !anyShape && !upgrading && !sweeping && !swapping) return;
+    if (!armed) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      setClearing(false);
-      setAnyShape(false);
-      setUpgrading(false);
-      setSweeping(false);
-      setSwapping(false);
+      setArmed(null);
       setSwapFirst(-1);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [clearing, anyShape, upgrading, sweeping, swapping]);
+  }, [armed]);
 
   // Escape closes the board-size menu
   useEffect(() => {
@@ -341,7 +327,7 @@ const Game = () => {
     const value = valueToPlace(tiles, cells, id, drawn);
     const { cells: placed, merges } = place(tiles, cells, id, value);
     const settled = settle(tiles, rosettes, state, id, placed, merges, drawn === WILD ? `Wild played as ${label(value)}.` : '', { anyShape });
-    setAnyShape(false);
+    setArmed(null);
     setUndo([...undo, state]);
     setState({
       ...settled,
@@ -357,7 +343,7 @@ const Game = () => {
   // Not a move: the deal and the move count stay, but Undo can take it back.
   // A tap where there is nothing to upgrade just disarms it.
   const upgradeTile = (id: number) => {
-    setUpgrading(false);
+    setArmed(null);
     if (!state || result.over || state.upgrades <= 0 || !canUpgrade(cells, id)) return;
     const from = cells[id] as number;
     const { cells: placed, merges } = upgradeAt(tiles, cells, id);
@@ -386,7 +372,7 @@ const Game = () => {
   // a move (the deal, moves and score stay), but Undo can take it back. A
   // tap where there is nothing to clear just disarms it.
   const clearAt = (id: number) => {
-    setClearing(false);
+    setArmed(null);
     if (!state || result.over || state.clears <= 0 || !canClear(cells, id)) return;
     setUndo([...undo, state]);
     setState({
@@ -403,7 +389,7 @@ const Game = () => {
   // touching it, and spends a charge. Not a move; Undo can take it back. A
   // tap with no # there just disarms it.
   const sweepTile = (id: number) => {
-    setSweeping(false);
+    setArmed(null);
     const targets = sweepTargets(tiles, cells, id);
     if (!state || result.over || state.sweeps <= 0 || !targets.length) return;
     setUndo([...undo, state]);
