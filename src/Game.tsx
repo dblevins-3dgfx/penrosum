@@ -5,16 +5,17 @@ import {
 } from './lib/board';
 import { parseBoardSize, parsePrefs, type Prefs } from './lib/prefs';
 import { addScore, parseScores } from './lib/scores';
+import { settle } from './lib/settle';
 import {
   EMPTY, MIN_GROUP, WILD,
-  type Cell, type Deal, type Merge, type Shape,
-  canPlaceDealt, dealShape, dropRubble, shapeToPlace, drawValue, highestTile, outcome, place, previewAt, scoreMerges, scoreRubble, seedBoard, swapSpare, tapAction,
-  UNDO_START, addUndos, undosAfterUndo, undosEarned,
-  addClears, canClear, clearTile, clearsEarned,
-  ROSETTE_REWARD, addAnyShapes, anyShapesEarned, canPlace, newlyCompleted,
-  addUpgrades, canUpgrade, previewUpgradeAt, upgradeAt, upgradesEarned,
-  addSweeps, sweepAt, sweepTargets, sweepsEarned,
-  SWAP_SCORE_STEP, addSwaps, canSwap, previewSwapAt, swapAt, swapsEarned,
+  type Cell, type Deal, type Shape,
+  canPlaceDealt, dealShape, shapeToPlace, drawValue, highestTile, outcome, place, previewAt, seedBoard, swapSpare, tapAction,
+  UNDO_START, undosAfterUndo,
+  canClear, clearTile,
+  canPlace, newlyCompleted,
+  canUpgrade, previewUpgradeAt, upgradeAt,
+  sweepAt, sweepTargets,
+  canSwap, previewSwapAt, swapAt,
   valueToPlace,
 } from './lib/rules';
 import { fitView, toBoard } from './lib/view';
@@ -61,13 +62,6 @@ const BOARD_MARGIN = 8;
 
 // The value for the next move, drawn in advance so it can be shown
 const nextValue = () => drawValue();
-
-// "Merged 3 tiles into B, then 3 tiles into C", with values written by
-// `label`
-const describeMerges = (merges: Merge[], label: (v: number) => string) =>
-  merges.length
-    ? `Merged ${merges.map(m => `${m.from.length + 1} tiles into ${label(m.sum)}`).join(', then ')}`
-    : '';
 
 // The chip's outline for the shape the next value was dealt: a kite,
 // or a dart with its notch at the bottom
@@ -342,82 +336,11 @@ const Game = () => {
     disarm();
   };
 
-  // Settles the merges a move made on tile `id` (from a placed value or an
-  // Upgrade): drops the rubble, adds the points and the power-ups earned
-  // (after spending `spent`), and writes the status line, starting with
-  // `lead`. `placed` is the board after the merges. Returns the new state
-  // apart from the deal and the move count.
-  const settle = (
-    base: Snapshot, id: number, placed: Cell[], merges: Merge[], lead: string,
-    spent: { anyShape?: boolean; upgrade?: boolean; swap?: boolean } = {},
-  ) => {
-    const { cells: after, zeros, rubbleMerges } = dropRubble(tiles, placed, merges);
-    const gained = scoreMerges(merges);
-    const rubbleGained = scoreRubble(rubbleMerges);
-    const earned = undosEarned(highestTile(base.cells), merges);
-    const undos = addUndos(base.undos, earned);
-    const clearEarned = clearsEarned(merges);
-    const clears = addClears(base.clears, clearEarned);
-    // Suns and stars completed earn Any shape
-    const completedNow = newlyCompleted(rosettes, after, base.completed);
-    const shapesEarned = anyShapesEarned(rosettes, completedNow);
-    const shapesHeld = base.anyShapes - (spent.anyShape ? 1 : 0);
-    const anyShapes = addAnyShapes(shapesHeld, shapesEarned);
-    const kinds = completedNow.map(i => rosettes[i].kind);
-    // Big merges earn Upgrade
-    const upgradeEarned = upgradesEarned(merges);
-    const upgradesHeld = base.upgrades - (spent.upgrade ? 1 : 0);
-    const upgrades = addUpgrades(upgradesHeld, upgradeEarned);
-    // Rubble merges earn Sweep
-    const sweepEarned = sweepsEarned(rubbleMerges);
-    const sweeps = addSweeps(base.sweeps, sweepEarned);
-    // Every 500 points earns a Swap
-    const score = base.score + gained + rubbleGained;
-    const swapEarned = swapsEarned(base.score, score);
-    const swapsHeld = base.swaps - (spent.swap ? 1 : 0);
-    const swaps = addSwaps(swapsHeld, swapEarned);
-    return {
-      cells: after,
-      score,
-      lastMove: id,
-      undos,
-      clears,
-      anyShapes,
-      upgrades,
-      sweeps,
-      swaps,
-      completed: [...base.completed, ...completedNow],
-      message: [
-        lead,
-        describeMerges(merges, label) + (gained ? ` (+${gained}).` : ''),
-        zeros.length === 1 ? 'Rubble dropped a #.' : zeros.length ? `Rubble dropped ${zeros.length} #s.` : '',
-        ...rubbleMerges.map(m => `Rubble merged ${m.from.length + 1} #s into one (+${scoreRubble([m])}).`),
-        earned
-          ? `New letter ${label(highestTile(placed))}! ${
-            undos > base.undos ? `+${undos - base.undos} Undo` : `Undos full (${undos})`
-          }.`
-          : '',
-        clearEarned ? `Chain! ${clears > base.clears ? '+1 Clear' : `Clears full (${clears})`}.` : '',
-        ...kinds.map(k => `${k === 'sun' ? 'Sun' : 'Star'}! +${ROSETTE_REWARD[k]} Any shape.`),
-        shapesEarned && anyShapes < shapesHeld + shapesEarned ? `Any shapes full (${anyShapes}).` : '',
-        upgradeEarned
-          ? `Big merge! ${upgrades > upgradesHeld ? `+${upgrades - upgradesHeld} Upgrade` : `Upgrades full (${upgrades})`}.`
-          : '',
-        sweepEarned
-          ? `Rubble merge! ${sweeps > base.sweeps ? `+${sweeps - base.sweeps} Sweep` : `Sweeps full (${sweeps})`}.`
-          : '',
-        swapEarned
-          ? `${Math.floor(score / SWAP_SCORE_STEP) * SWAP_SCORE_STEP} points! ${swaps > swapsHeld ? `+${swaps - swapsHeld} Swap` : `Swaps full (${swaps})`}.`
-          : '',
-      ].filter(Boolean).join(' '),
-    };
-  };
-
   const play = (id: number) => {
     if (!state || result.over || !fits(id)) return;
     const value = valueToPlace(tiles, cells, id, drawn);
     const { cells: placed, merges } = place(tiles, cells, id, value);
-    const settled = settle(state, id, placed, merges, drawn === WILD ? `Wild played as ${label(value)}.` : '', { anyShape });
+    const settled = settle(tiles, rosettes, state, id, placed, merges, drawn === WILD ? `Wild played as ${label(value)}.` : '', { anyShape });
     setAnyShape(false);
     setUndo([...undo, state]);
     setState({
@@ -439,7 +362,7 @@ const Game = () => {
     const from = cells[id] as number;
     const { cells: placed, merges } = upgradeAt(tiles, cells, id);
     setUndo([...undo, state]);
-    setState({ ...state, ...settle(state, id, placed, merges, `Upgraded ${label(from)} to ${label(from * 3)}.`, { upgrade: true }) });
+    setState({ ...state, ...settle(tiles, rosettes, state, id, placed, merges, `Upgraded ${label(from)} to ${label(from * 3)}.`, { upgrade: true }) });
     setSelected(-1);
   };
 
@@ -514,7 +437,7 @@ const Game = () => {
     const { cells: placed, merges } = swapAt(tiles, cells, swapFirst, id);
     disarm();
     setUndo([...undo, state]);
-    setState({ ...state, ...settle(state, id, placed, merges, `Swapped ${label(a)} and ${label(b)}.`, { swap: true }) });
+    setState({ ...state, ...settle(tiles, rosettes, state, id, placed, merges, `Swapped ${label(a)} and ${label(b)}.`, { swap: true }) });
     setSelected(-1);
   };
 
