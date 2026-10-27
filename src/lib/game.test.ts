@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BoardTile } from './board';
-import { type Game, type GameAction, type Snapshot, canUndo, doomedAt, gameReducer, placementArmed, previewFor } from './game';
+import { type Game, type GameAction, type Snapshot, canUndo, doomedAt, gameReducer, newGame, placementArmed, previewFor } from './game';
 import { type Charges, startCharges } from './powerups';
 import { EMPTY, type Cell } from './rules';
 
@@ -32,7 +32,7 @@ const gameOf = (cells: Cell[] = [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY], position: P
 
 // Runs `actions` in turn
 const run = (game: Game, ...actions: GameAction[]) =>
-  actions.reduce<Game>((g, a) => gameReducer(g, a, rand) as Game, game);
+  actions.reduce((g, a) => gameReducer(g, a, rand), game);
 
 const click = (id: number): GameAction => ({ type: 'tap', id, pointerType: 'mouse', tapRule: 'place' });
 const touch = (id: number, tapRule: 'place' | 'preview' = 'preview'): GameAction => ({ type: 'tap', id, pointerType: 'touch', tapRule });
@@ -41,7 +41,7 @@ describe('a new game', () => {
   it('deals a board of the size picked, seeded, with nothing played and the starting charges', () => {
     let seed = 7;
     const r = () => (seed = (seed * 1664525 + 1013904223) % 2 ** 32) / 2 ** 32;
-    const game = gameReducer(null, { type: 'newGame', size: 'small' }, r)!;
+    const game = newGame('small', 1, r);
     expect(game.id).toBe(1);
     expect(game.board.tiles).toHaveLength(50);
     expect(game.position).toMatchObject({ moves: 0, score: 0, lastMove: null, spare: null, message: '' });
@@ -50,11 +50,9 @@ describe('a new game', () => {
     expect(game.history).toEqual([]);
     expect(game.armed).toBeNull();
     // Each new game counts up, so each is recorded on the top 10 once
-    expect(gameReducer(game, { type: 'newGame', size: 'medium' }, r)!.id).toBe(2);
-  });
-
-  it('does nothing else until there is a game', () => {
-    expect(gameReducer(null, { type: 'undo' }, rand)).toBeNull();
+    const next = gameReducer(game, { type: 'newGame', size: 'medium' }, r);
+    expect(next.id).toBe(2);
+    expect(next.board.tiles).toHaveLength(100);
   });
 });
 

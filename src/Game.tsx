@@ -94,7 +94,8 @@ const Game = () => {
   const [showScores, setShowScores] = useState(false);
   // The top 10 opens by itself when a game ends
   const game = useGame(hovered, useCallback(() => setShowScores(true), []));
-  const { board, state, cells, result, drawn, armed, armedPowerUp, tapUse, picked, latest } = game;
+  const { board, state, cells, result, armed, armedPowerUp, tapUse, picked, latest } = game;
+  const { moves, score, next: drawn } = state;
 
   // A new board: the pointer is over none of its tiles yet
   useEffect(() => setHovered(-1), [board]);
@@ -119,19 +120,19 @@ const Game = () => {
     return () => window.removeEventListener('keydown', onKey);
   }, [showSizes]);
 
-  const moves = state?.moves ?? 0;
-  const score = state?.score ?? 0;
   const free = cells.filter(c => c === EMPTY).length;
-  const status = state ? statusLine({
+  // The shape the next value must go on (null: any)
+  const dealtShape = shapeToPlace(board.tiles, cells, state.nextShape);
+  const status = statusLine({
     message: state.message,
     moves,
-    dealtShape: shapeToPlace(game.tiles, cells, state.nextShape),
+    dealtShape,
     tapRule: prefs.tap,
     hint: armedPowerUp?.hint?.(picked, cells, label) ?? null,
     result,
     score,
     latest,
-  }, label) : '';
+  }, label);
 
   const button = 'px-3 py-1.5 rounded text-sm border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-40';
   const stats: [string, string | number][] = [
@@ -148,30 +149,28 @@ const Game = () => {
       <main
         className="relative shrink-0 portrait:w-full portrait:aspect-square portrait:max-h-[calc(100dvh-20rem)] landscape:h-full landscape:aspect-square landscape:max-w-[calc(100vw-16rem)]"
       >
-        {board && state && (
-          <BoardCanvas
-            tiles={board.tiles} bounds={board.bounds} rosettes={board.rosettes} completed={state.completed}
-            cells={cells} lastMove={state.lastMove}
-            // Empty tiles of the shape not dealt are shaded (none with Any shape armed)
-            mustBe={game.placementArmed ? null : shapeToPlace(board.tiles, cells, state.nextShape)}
-            previewed={game.previewed} preview={game.preview} doomed={game.doomed}
-            picked={tapUse?.canPick ? picked : -1} crosshair={!!tapUse} label={label} palette={palette}
-            onHover={setHovered} onTap={(id, pointerType) => game.tapBoard(id, pointerType, prefs.tap)}
-          />
-        )}
+        <BoardCanvas
+          tiles={board.tiles} bounds={board.bounds} rosettes={board.rosettes} completed={state.completed}
+          cells={cells} lastMove={state.lastMove}
+          // Empty tiles of the shape not dealt are shaded (none with Any shape armed)
+          mustBe={game.placementArmed ? null : dealtShape}
+          previewed={game.previewed} preview={game.preview} doomed={game.doomed}
+          picked={tapUse?.canPick ? picked : -1} crosshair={!!tapUse} label={label} palette={palette}
+          onHover={setHovered} onTap={(id, pointerType) => game.tapBoard(id, pointerType, prefs.tap)}
+        />
       </main>
 
       <aside className="flex-1 min-w-0 min-h-0 overflow-y-auto flex flex-col gap-3 p-4 bg-white border-slate-200 portrait:border-t landscape:border-l">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <h1 className="portrait:text-xl landscape:text-2xl font-bold text-indigo-700 mr-auto">Penrosum</h1>
           <span className="text-sm text-slate-600">Next</span>
-          <NextChip palette={palette} drawn={drawn} label={label(drawn)} shape={state?.nextShape ?? null}
-            dealKey={`${moves}:${drawn}:${state?.nextShape}`} />
-          <button onClick={game.swap} disabled={!state || result.over}
-            title={state?.spare ? 'Swap the next value with the spare' : 'Keep the next value as the spare'}
+          <NextChip palette={palette} drawn={drawn} label={label(drawn)} shape={state.nextShape}
+            dealKey={`${moves}:${drawn}:${state.nextShape}`} />
+          <button onClick={game.swap} disabled={result.over}
+            title={state.spare ? 'Swap the next value with the spare' : 'Keep the next value as the spare'}
             className="flex items-center gap-2 rounded-lg px-1.5 py-0.5 hover:bg-slate-100 disabled:opacity-40">
             <span className="text-sm text-slate-600">Spare ⇄</span>
-            {state?.spare ? (
+            {state.spare ? (
               <NextChip palette={palette} role="Spare" drawn={state.spare.value} label={label(state.spare.value)} shape={state.spare.shape}
                 dealKey={`${moves}:${state.spare.value}:${state.spare.shape}`} />
             ) : (
@@ -192,7 +191,7 @@ const Game = () => {
         {/* The power-ups, as a compact tray: one tile each, with its count */}
         <div role="group" aria-label="Power-ups" className="grid grid-cols-6 gap-1">
           {POWER_UPS.map(p => {
-            const count = state?.charges[p.id] ?? 0;
+            const count = state.charges[p.id];
             const isArmed = armed === p.id;
             // A power-up that acts at once: Undo, the only one
             return p.kind === 'now' ? (
@@ -201,7 +200,7 @@ const Game = () => {
             ) : (
               <PowerUpTile key={p.id} symbol={p.symbol} name={p.short} count={count} title={p.title}
                 armed={isArmed} armedClass={p.armedClass}
-                onClick={() => game.toggle(p.id as ArmedPowerUp)} disabled={!isArmed && (!state || result.over || count <= 0)} />
+                onClick={() => game.toggle(p.id as ArmedPowerUp)} disabled={!isArmed && (result.over || count <= 0)} />
             );
           })}
         </div>
@@ -222,7 +221,7 @@ const Game = () => {
                     <button key={s.id} role="menuitem"
                       onClick={() => { setShowSizes(false); game.newGame(s.id); }}
                       className="w-full text-left px-3 py-1.5 text-sm hover:bg-indigo-50 flex justify-between">
-                      <span className={s.id === board?.size ? 'font-semibold text-indigo-700' : ''}>{s.name}</span>
+                      <span className={s.id === board.size ? 'font-semibold text-indigo-700' : ''}>{s.name}</span>
                       <span className="text-slate-500">{s.tiles} tiles</span>
                     </button>
                   ))}
@@ -240,7 +239,7 @@ const Game = () => {
 
       {showHelp && <HowToPlay onClose={closeHelp} />}
       {showPrefs && <Preferences prefs={prefs} setPref={setPref} onClose={closePrefs} />}
-      {showScores && <Scoreboard scores={game.scores} size={board?.size ?? game.size} latest={latest} onClose={closeScores} />}
+      {showScores && <Scoreboard scores={game.scores} size={board.size} latest={latest} onClose={closeScores} />}
     </div>
   );
 };
