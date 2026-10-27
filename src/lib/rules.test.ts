@@ -7,12 +7,12 @@ import {
   dropRubble,
   canPlaceDealt, dealShape, kiteChance, shapeToPlace,
   type Deal, shapeInPlay, swapSpare, tapAction,
-  UNDO_MAX, UNDO_START, addUndos, undosAfterUndo, undosEarned,
-  CLEAR_MAX, addClears, canClear, clearTile, clearsEarned,
-  ANY_SHAPE_MAX, type RosetteTiles, addAnyShapes, anyShapesEarned, newlyCompleted,
-  BIG_MERGE, UPGRADE_MAX, addUpgrades, canUpgrade, previewUpgradeAt, upgradeAt, upgradesEarned,
-  SWEEP_MAX, addSweeps, sweepAt, sweepTargets, sweepsEarned,
-  SWAP_MAX, SWAP_SCORE_STEP, addSwaps, canSwap, previewSwapAt, swapAt, swapsEarned,
+  UNDO_MAX, UNDO_START, undosAfterUndo, undosEarned,
+  CLEAR_MAX, canClear, clearTile, clearsEarned,
+  ANY_SHAPE_MAX, type RosetteTiles, anyShapesEarned, newlyCompleted,
+  BIG_MERGE, UPGRADE_MAX, canUpgrade, previewUpgradeAt, upgradeAt, upgradesEarned,
+  SWEEP_MAX, sweepAt, sweepTargets, sweepsEarned,
+  SWAP_MAX, SWAP_SCORE_STEP, canSwap, previewSwapAt, swapAt, swapsEarned,
   TOP_VALUE, floorPow3, mergeResult,
   type Merge, mergePoints, rungOf, scoreMerges, scoreRubble,
 } from './rules';
@@ -678,9 +678,6 @@ describe('Undo as a power-up', () => {
   it('a game starts with 3 charges and holds at most 5', () => {
     expect(UNDO_START).toBe(3);
     expect(UNDO_MAX).toBe(5);
-    expect(addUndos(3, 1)).toBe(4);
-    expect(addUndos(4, 3)).toBe(5);
-    expect(addUndos(5, 1)).toBe(5);
   });
 
   it('making a letter for the first time in the game earns a charge', () => {
@@ -734,8 +731,6 @@ describe('the Clear power-up', () => {
 
   it('holds at most 3', () => {
     expect(CLEAR_MAX).toBe(3);
-    expect(addClears(0, 1)).toBe(1);
-    expect(addClears(3, 1)).toBe(3);
   });
 
   it('empties a tile holding a letter or a #, and nothing else', () => {
@@ -776,16 +771,14 @@ describe('suns, stars and the Any shape power-up', () => {
   });
 
   it('a sun earns one Any shape, a star two', () => {
-    expect(anyShapesEarned(rosettes, [0])).toBe(1);
-    expect(anyShapesEarned(rosettes, [1])).toBe(2);
-    expect(anyShapesEarned(rosettes, [0, 1])).toBe(3);
-    expect(anyShapesEarned(rosettes, [])).toBe(0);
+    expect(anyShapesEarned(['sun'])).toBe(1);
+    expect(anyShapesEarned(['star'])).toBe(2);
+    expect(anyShapesEarned(['sun', 'star'])).toBe(3);
+    expect(anyShapesEarned([])).toBe(0);
   });
 
   it('holds at most 3', () => {
     expect(ANY_SHAPE_MAX).toBe(3);
-    expect(addAnyShapes(2, 2)).toBe(3);
-    expect(addAnyShapes(0, 1)).toBe(1);
   });
 });
 
@@ -808,7 +801,6 @@ describe('the Upgrade power-up', () => {
 
   it('holds at most 3', () => {
     expect(UPGRADE_MAX).toBe(3);
-    expect(addUpgrades(2, 2)).toBe(3);
   });
 
   it('upgrades a letter below Z, not a #, an empty tile or a Z', () => {
@@ -852,7 +844,6 @@ describe('the Sweep power-up', () => {
 
   it('holds at most 3', () => {
     expect(SWEEP_MAX).toBe(3);
-    expect(addSweeps(2, 2)).toBe(3);
   });
 
   it('clears every # on the tile and the tiles touching it, and nothing else', () => {
@@ -883,7 +874,6 @@ describe('the Swap power-up', () => {
 
   it('holds at most 3', () => {
     expect(SWAP_MAX).toBe(3);
-    expect(addSwaps(2, 2)).toBe(3);
   });
 
   it('swaps two different filled tiles with different values', () => {
