@@ -3,7 +3,8 @@
 // The board is a list of tiles with neighbor lists (see penrose-board.ts).
 // The game state is one number per tile. Rules that are still open
 // questions (SPEC.md, "Open questions") get an option here, so their
-// choices can be tried side by side (there are none open now).
+// choices can be tried side by side (there are none open now). The
+// power-ups' rules are in powerups.ts.
 
 export type Shape = 'kite' | 'dart';
 
@@ -13,11 +14,6 @@ export type Shape = 'kite' | 'dart';
 //   preview: the first tap on a tile previews the move there, a second tap
 //            on the same tile places it
 export type TapRule = 'place' | 'preview';
-
-// Undo is a power-up: each Undo spends a charge (see undosEarned,
-// undosAfterUndo). How many a game starts with, and the most held.
-export const UNDO_START = 3;
-export const UNDO_MAX = 5;
 
 // What a tap on tile `tapped` (-1 off the board) does under the tap rule
 // (the Tap to preview preference): whether it places the next value there, and which tile is then
@@ -142,8 +138,9 @@ export const previewAt = (tiles: Tile[], cells: Cell[], id: number, drawn: numbe
   return previewOf(tiles, id, place(tiles, cells, id, value));
 };
 
-// The preview for a move on `id` that made `result`
-const previewOf = (tiles: Tile[], id: number, { cells: after, merges }: PlaceResult) => {
+// The preview for a move on `id` that made `result` (used by the power-ups'
+// previews too)
+export const previewOf = (tiles: Tile[], id: number, { cells: after, merges }: PlaceResult) => {
   const merging = merges.flatMap(m => m.from);
   const { zeros, rubbleMerges } = dropRubble(tiles, after, merges);
   return { value: after[id], merging: [...merging, ...rubbleMerges.flatMap(m => m.from)], rubble: zeros };
@@ -351,162 +348,3 @@ export const swapSpare = (
   const next = spare ?? draw();
   return { current: { ...next, shape: shapeInPlay(tiles, cells, next.shape) }, spare: current };
 };
-
-// The Undo charges a move earns: one for each rung its merges take the
-// highest tile up, so making a letter for the first time in a game (D, E,
-// F ...) earns one, and a merge that skips a rung (C to E) earns two.
-// `highestBefore` is the highest tile before the move (it never goes down:
-// a tile only leaves the board by merging into one at least as high). A
-// value placed without a merge earns nothing.
-export const undosEarned = (highestBefore: number, merges: Merge[]) => {
-  const made = merges.reduce((m, { sum }) => Math.max(m, sum), 0);
-  return Math.max(0, rungOf(made) - rungOf(highestBefore));
-};
-
-// The charges held after an Undo. `held` is the count now; `restored`
-// is the count saved with the position Undo goes back to, from before the
-// undone move. The lower of the two, less the one spent: so whatever the
-// undone move earned is taken back, and spending is never refunded.
-export const undosAfterUndo = (held: number, restored: number) => Math.max(0, Math.min(held, restored) - 1);
-
-// The Clear power-up (issue #33): spending a charge empties one filled
-// tile, a letter or a #. The most charges held.
-export const CLEAR_MAX = 3;
-
-// The Clear charges a move earns: one for a chain reaction, a move whose
-// placed tile merges two or more times. Rubble merges don't count.
-export const clearsEarned = (merges: Merge[]) => (merges.length >= 2 ? 1 : 0);
-
-// Whether Clear can be used on tile `id`: it holds a letter or a #.
-export const canClear = (cells: Cell[], id: number) => id >= 0 && id < cells.length && cells[id] !== EMPTY;
-
-// The board after clearing tile `id` (see canClear). The input is unchanged.
-export const clearTile = (cells: Cell[], id: number): Cell[] => {
-  const next = cells.slice();
-  next[id] = EMPTY;
-  return next;
-};
-
-// The Any shape power-up (issue #33): spending a charge lets the next value
-// go on an empty tile of either shape, ignoring the shape it was dealt. The
-// most charges held.
-export const ANY_SHAPE_MAX = 3;
-
-// A sun (five kites) or a star (five darts) meeting at a point; see
-// findRosettes in board.ts.
-export interface RosetteTiles {
-  kind: 'sun' | 'star';
-  tiles: number[];
-}
-
-// What completing one earns: a star, the rarer, earns two.
-export const ROSETTE_REWARD = { sun: 1, star: 2 } as const;
-
-// The suns and stars (indices into `rosettes`) that `cells` completes for
-// the first time: all five tiles filled (letters or #), and not already
-// completed this game (`done`). Each counts once a game, so emptying one
-// and filling it again earns nothing.
-export const newlyCompleted = (rosettes: RosetteTiles[], cells: Cell[], done: readonly number[]) =>
-  rosettes.flatMap((r, i) => (!done.includes(i) && r.tiles.every(t => cells[t] !== EMPTY) ? [i] : []));
-
-// The Any shape charges earned by completing suns and stars of `kinds`.
-export const anyShapesEarned = (kinds: RosetteTiles['kind'][]) =>
-  kinds.reduce((sum, kind) => sum + ROSETTE_REWARD[kind], 0);
-
-// The Upgrade power-up (issue #33): spending a charge raises one letter a
-// rung (x3), and the tile then merges like a placed one. The most held.
-export const UPGRADE_MAX = 3;
-
-// The group size that counts as a big merge, which earns an Upgrade.
-export const BIG_MERGE = 5;
-
-// The Upgrade charges a move earns: one for each merge of letters with at
-// least BIG_MERGE tiles (chain reactions included). Merges of #s and rubble
-// merges don't count.
-export const upgradesEarned = (merges: Merge[]) =>
-  merges.filter(m => m.sum > 0 && m.from.length + 1 >= BIG_MERGE).length;
-
-// Whether tile `id` can be upgraded: it holds a letter below Z (not a #,
-// which would stay a #, and not empty).
-export const canUpgrade = (cells: Cell[], id: number) => {
-  const v = id >= 0 && id < cells.length ? cells[id] : EMPTY;
-  return v !== EMPTY && v > 0 && v < TOP_VALUE;
-};
-
-// Upgrades tile `id` (see canUpgrade): it takes the next letter up and then
-// merges, with chain reactions, as if that letter had just been placed
-// there. The input is unchanged.
-export const upgradeAt = (tiles: Tile[], cells: Cell[], id: number): PlaceResult => {
-  const emptied = cells.slice();
-  const value = (cells[id] as number) * 3;
-  emptied[id] = EMPTY;
-  return place(tiles, emptied, id, value);
-};
-
-// What upgrading `id` would do, for the preview: as previewAt.
-export const previewUpgradeAt = (tiles: Tile[], cells: Cell[], id: number) =>
-  previewOf(tiles, id, upgradeAt(tiles, cells, id));
-
-// The Sweep power-up (issue #33): spending a charge clears every # on a
-// tile and the tiles touching it. The most held.
-export const SWEEP_MAX = 3;
-
-// The Sweep charges a move earns: one for each rubble merge (rubble that
-// lands and merges #s).
-export const sweepsEarned = (rubbleMerges: Merge[]) => rubbleMerges.length;
-
-// The #s a Sweep on tile `id` clears: on it and on the tiles touching it.
-// Empty when there are none (the Sweep then does nothing).
-export const sweepTargets = (tiles: Tile[], cells: Cell[], id: number) =>
-  id < 0 || id >= tiles.length ? [] : [id, ...tiles[id].neighbors].filter(t => cells[t] === 0);
-
-// The board after a Sweep on tile `id` (see sweepTargets). The input is
-// unchanged.
-export const sweepAt = (tiles: Tile[], cells: Cell[], id: number): Cell[] => {
-  const next = cells.slice();
-  for (const t of sweepTargets(tiles, cells, id)) next[t] = EMPTY;
-  return next;
-};
-
-// The Swap power-up (issue #33): spending a charge exchanges what two tiles
-// hold, and each then merges if it matches. The most held.
-export const SWAP_MAX = 3;
-
-// Points per Swap charge earned.
-export const SWAP_SCORE_STEP = 500;
-
-// The Swap charges a move earns: one for each multiple of SWAP_SCORE_STEP
-// the score passes (from `before` to `after`).
-export const swapsEarned = (before: number, after: number) =>
-  Math.max(0, Math.floor(after / SWAP_SCORE_STEP) - Math.floor(before / SWAP_SCORE_STEP));
-
-// Whether tiles `a` and `b` can be swapped: two different tiles, both
-// filled (letters or #s), holding different values.
-export const canSwap = (cells: Cell[], a: number, b: number) =>
-  a !== b && a >= 0 && b >= 0 && a < cells.length && b < cells.length &&
-  cells[a] !== EMPTY && cells[b] !== EMPTY && cells[a] !== cells[b];
-
-// Swaps tiles `a` and `b` (see canSwap): each takes the other's value, then
-// merges, with chain reactions, as if just placed there: first `a`, then
-// `b` (unless a's merge emptied it). The merges come back in that order.
-// The input is unchanged.
-export const swapAt = (tiles: Tile[], cells: Cell[], a: number, b: number): PlaceResult => {
-  const swapped = cells.slice();
-  swapped[a] = cells[b];
-  swapped[b] = cells[a];
-  const settleAt = (board: Cell[], id: number): PlaceResult => {
-    const value = board[id];
-    if (value === EMPTY) return { cells: board, merges: [] };
-    const emptied = board.slice();
-    emptied[id] = EMPTY;
-    return place(tiles, emptied, id, value);
-  };
-  const first = settleAt(swapped, a);
-  const second = settleAt(first.cells, b);
-  return { cells: second.cells, merges: [...first.merges, ...second.merges] };
-};
-
-// What swapping `a` and `b` would do, for the preview of tile `b`: as
-// previewAt.
-export const previewSwapAt = (tiles: Tile[], cells: Cell[], a: number, b: number) =>
-  previewOf(tiles, b, swapAt(tiles, cells, a, b));
