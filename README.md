@@ -45,6 +45,7 @@ One-time setup, needed before the first deploy: repository **Settings → Pages 
 - `src/lib/colors.ts`: tile colors, shared by the board and the Next chip
 - `src/lib/labels.ts`: how values are written (as letters)
 - `src/lib/prefs.ts`: the player's preferences, and reading them and the board size from storage
+- `src/lib/powerups.ts`: which power-up is armed (at most one at a time)
 - `src/lib/settle.ts`: what follows a move's merges: rubble, points, the power-ups earned and the status line
 - `src/lib/scores.ts`: the top 10 for each board size
 - `src/lib/rules.ts`: the rules (and an option for each open question, when there are any)
