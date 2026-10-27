@@ -26,6 +26,7 @@ const gameOf = (cells: Cell[] = [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY], position: P
   },
   history: [],
   armed: null,
+  free: false,
   picked: -1,
   selected: -1,
 });
@@ -217,6 +218,62 @@ describe('using a power-up on the board', () => {
     expect(previewFor(armed, 0)?.value).toBe(3);
     expect(previewFor(armed, 1)).toBeNull();
     expect(run(armed, click(0)).position.cells[0]).toBe(3);
+  });
+});
+
+describe('Swap and shapes', () => {
+  // Kites 0, 1, 2 hold A, B, C; dart 3 holds D
+  const start = () => gameOf([1, 3, 9, 27, EMPTY], {}, { swap: 1, anyShape: 1 });
+  const swap: GameAction = { type: 'toggle', which: 'swap' };
+  const shape: GameAction = { type: 'toggle', which: 'anyShape' };
+
+  it('swaps only like shapes: a tap on the other shape picks that tile instead', () => {
+    const g = run(start(), swap, click(0), click(3));
+    expect(g.picked).toBe(3);
+    expect(g.position.cells).toEqual(start().position.cells);
+    expect(run(start(), swap, click(0), click(2)).position.cells).toEqual([9, 3, 1, 27, EMPTY]);
+  });
+
+  it('with Any shape armed too, in either order, swaps across shapes and spends both', () => {
+    for (const order of [[swap, shape], [shape, swap]]) {
+      const armed = run(start(), ...order);
+      expect(armed.armed).toBe('swap');
+      expect(armed.free).toBe(true);
+      const g = run(armed, click(0), click(3));
+      expect(g.position.cells).toEqual([27, 3, 9, 1, EMPTY]);
+      expect(g.position.charges).toMatchObject({ swap: 0, anyShape: 0 });
+      expect(g.position.message).toBe('Swapped A and D, across shapes with Any shape.');
+      expect(g.armed).toBeNull();
+      expect(g.free).toBe(false);
+      // Undo gives both back
+      expect(run(g, { type: 'undo' }).position.charges).toMatchObject({ swap: 1, anyShape: 1 });
+    }
+  });
+
+  it('a like-shape swap with Any shape armed spends only Swap', () => {
+    const g = run(start(), swap, shape, click(0), click(2));
+    expect(g.position.charges).toMatchObject({ swap: 0, anyShape: 1 });
+  });
+
+  it('tapping Shape again takes it off Swap; arming anything else, or disarming, takes both off', () => {
+    expect(run(start(), swap, shape, shape)).toMatchObject({ armed: 'swap', free: false });
+    expect(run(start(), swap, shape, { type: 'toggle', which: 'clear' })).toMatchObject({ armed: 'clear', free: false });
+    expect(run(start(), swap, shape, swap)).toMatchObject({ armed: null, free: false });
+    expect(run(start(), swap, shape, { type: 'disarm' })).toMatchObject({ armed: null, free: false });
+  });
+
+  it('without an Any shape charge, Swap stays with like shapes', () => {
+    const g = run(gameOf([1, 3, 9, 27, EMPTY], {}, { swap: 1, anyShape: 0 }), swap, shape, click(0), click(3));
+    expect(g.picked).toBe(3);
+    expect(g.position.charges.swap).toBe(1);
+  });
+
+  it('previews a swap only where it can be made', () => {
+    expect(previewFor(run(start(), swap, click(0)), 3)).toBeNull();
+    expect(previewFor(run(start(), swap, shape, click(0)), 3)?.value).toBe(1);
+    // Armed with Any shape but out of its charges: no preview across shapes
+    const spent = run(gameOf([1, 3, 9, 27, EMPTY], {}, { swap: 1, anyShape: 0 }), swap, shape, click(0));
+    expect(previewFor(spent, 3)).toBeNull();
   });
 });
 

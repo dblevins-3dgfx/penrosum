@@ -43,6 +43,9 @@ export interface Game {
   position: Snapshot;
   history: Snapshot[]; // the positions Undo goes back to, oldest first
   armed: ArmedPowerUp | null; // the power-up armed, if any
+  // With Swap armed, whether Any shape is armed with it (its `freedBy`),
+  // so it can swap across shapes
+  free: boolean;
   picked: number; // for a power-up taking two taps (Swap), the first tile, or -1
   selected: number; // the tile a first tap selected, with Tap to preview on, or -1
 }
@@ -77,6 +80,7 @@ export const newGame = (size: BoardSize, id: number, rand: () => number): Game =
     },
     history: [],
     armed: null,
+    free: false,
     picked: -1,
     selected: -1,
   };
@@ -103,13 +107,20 @@ export const canUndo = (game: Game) => game.history.length > 0 && game.position.
 // How the armed power-up is used by tapping the board, if it is.
 export const tapUseOf = (game: Game) => (game.armed ? powerUp(game.armed).tap : undefined);
 
+// Whether the power-up used on the board is freed by the one armed with
+// it (Swap by Any shape), which needs that one's charge too.
+export const isFreed = (game: Game) => {
+  const freedBy = tapUseOf(game)?.freedBy;
+  return game.free && !!freedBy && game.position.charges[freedBy] > 0;
+};
+
 // The tile the preview is for, with `hovered` under the pointer (-1 for
 // none): the hovered tile, or else the one a first tap selected; with a
 // power-up armed that is used on the board, the hovered tile if it
 // previews there (none for Clear and Sweep).
 export const previewedTile = (game: Game, hovered: number) => {
   const use = tapUseOf(game);
-  if (use) return use.preview && use.canUse(game.board.tiles, game.position.cells, hovered, game.picked) ? hovered : -1;
+  if (use) return use.preview && use.canUse(game.board.tiles, game.position.cells, hovered, game.picked, isFreed(game)) ? hovered : -1;
   return hovered >= 0 ? hovered : game.selected;
 };
 
@@ -120,7 +131,7 @@ export const previewFor = (game: Game, hovered: number) => {
   const { tiles } = game.board;
   const { cells, next } = game.position;
   const use = tapUseOf(game);
-  if (use?.preview) return use.preview(tiles, cells, id, game.picked);
+  if (use?.preview) return use.preview(tiles, cells, id, game.picked, isFreed(game));
   if (!fits(game, id)) return null;
   return previewAt(tiles, cells, id, next);
 };
@@ -130,7 +141,21 @@ export const previewFor = (game: Game, hovered: number) => {
 export const doomedAt = (game: Game, hovered: number) =>
   tapUseOf(game)?.doomed?.(game.board.tiles, game.position.cells, hovered) ?? [];
 
-const disarmed = (game: Game): Game => ({ ...game, armed: null, picked: -1 });
+// Tapping `which` in the tray. Arming one power-up disarms the others,
+// with one exception: a power-up that frees one used on the board (Any
+// shape, for Swap) can be armed along with it, in either order, and
+// tapping it again takes it off again.
+const toggled = (game: Game, which: ArmedPowerUp): Pick<Game, 'armed' | 'free'> => {
+  const freedBy = (id: ArmedPowerUp | null) => (id ? powerUp(id).tap?.freedBy : undefined);
+  // Any shape tapped with Swap armed: on or off alongside it
+  if (game.armed && freedBy(game.armed) === which) return { armed: game.armed, free: !game.free };
+  // Swap tapped with Any shape armed: Swap, freed
+  if (game.armed && freedBy(which) === game.armed) return { armed: which, free: true };
+  // Swap tapped while armed with Any shape: both off
+  return { armed: toggleArmed(game.armed, which), free: false };
+};
+
+const disarmed = (game: Game): Game => ({ ...game, armed: null, free: false, picked: -1 });
 
 // Places the next value on tile `id`, if it fits: its merges settle, the
 // position is kept for Undo, and the next value is dealt. Any shape, if
@@ -144,7 +169,7 @@ const play = (game: Game, id: number, rand: () => number): Game => {
   const settled = settle(
     tiles, rosettes, position, id, placed, merges,
     position.next === WILD ? `Wild played as ${label(value)}.` : '',
-    placementArmed(game) && game.armed ? game.armed : undefined,
+    placementArmed(game) && game.armed ? [game.armed] : [],
   );
   return {
     ...game,
@@ -172,17 +197,20 @@ const useOnBoard = (game: Game, id: number): Game => {
   if (!armed || !use || isOver(game) || position.charges[armed] <= 0) return disarmed(game);
   const { tiles, rosettes } = game.board;
   const { cells } = position;
-  if (use.canPick && !use.canUse(tiles, cells, id, picked)) {
+  const free = isFreed(game);
+  if (use.canPick && !use.canUse(tiles, cells, id, picked, free)) {
     return use.canPick(cells, id) ? { ...game, picked: id === picked ? -1 : id } : disarmed(game);
   }
-  if (!use.canUse(tiles, cells, id, picked)) return disarmed(game);
+  if (!use.canUse(tiles, cells, id, picked, free)) return disarmed(game);
   const { cells: placed, merges } = use.apply(tiles, cells, id, picked);
   const lead = use.lead(tiles, cells, id, picked, position.charges[armed], label);
+  // A use that needed the freeing power-up (a swap across shapes) spends it too
+  const spent = use.freedBy && use.usesFree?.(tiles, id, picked) ? [armed, use.freedBy] : [armed];
   return {
     ...disarmed(game),
     selected: -1,
     history: [...game.history, position],
-    position: { ...position, ...settle(tiles, rosettes, position, id, placed, merges, lead, armed) },
+    position: { ...position, ...settle(tiles, rosettes, position, id, placed, merges, lead, spent) },
   };
 };
 
@@ -248,7 +276,7 @@ export const gameReducer = (game: Game, action: GameAction, rand: () => number =
     case 'undo': return undo(game);
     case 'swapSpare': return swapWithSpare(game, rand);
     // Arms one power-up (or disarms it if armed), disarming the others
-    case 'toggle': return { ...game, armed: toggleArmed(game.armed, action.which), picked: -1 };
+    case 'toggle': return { ...game, ...toggled(game, action.which), picked: -1 };
     case 'disarm': return disarmed(game);
     // Drops a tile selected by a first tap (when the tap rule changes)
     case 'clearSelection': return { ...game, selected: -1 };

@@ -7,7 +7,7 @@ import {
   ANY_SHAPE_MAX, type RosetteTiles, anyShapesEarned, newlyCompleted,
   BIG_MERGE, UPGRADE_MAX, canUpgrade, previewUpgradeAt, upgradeAt, upgradesEarned,
   SWEEP_MAX, sweepAt, sweepTargets, sweepsEarned,
-  SWAP_MAX, SWAP_SCORE_STEP, canSwap, previewSwapAt, swapAt, swapsEarned,
+  SWAP_MAX, SWAP_SCORE_STEP, canSwap, crossesShapes, previewSwapAt, swapAt, swapsEarned,
 } from './powerups';
 import { EMPTY, TOP_VALUE, type Cell, type Merge, type Tile, place } from './rules';
 
@@ -75,7 +75,7 @@ describe('earnCharges', () => {
   const held = startCharges();
 
   it('adds what a move earns, with a message for each', () => {
-    const { charges, messages } = earnCharges(held, undefined, {
+    const { charges, messages } = earnCharges(held, [], {
       ...quiet,
       merges: [{ into: 0, from: [1, 2], sum: 9 }, { into: 0, from: [3, 4], sum: 27 }],
       highestAfter: 27,
@@ -86,20 +86,20 @@ describe('earnCharges', () => {
 
   it('holds each at its cap, saying so when nothing was gained', () => {
     const ctx = { ...quiet, scoreBefore: 490, scoreAfter: 510 };
-    expect(earnCharges({ ...held, swap: 3 }, undefined, ctx, valueLabel)).toEqual({
+    expect(earnCharges({ ...held, swap: 3 }, [], ctx, valueLabel)).toEqual({
       charges: { ...held, swap: 3 }, messages: ['500 points! Swaps full (3).'],
     });
-    expect(earnCharges({ ...held, swap: 2 }, undefined, ctx, valueLabel).messages).toEqual(['500 points! +1 Swap.']);
+    expect(earnCharges({ ...held, swap: 2 }, [], ctx, valueLabel).messages).toEqual(['500 points! +1 Swap.']);
   });
 
   it('takes off the charge spent first, and leaves the input unchanged', () => {
     const before = { ...held, sweep: 2 };
-    expect(earnCharges(before, 'sweep', quiet, valueLabel)).toEqual({ charges: { ...held, sweep: 1 }, messages: [] });
+    expect(earnCharges(before, ['sweep'], quiet, valueLabel)).toEqual({ charges: { ...held, sweep: 1 }, messages: [] });
     expect(before.sweep).toBe(2);
   });
 
   it('earns Any shape for suns and stars, naming each', () => {
-    expect(earnCharges(held, undefined, { ...quiet, completed: ['star'] }, valueLabel).messages).toEqual(['Star! +2 Any shape.']);
+    expect(earnCharges(held, [], { ...quiet, completed: ['star'] }, valueLabel).messages).toEqual(['Star! +2 Any shape.']);
   });
 });
 
@@ -108,7 +108,7 @@ describe('power-ups used on the board', () => {
 
   it('Clear empties a letter or #, outlining it first', () => {
     const cells: Cell[] = [3, EMPTY, 0];
-    expect(use('clear').canUse(line, cells, 1, -1)).toBe(false);
+    expect(use('clear').canUse(line, cells, 1, -1, false)).toBe(false);
     expect(use('clear').doomed!(line, cells, 0)).toEqual([0]);
     expect(use('clear').apply(line, cells, 2, -1)).toEqual({ cells: [3, EMPTY, EMPTY], merges: [] });
     expect(use('clear').lead(line, cells, 2, -1, 1, valueLabel)).toBe('Cleared #. 0 Clears left.');
@@ -124,21 +124,34 @@ describe('power-ups used on the board', () => {
 
   it('Upgrade raises a letter and previews it', () => {
     const cells: Cell[] = [1, EMPTY, 0];
-    expect(use('upgrade').canUse(line, cells, 2, -1)).toBe(false);
+    expect(use('upgrade').canUse(line, cells, 2, -1, false)).toBe(false);
     expect(use('upgrade').apply(line, cells, 0, -1).cells[0]).toBe(3);
     expect(use('upgrade').lead(line, cells, 0, -1, 1, valueLabel)).toBe('Upgraded A to B.');
-    expect(use('upgrade').preview!(line, cells, 0, -1).value).toBe(3);
+    expect(use('upgrade').preview!(line, cells, 0, -1, false).value).toBe(3);
   });
 
   it('Swap picks a filled tile first, then swaps it with one holding something else', () => {
     const cells: Cell[] = [1, 3, EMPTY];
     expect(use('swap').canPick!(cells, 0)).toBe(true);
     expect(use('swap').canPick!(cells, 2)).toBe(false);
-    expect(use('swap').canUse(line, cells, 1, -1)).toBe(false);
-    expect(use('swap').canUse(line, cells, 1, 0)).toBe(true);
+    expect(use('swap').canUse(line, cells, 1, -1, false)).toBe(false);
+    expect(use('swap').canUse(line, cells, 1, 0, false)).toBe(true);
     expect(use('swap').apply(line, cells, 1, 0).cells).toEqual([3, 1, EMPTY]);
     expect(use('swap').lead(line, cells, 1, 0, 1, valueLabel)).toBe('Swapped A and B.');
-    expect(powerUp('swap').hint!(0, cells, valueLabel)).toBe('Swap: now tap a tile holding something other than A to swap it with.');
+    expect(powerUp('swap').hint!(0, cells, valueLabel, line, false)).toBe('Swap: now tap a tile holding something other than A to swap it with.');
+  });
+
+  it('Swap across shapes needs Any shape, which it then spends too, and says so', () => {
+    const shaped: Tile[] = [{ neighbors: [1], type: 'kite' }, { neighbors: [0], type: 'dart' }];
+    const cells: Cell[] = [1, 3];
+    const swap = use('swap');
+    expect(swap.freedBy).toBe('anyShape');
+    expect(swap.canUse(shaped, cells, 1, 0, false)).toBe(false);
+    expect(swap.canUse(shaped, cells, 1, 0, true)).toBe(true);
+    expect(swap.usesFree!(shaped, 1, 0)).toBe(true);
+    expect(swap.lead(shaped, cells, 1, 0, 1, valueLabel)).toBe('Swapped A and B, across shapes with Any shape.');
+    expect(powerUp('swap').hint!(0, cells, valueLabel, shaped, false)).toBe('Swap: now tap a kite holding something other than A to swap it with.');
+    expect(powerUp('swap').hint!(0, cells, valueLabel, shaped, true)).toBe('Swap: now tap a tile holding something other than A to swap it with.');
   });
 });
 
@@ -363,12 +376,25 @@ describe('the Swap power-up', () => {
 
   it('swaps two different filled tiles with different values', () => {
     const c: Cell[] = [1, 3, 3, EMPTY, 0];
-    expect(canSwap(c, 0, 1)).toBe(true);
-    expect(canSwap(c, 0, 4)).toBe(true); // a letter and a #
-    expect(canSwap(c, 1, 2)).toBe(false); // the same letter
-    expect(canSwap(c, 0, 0)).toBe(false); // one tile
-    expect(canSwap(c, 0, 3)).toBe(false); // an empty tile
-    expect(canSwap(c, -1, 0)).toBe(false);
+    expect(canSwap(tiles, c, 0, 1)).toBe(true);
+    expect(canSwap(tiles, c, 0, 4)).toBe(true); // a letter and a #
+    expect(canSwap(tiles, c, 1, 2)).toBe(false); // the same letter
+    expect(canSwap(tiles, c, 0, 0)).toBe(false); // one tile
+    expect(canSwap(tiles, c, 0, 3)).toBe(false); // an empty tile
+    expect(canSwap(tiles, c, -1, 0)).toBe(false);
+  });
+
+  it('swaps only tiles of the same shape, unless Any shape is armed too', () => {
+    // 0 and 1 kites, 2 a dart
+    const shaped: Tile[] = [
+      { neighbors: [1], type: 'kite' }, { neighbors: [0, 2], type: 'kite' }, { neighbors: [1], type: 'dart' },
+    ];
+    const c: Cell[] = [1, 3, 9];
+    expect(canSwap(shaped, c, 0, 1)).toBe(true);
+    expect(canSwap(shaped, c, 0, 2)).toBe(false);
+    expect(canSwap(shaped, c, 0, 2, true)).toBe(true);
+    expect(crossesShapes(shaped, 0, 2)).toBe(true);
+    expect(crossesShapes(shaped, 0, 1)).toBe(false);
   });
 
   it('exchanges the values', () => {
