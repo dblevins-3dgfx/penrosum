@@ -281,7 +281,7 @@ export const drawValue = (rand: () => number = Math.random, deck: Deck = DECK) =
 // picked at random, hold a random number from `values` (SEED_VALUES, the
 // values the deck deals). Neighboring
 // seeds never hold the same number, so no group exists before the first
-// move under any option.
+// move.
 // A tile whose neighbors already hold every value stays empty.
 export const SEED_FRACTION = 0.1;
 export const SEED_VALUES = NUMBERS.map(([v]) => v);
