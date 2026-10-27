@@ -363,9 +363,6 @@ export const undosEarned = (highestBefore: number, merges: Merge[]) => {
   return Math.max(0, rungOf(made) - rungOf(highestBefore));
 };
 
-// The charges held after a move earns `earned`, up to UNDO_MAX.
-export const addUndos = (held: number, earned: number) => Math.min(UNDO_MAX, held + earned);
-
 // The charges held after an Undo. `held` is the count now; `restored`
 // is the count saved with the position Undo goes back to, from before the
 // undone move. The lower of the two, less the one spent: so whatever the
@@ -379,9 +376,6 @@ export const CLEAR_MAX = 3;
 // The Clear charges a move earns: one for a chain reaction, a move whose
 // placed tile merges two or more times. Rubble merges don't count.
 export const clearsEarned = (merges: Merge[]) => (merges.length >= 2 ? 1 : 0);
-
-// The charges held after a move earns `earned`, up to CLEAR_MAX.
-export const addClears = (held: number, earned: number) => Math.min(CLEAR_MAX, held + earned);
 
 // Whether Clear can be used on tile `id`: it holds a letter or a #.
 export const canClear = (cells: Cell[], id: number) => id >= 0 && id < cells.length && cells[id] !== EMPTY;
@@ -415,12 +409,9 @@ export const ROSETTE_REWARD = { sun: 1, star: 2 } as const;
 export const newlyCompleted = (rosettes: RosetteTiles[], cells: Cell[], done: readonly number[]) =>
   rosettes.flatMap((r, i) => (!done.includes(i) && r.tiles.every(t => cells[t] !== EMPTY) ? [i] : []));
 
-// The Any shape charges earned by completing the suns and stars `indices`.
-export const anyShapesEarned = (rosettes: RosetteTiles[], indices: number[]) =>
-  indices.reduce((sum, i) => sum + ROSETTE_REWARD[rosettes[i].kind], 0);
-
-// The charges held after earning `earned`, up to ANY_SHAPE_MAX.
-export const addAnyShapes = (held: number, earned: number) => Math.min(ANY_SHAPE_MAX, held + earned);
+// The Any shape charges earned by completing suns and stars of `kinds`.
+export const anyShapesEarned = (kinds: RosetteTiles['kind'][]) =>
+  kinds.reduce((sum, kind) => sum + ROSETTE_REWARD[kind], 0);
 
 // The Upgrade power-up (issue #33): spending a charge raises one letter a
 // rung (x3), and the tile then merges like a placed one. The most held.
@@ -434,9 +425,6 @@ export const BIG_MERGE = 5;
 // merges don't count.
 export const upgradesEarned = (merges: Merge[]) =>
   merges.filter(m => m.sum > 0 && m.from.length + 1 >= BIG_MERGE).length;
-
-// The charges held after earning `earned`, up to UPGRADE_MAX.
-export const addUpgrades = (held: number, earned: number) => Math.min(UPGRADE_MAX, held + earned);
 
 // Whether tile `id` can be upgraded: it holds a letter below Z (not a #,
 // which would stay a #, and not empty).
@@ -467,9 +455,6 @@ export const SWEEP_MAX = 3;
 // lands and merges #s).
 export const sweepsEarned = (rubbleMerges: Merge[]) => rubbleMerges.length;
 
-// The charges held after earning `earned`, up to SWEEP_MAX.
-export const addSweeps = (held: number, earned: number) => Math.min(SWEEP_MAX, held + earned);
-
 // The #s a Sweep on tile `id` clears: on it and on the tiles touching it.
 // Empty when there are none (the Sweep then does nothing).
 export const sweepTargets = (tiles: Tile[], cells: Cell[], id: number) =>
@@ -494,9 +479,6 @@ export const SWAP_SCORE_STEP = 500;
 // the score passes (from `before` to `after`).
 export const swapsEarned = (before: number, after: number) =>
   Math.max(0, Math.floor(after / SWAP_SCORE_STEP) - Math.floor(before / SWAP_SCORE_STEP));
-
-// The charges held after earning `earned`, up to SWAP_MAX.
-export const addSwaps = (held: number, earned: number) => Math.min(SWAP_MAX, held + earned);
 
 // Whether tiles `a` and `b` can be swapped: two different tiles, both
 // filled (letters or #s), holding different values.

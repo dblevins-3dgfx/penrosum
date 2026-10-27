@@ -5,19 +5,13 @@ import {
 } from './lib/board';
 import { parseBoardSize, parsePrefs, type Prefs } from './lib/prefs';
 import { addScore, parseScores } from './lib/scores';
-import { type ArmedPowerUp, toggleArmed } from './lib/powerups';
+import { type ArmedPowerUp, type Charges, POWER_UPS, powerUp, startCharges, toggleArmed } from './lib/powerups';
 import { settle } from './lib/settle';
 import {
   EMPTY, MIN_GROUP, WILD,
   type Cell, type Deal, type Shape,
   canPlaceDealt, dealShape, shapeToPlace, drawValue, highestTile, outcome, place, previewAt, seedBoard, swapSpare, tapAction,
-  UNDO_START, undosAfterUndo,
-  canClear, clearTile,
-  canPlace, newlyCompleted,
-  canUpgrade, previewUpgradeAt, upgradeAt,
-  sweepAt, sweepTargets,
-  canSwap, previewSwapAt, swapAt,
-  valueToPlace,
+  undosAfterUndo, canPlace, newlyCompleted, valueToPlace,
 } from './lib/rules';
 import { fitView, toBoard } from './lib/view';
 import { TOP_LABEL, TOP_VALUE, valueLabel } from './lib/labels';
@@ -109,7 +103,7 @@ const NextChip = ({ drawn, label, shape, dealKey, role = 'Next' }: {
 // A power-up in the tray: a small tile with its symbol, its name and how
 // many charges are held. Armed (waiting for a tap on the board), it fills
 // with its own color; tapping it again cancels.
-const PowerUp = ({ symbol, name, count, title, onClick, disabled, armed = false, armedClass = '' }: {
+const PowerUpTile = ({ symbol, name, count, title, onClick, disabled, armed = false, armedClass = '' }: {
   symbol: string; name: string; count: number; title: string;
   onClick: () => void; disabled: boolean; armed?: boolean; armedClass?: string;
 }) => (
@@ -141,12 +135,7 @@ interface Snapshot {
   lastMove: number | null;
   nextShape: Shape; // the shape dealt with the next value
   spare: Deal | null; // the hot spare, if one is held
-  undos: number; // Undo charges held
-  clears: number; // Clear charges held (issue #33)
-  anyShapes: number; // Any shape charges held (issue #33)
-  upgrades: number; // Upgrade charges held (issue #33)
-  sweeps: number; // Sweep charges held (issue #33)
-  swaps: number; // Swap charges held (issue #33)
+  charges: Charges; // the power-up charges held
   completed: number[]; // the suns and stars (indices into board.rosettes) completed this game
   message: string;
 }
@@ -193,22 +182,21 @@ const Game = () => {
   // The power-up armed, if any: Clear, Upgrade, Sweep and Swap wait for a
   // tap on the board, and Any shape lets the next value go on either shape
   const [armed, setArmed] = useState<ArmedPowerUp | null>(null);
-  const clearing = armed === 'clear';
   const anyShape = armed === 'anyShape';
-  const upgrading = armed === 'upgrade';
-  const sweeping = armed === 'sweep';
-  const swapping = armed === 'swap';
-  // With Swap armed, the first tile picked (-1 for none yet): the next tap
-  // on another tile swaps the two
-  const [swapFirst, setSwapFirst] = useState(-1);
+  // The armed power-up's entry, and how it is used if by tapping the board
+  const armedPowerUp = armed ? powerUp(armed) : null;
+  const tapUse = armedPowerUp?.tap;
+  // For a power-up that takes two taps (Swap), the tile the first one
+  // picked (-1 for none yet)
+  const [picked, setPicked] = useState(-1);
   const disarm = () => {
     setArmed(null);
-    setSwapFirst(-1);
+    setPicked(-1);
   };
   // Arms one power-up (or disarms it if armed), disarming the others
   const toggle = (which: ArmedPowerUp) => {
     setArmed(a => toggleArmed(a, which));
-    setSwapFirst(-1);
+    setPicked(-1);
   };
   const [showHelp, setShowHelp] = useState(false);
   const [showPrefs, setShowPrefs] = useState(false);
@@ -240,9 +228,9 @@ const Game = () => {
     const cells = seedBoard(tiles);
     setState({
       cells, next: nextValue(), moves: 0, score: 0, lastMove: null,
-      nextShape: dealShape(tiles, cells), spare: null, undos: UNDO_START, clears: 0,
+      nextShape: dealShape(tiles, cells), spare: null, charges: startCharges(),
       // a sun or star the seeding happens to fill earns nothing
-      anyShapes: 0, upgrades: 0, sweeps: 0, swaps: 0, completed: newlyCompleted(rosettes, cells, []), message: '',
+      completed: newlyCompleted(rosettes, cells, []), message: '',
     });
     setUndo([]);
     setHovered(-1);
@@ -276,7 +264,7 @@ const Game = () => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       setArmed(null);
-      setSwapFirst(-1);
+      setPicked(-1);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -304,17 +292,17 @@ const Game = () => {
     !!state && id >= 0 && (anyShape ? canPlace(cells, id) : canPlaceDealt(tiles, cells, id, state.nextShape));
 
   // Undo is a power-up: it needs a charge
-  const canUndo = !!state && undo.length > 0 && state.undos > 0;
+  const canUndo = !!state && undo.length > 0 && state.charges.undo > 0;
 
   // Steps back one move, spending a charge and taking back any the undone
   // move earned.
   const undoMove = () => {
     if (!state || !canUndo) return;
     const restored = undo[undo.length - 1];
-    const undos = undosAfterUndo(state.undos, restored.undos);
+    const undos = undosAfterUndo(state.charges.undo, restored.charges.undo);
     setState({
       ...restored,
-      undos,
+      charges: { ...restored.charges, undo: undos },
       message: `Move undone. ${undos} Undo${undos === 1 ? '' : 's'} left.`,
     });
     setUndo(undo.slice(0, -1));
@@ -326,7 +314,7 @@ const Game = () => {
     if (!state || result.over || !fits(id)) return;
     const value = valueToPlace(tiles, cells, id, drawn);
     const { cells: placed, merges } = place(tiles, cells, id, value);
-    const settled = settle(tiles, rosettes, state, id, placed, merges, drawn === WILD ? `Wild played as ${label(value)}.` : '', { anyShape });
+    const settled = settle(tiles, rosettes, state, id, placed, merges, drawn === WILD ? `Wild played as ${label(value)}.` : '', anyShape ? 'anyShape' : undefined);
     setArmed(null);
     setUndo([...undo, state]);
     setState({
@@ -336,20 +324,6 @@ const Game = () => {
       nextShape: dealShape(tiles, settled.cells),
       spare: state.spare,
     });
-  };
-
-  // Uses an armed Upgrade on tile `id`: raises its letter a rung, which
-  // then merges like a placed one (points, rubble and power-ups included).
-  // Not a move: the deal and the move count stay, but Undo can take it back.
-  // A tap where there is nothing to upgrade just disarms it.
-  const upgradeTile = (id: number) => {
-    setArmed(null);
-    if (!state || result.over || state.upgrades <= 0 || !canUpgrade(cells, id)) return;
-    const from = cells[id] as number;
-    const { cells: placed, merges } = upgradeAt(tiles, cells, id);
-    setUndo([...undo, state]);
-    setState({ ...state, ...settle(tiles, rosettes, state, id, placed, merges, `Upgraded ${label(from)} to ${label(from * 3)}.`, { upgrade: true }) });
-    setSelected(-1);
   };
 
   // Swaps the next value with the hot spare, or reserves it when no
@@ -368,62 +342,31 @@ const Game = () => {
     });
   };
 
-  // Uses an armed Clear on tile `id`: empties it and spends a charge. Not
-  // a move (the deal, moves and score stay), but Undo can take it back. A
-  // tap where there is nothing to clear just disarms it.
-  const clearAt = (id: number) => {
-    setArmed(null);
-    if (!state || result.over || state.clears <= 0 || !canClear(cells, id)) return;
-    setUndo([...undo, state]);
-    setState({
-      ...state,
-      cells: clearTile(cells, id),
-      clears: state.clears - 1,
-      lastMove: id,
-      message: `Cleared ${label(cells[id] as number)}. ${state.clears - 1} Clear${state.clears - 1 === 1 ? '' : 's'} left.`,
-    });
-    setSelected(-1);
-  };
-
-  // Uses an armed Sweep on tile `id`: clears every # on it and the tiles
-  // touching it, and spends a charge. Not a move; Undo can take it back. A
-  // tap with no # there just disarms it.
-  const sweepTile = (id: number) => {
-    setArmed(null);
-    const targets = sweepTargets(tiles, cells, id);
-    if (!state || result.over || state.sweeps <= 0 || !targets.length) return;
-    setUndo([...undo, state]);
-    setState({
-      ...state,
-      cells: sweepAt(tiles, cells, id),
-      sweeps: state.sweeps - 1,
-      lastMove: id,
-      message: `Swept ${targets.length} #${targets.length === 1 ? '' : 's'}. ${state.sweeps - 1} Sweep${state.sweeps - 1 === 1 ? '' : 's'} left.`,
-    });
-    setSelected(-1);
-  };
-
-  // A tap with Swap armed: the first picks a filled tile, the second picks
-  // the tile to swap it with, and the two swap and then merge where they
-  // match (points, rubble and power-ups included). Not a move; Undo can
-  // take it back. Tapping the first tile again unpicks it; tapping another
-  // tile holding the same value picks that one instead; a tap on an empty
-  // tile disarms Swap.
-  const swapTap = (id: number) => {
-    if (!state || result.over || state.swaps <= 0 || id < 0 || cells[id] === EMPTY) {
+  // A tap on the board with a power-up armed that is used there (Clear,
+  // Upgrade, Sweep, Swap): uses it on the tile and spends a charge, and its
+  // merges settle like a move's (points, rubble and power-ups earned). Not
+  // a move: the deal and the move count stay, but Undo can take it back. A
+  // tap where it can't be used disarms it, except that a power-up taking
+  // two taps picks (or unpicks) its first tile.
+  const useOnBoard = (id: number) => {
+    if (!state || !armed || !tapUse || result.over || state.charges[armed] <= 0) {
       disarm();
       return;
     }
-    if (swapFirst < 0 || !canSwap(cells, swapFirst, id)) {
-      setSwapFirst(id === swapFirst ? -1 : id);
+    if (tapUse.canPick && !tapUse.canUse(tiles, cells, id, picked)) {
+      if (tapUse.canPick(cells, id)) setPicked(id === picked ? -1 : id);
+      else disarm();
       return;
     }
-    const a = cells[swapFirst] as number;
-    const b = cells[id] as number;
-    const { cells: placed, merges } = swapAt(tiles, cells, swapFirst, id);
+    if (!tapUse.canUse(tiles, cells, id, picked)) {
+      disarm();
+      return;
+    }
+    const { cells: placed, merges } = tapUse.apply(tiles, cells, id, picked);
+    const lead = tapUse.lead(tiles, cells, id, picked, state.charges[armed], label);
     disarm();
     setUndo([...undo, state]);
-    setState({ ...state, ...settle(tiles, rosettes, state, id, placed, merges, `Swapped ${label(a)} and ${label(b)}.`, { swap: true }) });
+    setState({ ...state, ...settle(tiles, rosettes, state, id, placed, merges, lead, armed) });
     setSelected(-1);
   };
 
@@ -432,20 +375,8 @@ const Game = () => {
   // or preview on the first tap and place on a second tap on the same tile.
   const tap = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const id = tileFromEvent(e);
-    if (clearing) {
-      clearAt(id);
-      return;
-    }
-    if (upgrading) {
-      upgradeTile(id);
-      return;
-    }
-    if (sweeping) {
-      sweepTile(id);
-      return;
-    }
-    if (swapping) {
-      swapTap(id);
+    if (tapUse) {
+      useOnBoard(id);
       return;
     }
     if (e.pointerType === 'mouse') {
@@ -459,20 +390,20 @@ const Game = () => {
     if (action.place) play(id);
   };
 
-  // The tile being previewed: the one under the mouse, or a tapped one
-  // (none while Clear is armed)
-  // (with Upgrade armed, the letter under the pointer)
-  const previewed = clearing || sweeping ? -1 :
-    swapping ? (swapFirst >= 0 && canSwap(cells, swapFirst, hovered) ? hovered : -1) : upgrading ? (canUpgrade(cells, hovered) ? hovered : -1) : hovered >= 0 ? hovered : selected;
+  // The tile being previewed: the one under the mouse, or a tapped one;
+  // with a power-up armed that is used on the board, the tile under the
+  // pointer if it previews there (none for Clear and Sweep)
+  const previewed = tapUse
+    ? (tapUse.preview && tapUse.canUse(tiles, cells, hovered, picked) ? hovered : -1)
+    : hovered >= 0 ? hovered : selected;
 
   // What the previewed tile would do
   const preview = useMemo(() => {
     if (previewed < 0 || result.over) return null;
-    if (upgrading) return previewUpgradeAt(tiles, cells, previewed);
-    if (swapping) return previewSwapAt(tiles, cells, swapFirst, previewed);
+    if (tapUse?.preview) return tapUse.preview(tiles, cells, previewed, picked);
     if (!fits(previewed)) return null;
     return previewAt(tiles, cells, previewed, drawn);
-  }, [previewed, cells, drawn, result.over, tiles, state?.nextShape, anyShape, upgrading, swapping, swapFirst]);
+  }, [previewed, cells, drawn, result.over, tiles, state?.nextShape, anyShape, tapUse, picked]);
 
   // When the game ends, record it on its board size's scoreboard and show
   // the scoreboard
@@ -548,9 +479,9 @@ const Game = () => {
       ctx.stroke();
     }
 
-    // With Clear armed, the tile under the pointer that it would clear;
-    // with Sweep armed, the #s it would clear there
-    const doomed = clearing && canClear(cells, hovered) ? [hovered] : sweeping ? sweepTargets(tiles, cells, hovered) : [];
+    // What the armed power-up would empty at the tile under the pointer
+    // (Clear: the tile; Sweep: its #s and its neighbors')
+    const doomed = tapUse?.doomed?.(tiles, cells, hovered) ?? [];
     for (const id of doomed) {
       tracePath(ctx, tiles[id]);
       ctx.strokeStyle = '#dc2626';
@@ -559,9 +490,9 @@ const Game = () => {
     }
 
     // With Swap armed, the first tile picked
-    if (swapping && swapFirst >= 0) {
-      tracePath(ctx, tiles[swapFirst]);
-      ctx.strokeStyle = '#0d9488';
+    if (tapUse?.pickColor && picked >= 0) {
+      tracePath(ctx, tiles[picked]);
+      ctx.strokeStyle = tapUse.pickColor;
       ctx.lineWidth = 4;
       ctx.stroke();
     }
@@ -596,7 +527,7 @@ const Game = () => {
       ctx.stroke();
       drawNumber(ctx, t, label(0), textFor(0));
     }
-  }, [tiles, cells, state, previewed, preview, view, space, label, clearing, sweeping, swapping, swapFirst, hovered, anyShape, rosettes]);
+  }, [tiles, cells, state, previewed, preview, view, space, label, tapUse, picked, hovered, anyShape, rosettes]);
 
   const tileFromEvent = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!view) return -1;
@@ -613,13 +544,7 @@ const Game = () => {
       prefs.tap === 'preview' ? ' (on a touch screen, tap once to preview and again to place)' : ''
     }. ${MIN_GROUP} or more matching tiles merge into the one you placed, a rung higher.`
     : '');
-  if (clearing) status = 'Clear: tap a letter or # to empty it (tap Clear again, or press Escape, to keep it).';
-  if (swapping) status = swapFirst < 0
-    ? 'Swap: tap the first tile to swap (a letter or #; tap Swap again, or press Escape, to keep it).'
-    : `Swap: now tap a tile holding something other than ${label(cells[swapFirst] as number)} to swap it with.`;
-  if (sweeping) status = 'Sweep: tap a tile to clear every # on it and the tiles touching it (tap Sweep again, or press Escape, to keep it).';
-  if (upgrading) status = 'Upgrade: tap a letter to raise it a rung; it merges if it then matches (tap Upgrade again, or press Escape, to keep it).';
-  if (anyShape) status = 'Any shape: place the Next letter on any empty tile, kite or dart (tap Shape again, or press Escape, to keep it).';
+  if (armedPowerUp?.hint) status = armedPowerUp.hint(picked, cells, label);
   if (state && result.over) {
     status = result.won
       ? `You made ${TOP_LABEL}, the top of the alphabet, in ${moves} moves. You win! Score: ${score}.`
@@ -645,7 +570,7 @@ const Game = () => {
       >
         <canvas
           ref={canvasRef}
-          className={`absolute inset-0 w-full h-full touch-none ${clearing || upgrading || sweeping || swapping ? 'cursor-crosshair' : 'cursor-pointer'}`}
+          className={`absolute inset-0 w-full h-full touch-none ${tapUse ? 'cursor-crosshair' : 'cursor-pointer'}`}
           onPointerMove={e => setHovered(tileFromEvent(e))}
           onPointerLeave={() => setHovered(-1)}
           onPointerDown={tap}
@@ -682,23 +607,18 @@ const Game = () => {
 
         {/* The power-ups, as a compact tray: one tile each, with its count */}
         <div role="group" aria-label="Power-ups" className="grid grid-cols-6 gap-1">
-          <PowerUp symbol="↶" name="Undo" count={state?.undos ?? 0} onClick={undoMove} disabled={!canUndo}
-            title="Undo: step back one move (earned by making a new highest letter)" />
-          <PowerUp symbol="✕" name="Clear" count={state?.clears ?? 0} armed={clearing} armedClass="bg-red-600 border-red-700"
-            onClick={() => toggle('clear')} disabled={!clearing && (!state || over || (state?.clears ?? 0) <= 0)}
-            title="Clear: empty one tile of your choice (earned by chain reactions)" />
-          <PowerUp symbol="◇" name="Shape" count={state?.anyShapes ?? 0} armed={anyShape} armedClass="bg-amber-500 border-amber-600"
-            onClick={() => toggle('anyShape')} disabled={!anyShape && (!state || over || (state?.anyShapes ?? 0) <= 0)}
-            title="Any shape: place the next value on a kite or a dart (earned by completing suns and stars)" />
-          <PowerUp symbol="⇧" name="Upgrade" count={state?.upgrades ?? 0} armed={upgrading} armedClass="bg-emerald-600 border-emerald-700"
-            onClick={() => toggle('upgrade')} disabled={!upgrading && (!state || over || (state?.upgrades ?? 0) <= 0)}
-            title="Upgrade: raise one letter a rung (earned by merges of 5 or more tiles)" />
-          <PowerUp symbol="#" name="Sweep" count={state?.sweeps ?? 0} armed={sweeping} armedClass="bg-slate-600 border-slate-700"
-            onClick={() => toggle('sweep')} disabled={!sweeping && (!state || over || (state?.sweeps ?? 0) <= 0)}
-            title="Sweep: clear every # on a tile and the tiles touching it (earned by rubble merges)" />
-          <PowerUp symbol="⇆" name="Swap" count={state?.swaps ?? 0} armed={swapping} armedClass="bg-teal-600 border-teal-700"
-            onClick={() => toggle('swap')} disabled={!swapping && (!state || over || (state?.swaps ?? 0) <= 0)}
-            title="Swap: exchange two tiles (earned every 500 points)" />
+          {POWER_UPS.map(p => {
+            const count = state?.charges[p.id] ?? 0;
+            const isArmed = armed === p.id;
+            return p.id === 'undo' ? (
+              <PowerUpTile key={p.id} symbol={p.symbol} name={p.short} count={count} title={p.title}
+                onClick={undoMove} disabled={!canUndo} />
+            ) : (
+              <PowerUpTile key={p.id} symbol={p.symbol} name={p.short} count={count} title={p.title}
+                armed={isArmed} armedClass={p.armedClass}
+                onClick={() => toggle(p.id as ArmedPowerUp)} disabled={!isArmed && (!state || over || count <= 0)} />
+            );
+          })}
         </div>
 
         <div className="flex flex-wrap gap-2">
