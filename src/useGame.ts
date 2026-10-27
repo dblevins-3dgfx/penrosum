@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { BoardSize } from './lib/board';
 import {
-  type GameAction, canUndo, doomedAt, gameReducer, newGame, placementArmed, previewFor, previewedTile, tapUseOf,
+  type GameAction, canUndo, doomedAt, gameReducer, isFreed, newGame, placementArmed, previewFor, previewedTile, tapUseOf,
 } from './lib/game';
 import { TOP_VALUE } from './lib/labels';
 import { type ArmedPowerUp, powerUp } from './lib/powerups';
@@ -83,6 +83,10 @@ export const useGame = (hovered: number, onGameEnd: () => void) => {
     // A placement power-up (Any shape) is armed: the next value may go on either shape
     placementArmed: placementArmed(game),
     picked: game.picked,
+    // With Swap armed, whether Any shape is armed with it (to swap across shapes)
+    free: game.free,
+    // ... and has a charge, so a swap across shapes can be made
+    freed: isFreed(game),
     canUndo: canUndo(game),
     previewed: previewedTile(game, hovered),
     preview,

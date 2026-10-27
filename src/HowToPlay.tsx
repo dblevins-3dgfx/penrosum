@@ -50,7 +50,8 @@ const HowToPlay = ({ onClose }: { onClose: () => void }) => (
       </p>
       <p>
         Every {SWAP_SCORE_STEP} points earns a <b>Swap</b> (up to {SWAP_MAX}): tap <b>Swap</b>, then two
-        tiles, to exchange what they hold. Each then merges if it matches its new neighbors.
+        tiles of the same shape, to exchange what they hold. Each then merges if it matches its new
+        neighbors. To swap a kite with a dart, arm <b>Shape</b> too: the swap then spends an Any shape as well.
       </p>
       <p className="text-slate-500">
         Hover a tile (or, with <b>Tap to preview</b> on in ⚙ Preferences, tap it once) to see what would merge and where rubble lands.

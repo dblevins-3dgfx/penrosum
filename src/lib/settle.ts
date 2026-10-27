@@ -33,12 +33,13 @@ export const describeMerges = (merges: Merge[], label: (v: number) => string = v
 // Settles the merges an action made on tile `id`. `base` is the game
 // before the action; `placed` is the board after its merges, before
 // rubble. The status line starts with `lead` ("Wild played as B.",
-// "Upgraded B to C." ...). `spent` is the power-up the action used, if
-// any: its charge is taken off before the earnings are added, so one at
-// its cap can earn back the one spent. The input is unchanged.
+// "Upgraded B to C." ...). `spent` lists the power-ups the action used
+// (a swap across shapes uses Swap and Any shape): their charges are taken
+// off before the earnings are added, so one at its cap can earn back the
+// one spent. The input is unchanged.
 export const settle = (
   tiles: Tile[], rosettes: RosetteTiles[], base: Holdings, id: number,
-  placed: Cell[], merges: Merge[], lead = '', spent?: PowerUpId,
+  placed: Cell[], merges: Merge[], lead = '', spent: PowerUpId[] = [],
   label: (v: number) => string = valueLabel,
 ): Settled => {
   const { cells: after, zeros, rubbleMerges } = dropRubble(tiles, placed, merges);

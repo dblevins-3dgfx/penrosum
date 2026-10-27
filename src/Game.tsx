@@ -135,7 +135,7 @@ const Game = () => {
     moves,
     dealtShape,
     tapRule: prefs.tap,
-    hint: armedPowerUp?.hint?.(picked, cells, label) ?? null,
+    hint: armedPowerUp?.hint?.(picked, cells, label, board.tiles, game.freed) ?? null,
     result,
     score,
     latest,
@@ -199,7 +199,8 @@ const Game = () => {
         <div role="group" aria-label="Power-ups" className="grid grid-cols-6 gap-1">
           {POWER_UPS.map(p => {
             const count = state.charges[p.id];
-            const isArmed = armed === p.id;
+            // Armed, or armed along with Swap (Any shape, to swap across shapes)
+            const isArmed = armed === p.id || (game.free && tapUse?.freedBy === p.id);
             // A power-up that acts at once: Undo, the only one
             return p.kind === 'now' ? (
               <PowerUpTile key={p.id} symbol={p.symbol} name={p.short} count={count} title={p.title}

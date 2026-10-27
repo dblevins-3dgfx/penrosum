@@ -85,12 +85,12 @@ describe('settle', () => {
   it('takes off the charge spent before adding what was earned', () => {
     // An Upgrade spent at the cap, and a big merge earning one back
     const { cells: placed, merges } = place(hub, [EMPTY, 3, 3, 3, 3], 0, 3);
-    const s = settle(hub, [], holdings([EMPTY, 3, 3, 3, 3], { charges: { upgrade: UPGRADE_MAX } }), 0, placed, merges, '', 'upgrade');
+    const s = settle(hub, [], holdings([EMPTY, 3, 3, 3, 3], { charges: { upgrade: UPGRADE_MAX } }), 0, placed, merges, '', ['upgrade']);
     expect(s.charges.upgrade).toBe(UPGRADE_MAX);
     expect(s.message).toContain('+1 Upgrade.');
     // Spent with nothing earned: only the one spent goes down
     const none = place(line, [EMPTY, EMPTY, EMPTY], 0, 1);
-    const spent = settle(line, [], holdings([EMPTY, EMPTY, EMPTY], { charges: { swap: 2, anyShape: 2 } }), 0, none.cells, none.merges, '', 'swap');
+    const spent = settle(line, [], holdings([EMPTY, EMPTY, EMPTY], { charges: { swap: 2, anyShape: 2 } }), 0, none.cells, none.merges, '', ['swap']);
     expect(spent.charges).toMatchObject({ swap: 1, anyShape: 2 });
   });
 

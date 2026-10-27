@@ -144,10 +144,17 @@ export const swapsEarned = (before: number, after: number) =>
   Math.max(0, Math.floor(after / SWAP_SCORE_STEP) - Math.floor(before / SWAP_SCORE_STEP));
 
 // Whether tiles `a` and `b` can be swapped: two different tiles, both
-// filled (letters or #s), holding different values.
-export const canSwap = (cells: Cell[], a: number, b: number) =>
+// filled (letters or #s), holding different values, and of the same shape
+// (kite with kite, dart with dart) unless `anyShape` (Any shape armed
+// too) lifts that.
+export const canSwap = (tiles: Tile[], cells: Cell[], a: number, b: number, anyShape = false) =>
   a !== b && a >= 0 && b >= 0 && a < cells.length && b < cells.length &&
-  cells[a] !== EMPTY && cells[b] !== EMPTY && cells[a] !== cells[b];
+  cells[a] !== EMPTY && cells[b] !== EMPTY && cells[a] !== cells[b] &&
+  (anyShape || tiles[a].type === tiles[b].type);
+
+// Whether swapping `a` and `b` crosses shapes (a kite with a dart), which
+// takes Any shape.
+export const crossesShapes = (tiles: Tile[], a: number, b: number) => tiles[a].type !== tiles[b].type;
 
 // Swaps tiles `a` and `b` (see canSwap): each takes the other's value, then
 // merges, with chain reactions, as if just placed there: first `a`, then
@@ -170,7 +177,7 @@ export const swapAt = (tiles: Tile[], cells: Cell[], a: number, b: number): Plac
 };
 
 // What swapping `a` and `b` would do, for the preview of tile `b`: as
-// previewAt.
+// previewAt. (Whether they can be swapped is canSwap.)
 export const previewSwapAt = (tiles: Tile[], cells: Cell[], a: number, b: number) =>
   previewOf(tiles, b, swapAt(tiles, cells, a, b));
 
@@ -206,15 +213,20 @@ export interface TapUse {
   // palette's picked color, and the second tap uses it. Tapping the picked tile again unpicks it,
   // and a tap on another tile it can't be used with picks that one instead.
   canPick?: (cells: Cell[], id: number) => boolean;
+  // Swap: the placement power-up that can be armed along with it (Any
+  // shape), lifting its shape limit; `free` below says whether it is. A
+  // use that needs it (`usesFree`) spends its charge too.
+  freedBy?: PowerUpId;
+  usesFree?: (tiles: Tile[], id: number, first: number) => boolean;
   // Whether a tap on `id` uses it; any other tap disarms it.
-  canUse: (tiles: Tile[], cells: Cell[], id: number, first: number) => boolean;
+  canUse: (tiles: Tile[], cells: Cell[], id: number, first: number, free: boolean) => boolean;
   // The board after using it on `id`, with any merges it made (which then
   // settle like a move's: rubble, points and power-ups earned).
   apply: (tiles: Tile[], cells: Cell[], id: number, first: number) => PlaceResult;
   // The status line's opening once used. `held` is the charges held before.
   lead: (tiles: Tile[], cells: Cell[], id: number, first: number, held: number, label: (v: number) => string) => string;
   // The merge preview while hovering a tile it can be used on.
-  preview?: (tiles: Tile[], cells: Cell[], id: number, first: number) => Preview;
+  preview?: (tiles: Tile[], cells: Cell[], id: number, first: number, free: boolean) => Preview;
   // The tiles it would empty, outlined in red while hovering `id`.
   doomed?: (tiles: Tile[], cells: Cell[], id: number) => number[];
 }
@@ -241,7 +253,8 @@ export interface PowerUp {
   earned: (ctx: EarnContext) => number;
   reason: (ctx: EarnContext, label: (v: number) => string) => string;
   // The status line while armed. `first` is as in TapUse.
-  hint?: (first: number, cells: Cell[], label: (v: number) => string) => string;
+  // `free` is as in TapUse.
+  hint?: (first: number, cells: Cell[], label: (v: number) => string, tiles: Tile[], free: boolean) => string;
   tap?: TapUse;
 }
 
@@ -310,14 +323,23 @@ export const POWER_UPS: PowerUp[] = [
     armedClass: 'bg-teal-600 border-teal-700',
     earned: ctx => swapsEarned(ctx.scoreBefore, ctx.scoreAfter),
     reason: ctx => `${Math.floor(ctx.scoreAfter / SWAP_SCORE_STEP) * SWAP_SCORE_STEP} points!`,
-    hint: (first, cells, label) => (first < 0
-      ? 'Swap: tap the first tile to swap (a letter or #; tap Swap again, or press Escape, to keep it).'
-      : `Swap: now tap a tile holding something other than ${label(cells[first] as number)} to swap it with.`),
+    hint: (first, cells, label, tiles, free) => {
+      if (first < 0) {
+        return free
+          ? 'Swap with Any shape: tap the first tile to swap, a letter or #; it can go with a tile of either shape (tap Swap again, or press Escape, to keep them).'
+          : 'Swap: tap the first tile to swap, a letter or #; a kite swaps with a kite, a dart with a dart (tap Shape too to swap across shapes; tap Swap again, or press Escape, to keep it).';
+      }
+      const shape = free ? 'tile' : tiles[first].type ?? 'tile';
+      return `Swap: now tap a ${shape} holding something other than ${label(cells[first] as number)} to swap it with.`;
+    },
     tap: {
       canPick: (cells, id) => id >= 0 && cells[id] !== EMPTY,
-      canUse: (_tiles, cells, id, first) => canSwap(cells, first, id),
+      freedBy: 'anyShape',
+      usesFree: (tiles, id, first) => crossesShapes(tiles, first, id),
+      canUse: (tiles, cells, id, first, free) => canSwap(tiles, cells, first, id, free),
       apply: (tiles, cells, id, first) => swapAt(tiles, cells, first, id),
-      lead: (_tiles, cells, id, first, _held, label) => `Swapped ${label(cells[first] as number)} and ${label(cells[id] as number)}.`,
+      lead: (tiles, cells, id, first, _held, label) =>
+        `Swapped ${label(cells[first] as number)} and ${label(cells[id] as number)}${crossesShapes(tiles, first, id) ? ', across shapes with Any shape' : ''}.`,
       preview: (tiles, cells, id, first) => previewSwapAt(tiles, cells, first, id),
     },
   },
@@ -330,15 +352,15 @@ export const powerUp = (id: PowerUpId) => POWER_UPS.find(p => p.id === id)!;
 export const startCharges = (): Charges =>
   Object.fromEntries(POWER_UPS.map(p => [p.id, p.start])) as Charges;
 
-// The charges after a move: the one `spent` (if any) taken off, then what
+// The charges after a move: those `spent` taken off, then what
 // the move earned added, each up to its power-up's cap. With a message for
 // each power-up earned: "Chain! +1 Clear.", or at the cap "Chain! Clears
 // full (3).".
 export const earnCharges = (
-  held: Charges, spent: PowerUpId | undefined, ctx: EarnContext, label: (v: number) => string,
+  held: Charges, spent: PowerUpId[], ctx: EarnContext, label: (v: number) => string,
 ) => {
   const charges = { ...held };
-  if (spent) charges[spent] -= 1;
+  for (const id of spent) charges[id] -= 1;
   const messages: string[] = [];
   for (const p of POWER_UPS) {
     const earned = p.earned(ctx);
