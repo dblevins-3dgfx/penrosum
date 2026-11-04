@@ -3,8 +3,8 @@
 // The board is a list of tiles with neighbor lists (see penrose-board.ts).
 // The game state is one number per tile. Rules that are still open
 // questions (SPEC.md, "Open questions") get an option here, so their
-// choices can be tried side by side (there are none open now). The
-// power-ups' rules are in powerups.ts.
+// choices can be tried side by side (now Q17). The power-ups' rules are
+// in powerups.ts.
 
 export type Shape = 'kite' | 'dart';
 
@@ -14,6 +14,24 @@ export type Shape = 'kite' | 'dart';
 //   preview: the first tap on a tile previews the move there, a second tap
 //            on the same tile places it
 export type TapRule = 'place' | 'preview';
+
+// Q17: how a wildcard's value is chosen (see wildChoices).
+//   auto:   it plays as the best value where it is placed (resolveWild)
+//   tile:   a tap on a tile opens a picker of the values it could become
+//           there, each with what it would do, and a tap on one places it
+//   before: the player picks what it plays as (a letter, #, or Best) from
+//           the Next chip, then places it as usual
+export type WildRule = 'auto' | 'tile' | 'before';
+
+// The rule options for the open questions, tried side by side from the
+// How to play dialog. The first listed for each is the default.
+export interface RuleOptions {
+  wild: WildRule;
+}
+
+export const DEFAULT_RULE_OPTIONS: RuleOptions = {
+  wild: 'auto',
+};
 
 // What a tap on tile `tapped` (-1 off the board) does under the tap rule
 // (the Tap to preview preference): whether it places the next value there, and which tile is then
@@ -133,8 +151,8 @@ export const place = (tiles: Tile[], cells: Cell[], id: number, value: number): 
 // number the tile would end up with, every tile its merges would clear,
 // where its rubble would land (`rubble`) and the 0s that rubble would merge
 // away (in `merging` too).
-export const previewAt = (tiles: Tile[], cells: Cell[], id: number, drawn: Drawn) => {
-  const value = valueToPlace(tiles, cells, id, drawn);
+export const previewAt = (tiles: Tile[], cells: Cell[], id: number, drawn: Drawn, wildAs: number | null = null) => {
+  const value = valueToPlace(tiles, cells, id, drawn, wildAs);
   return previewOf(tiles, id, place(tiles, cells, id, value));
 };
 
@@ -212,30 +230,64 @@ export const WILD_CHANCE = 0.05;
 // in its proportions.
 export const DECK: Deck = [[WILD, WILD_CHANCE], ...NUMBERS.map(([v, w]) => [v, w * (1 - WILD_CHANCE)] as [Drawn, number])];
 
-// What a wildcard placed on `id` becomes: the number that does best there.
-// It tries each number held by a neighbor and keeps the one whose move
-// (chain reactions included) merges rather than not, then leaves the
-// biggest number, then clears the most tiles; on a tie, the smaller
-// number. If none of them merges, it is a 1.
-export const resolveWild = (tiles: Tile[], cells: Cell[], id: number) => {
-  const tried = [...new Set(tiles[id].neighbors.map(n => cells[n]).filter(c => c !== EMPTY))].sort((a, b) => a - b);
-  let best = { value: 1, result: -1, cleared: 0 };
-  for (const value of tried) {
+// A value a wildcard could play as on a tile, and what it would do there:
+// the value the tile would end up with, how many tiles its merges would
+// clear (chain reactions included), whether it merges at all, and whether
+// it is the best of them (see wildChoices).
+export interface WildChoice {
+  value: number;
+  result: number;
+  cleared: number;
+  merges: boolean;
+  best: boolean;
+}
+
+// The values a wildcard placed on `id` could play as: each value held by a
+// neighbor, and A, from the lowest. The best is the one whose move (chain
+// reactions included) merges rather than not, then leaves the biggest
+// value, then clears the most tiles; on a tie, the smaller value. If none
+// of them merges, A is best.
+export const wildChoices = (tiles: Tile[], cells: Cell[], id: number): WildChoice[] => {
+  const values = [...new Set([1, ...tiles[id].neighbors.map(n => cells[n]).filter((c): c is number => c !== EMPTY)])]
+    .sort((a, b) => a - b);
+  const choices = values.map(value => {
     const { cells: after, merges } = place(tiles, cells, id, value);
-    if (!merges.length) continue;
-    const result = after[id];
-    const cleared = merges.reduce((s, m) => s + m.from.length, 0);
-    if (result > best.result || (result === best.result && cleared > best.cleared)) {
-      best = { value, result, cleared };
-    }
+    return {
+      value,
+      result: after[id] as number,
+      cleared: merges.reduce((s, m) => s + m.from.length, 0),
+      merges: merges.length > 0,
+      best: false,
+    };
+  });
+  let best = choices.find(c => c.value === 1)!;
+  for (const c of choices) {
+    if (!c.merges) continue;
+    if (!best.merges || c.result > best.result || (c.result === best.result && c.cleared > best.cleared)) best = c;
   }
-  return best.value;
+  best.best = true;
+  return choices;
 };
 
+// Q17 'before': the values a wildcard can be picked to play as before it
+// is placed: #, then A up to the highest letter on the board (`highest`),
+// or at least C, the highest the deck deals. Never past what the board has
+// reached, so picking can't jump ahead (no Z out of nowhere).
+export const wildPickValues = (highest: number) => {
+  const values = [0];
+  for (let v = 1; v <= Math.max(highest, 9); v *= 3) values.push(v);
+  return values;
+};
+
+// What a wildcard placed on `id` becomes when it chooses for itself: the
+// best of wildChoices.
+export const resolveWild = (tiles: Tile[], cells: Cell[], id: number) =>
+  wildChoices(tiles, cells, id).find(c => c.best)!.value;
+
 // The number a drawn value places on `id`: itself, or for a wildcard the
-// number it resolves to.
-export const valueToPlace = (tiles: Tile[], cells: Cell[], id: number, drawn: Drawn): number =>
-  drawn === WILD ? resolveWild(tiles, cells, id) : drawn;
+// value chosen for it (`wildAs`, Q17), else the one it resolves to.
+export const valueToPlace = (tiles: Tile[], cells: Cell[], id: number, drawn: Drawn, wildAs: number | null = null): number =>
+  drawn === WILD ? wildAs ?? resolveWild(tiles, cells, id) : drawn;
 
 export interface RubbleResult {
   cells: Cell[];

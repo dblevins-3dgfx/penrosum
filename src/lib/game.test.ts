@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { BoardTile } from './board';
 import { type Game, type GameAction, type Snapshot, canUndo, doomedAt, gameReducer, newGame, placementArmed, previewFor } from './game';
 import { type Charges, startCharges } from './powerups';
-import { EMPTY, type Cell } from './rules';
+import { EMPTY, WILD, type Cell } from './rules';
 
 // A line of five tiles: three kites, then two darts
 //
@@ -29,6 +29,8 @@ const gameOf = (cells: Cell[] = [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY], position: P
   free: false,
   picked: -1,
   selected: -1,
+  choosing: -1,
+  wildAs: null,
 });
 
 // Runs `actions` in turn
@@ -274,6 +276,60 @@ describe('Swap and shapes', () => {
     // Armed with Any shape but out of its charges: no preview across shapes
     const spent = run(gameOf([1, 3, 9, 27, EMPTY], {}, { swap: 1, anyShape: 0 }), swap, shape, click(0));
     expect(previewFor(spent, 3)).toBeNull();
+  });
+});
+
+describe('choosing what a wildcard plays as (Q17)', () => {
+  // A dealt ★ on a kite, beside the As on 1 and 2... the line 0-1-2-3-4
+  // with A on 1, D on 3; tile 2 touches both
+  const wild = () => gameOf([EMPTY, 1, EMPTY, 27, EMPTY], { next: WILD });
+  const tileTap = (id: number): GameAction => ({ type: 'tap', id, pointerType: 'mouse', tapRule: 'place', wildRule: 'tile' });
+
+  it('automatic: the ★ plays as the best there, as before', () => {
+    const g = run(wild(), click(2));
+    expect(g.position.cells[2]).not.toBe(EMPTY);
+    expect(g.position.message).toMatch(/^Wild played as /);
+  });
+
+  it('on the tile: a tap opens the picker there instead of placing; another tile moves it; elsewhere closes it', () => {
+    const open = run(wild(), tileTap(2));
+    expect(open.choosing).toBe(2);
+    expect(open.position.moves).toBe(0);
+    expect(run(open, tileTap(0)).choosing).toBe(0);
+    expect(run(open, tileTap(1)).choosing).toBe(-1); // a filled tile
+    expect(run(open, tileTap(-1)).choosing).toBe(-1); // off the board
+    expect(run(open, { type: 'closeWild' }).choosing).toBe(-1);
+    expect(run(open, { type: 'disarm' }).choosing).toBe(-1); // Escape
+  });
+
+  it('on the tile: picking a choice places the ★ as it, and the preview follows the choice under the pointer', () => {
+    const open = run(wild(), tileTap(2));
+    expect(previewFor(open, -1, 27)?.value).toBe(27);
+    expect(previewFor(open, -1, 1)?.value).toBe(1);
+    const g = run(open, { type: 'placeWild', value: 27 });
+    expect(g.position.cells[2]).toBe(27);
+    expect(g.position.message).toBe('Wild played as D.');
+    expect(g.position.moves).toBe(1);
+    expect(g.choosing).toBe(-1);
+  });
+
+  it('on the tile: arming a power-up closes the picker; a number dealt opens none', () => {
+    const open = run(gameOf([EMPTY, 1, EMPTY, 27, EMPTY], { next: WILD }, { clear: 1 }), tileTap(2));
+    expect(run(open, { type: 'toggle', which: 'clear' }).choosing).toBe(-1);
+    expect(run(gameOf(), tileTap(0)).position.moves).toBe(1);
+  });
+
+  it('before placing: the value picked is played wherever it goes, and is reset by the move, a spare swap or Undo', () => {
+    const picked = run(wild(), { type: 'chooseWild', value: 3 });
+    expect(picked.wildAs).toBe(3);
+    expect(previewFor(picked, 0)?.value).toBe(3);
+    const g = run(picked, click(0));
+    expect(g.position.cells[0]).toBe(3);
+    expect(g.position.message).toBe('Wild played as B.');
+    expect(g.wildAs).toBeNull();
+    expect(run(picked, { type: 'swapSpare' }).wildAs).toBeNull();
+    expect(run(run(wild(), click(0)), { type: 'chooseWild', value: 1 }).wildAs).toBeNull(); // no ★ dealt now
+    expect(run(picked, { type: 'chooseWild', value: null }).wildAs).toBeNull(); // Best
   });
 });
 

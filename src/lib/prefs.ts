@@ -4,7 +4,7 @@
 
 import { BOARD_SIZES, DEFAULT_BOARD_SIZE, type BoardSize } from './board';
 import { SKIN_IDS, type SkinId } from './colors';
-import type { TapRule } from './rules';
+import { DEFAULT_RULE_OPTIONS, type RuleOptions, type TapRule } from './rules';
 
 // The player's preferences, set in the Preferences dialog.
 export interface Prefs {
@@ -41,6 +41,28 @@ export const parsePrefs = (raw: string | null): Prefs => {
     }
   }
   return prefs;
+};
+
+// The rule options for the open questions (now Q17), from their saved JSON.
+const ALLOWED_RULES: { [K in keyof RuleOptions]: readonly RuleOptions[K][] } = {
+  wild: ['auto', 'tile', 'before'],
+};
+
+export const parseRuleOptions = (raw: string | null): RuleOptions => {
+  let saved: Record<string, unknown> = {};
+  try {
+    const parsed = JSON.parse(raw ?? '{}');
+    if (parsed && typeof parsed === 'object') saved = parsed;
+  } catch {
+    // Not JSON: use the defaults
+  }
+  const options = { ...DEFAULT_RULE_OPTIONS };
+  for (const key of Object.keys(ALLOWED_RULES) as (keyof RuleOptions)[]) {
+    if ((ALLOWED_RULES[key] as readonly unknown[]).includes(saved[key])) {
+      (options as Record<keyof RuleOptions, unknown>)[key] = saved[key];
+    }
+  }
+  return options;
 };
 
 // The board size from its saved value.

@@ -4,9 +4,11 @@ import { BOARD_SIZES } from './lib/board';
 import { type Palette, SKINS, colorsFor } from './lib/colors';
 import { valueLabel } from './lib/labels';
 import { type ArmedPowerUp, POWER_UPS } from './lib/powerups';
-import { parsePrefs, type Prefs } from './lib/prefs';
-import { EMPTY, WILD, type Drawn, type Shape, highestTile, shapeToPlace } from './lib/rules';
-import { PREFS_STORAGE_KEY, load, save } from './storage';
+import { parsePrefs, parseRuleOptions, type Prefs } from './lib/prefs';
+import {
+  EMPTY, WILD, type Drawn, type RuleOptions, type Shape, type WildChoice, highestTile, shapeToPlace, wildPickValues,
+} from './lib/rules';
+import { PREFS_STORAGE_KEY, RULES_STORAGE_KEY, load, save } from './storage';
 import { statusLine } from './lib/status';
 import { useGame } from './useGame';
 import HowToPlay from './HowToPlay';
@@ -59,6 +61,72 @@ const NextChip = ({ drawn, label, shape, dealKey, palette, role = 'Next' }: {
   );
 };
 
+// Q17 'tile': the wildcard's picker, over the board at the tile tapped. A
+// chip for each value the ★ could play as there, in its tile colors, with
+// what it would do; the best is marked. Pointing at a chip previews it on
+// the board; tapping one places the ★ as that value.
+const WildPicker = ({ choices, palette, onHover, onPick, onClose }: {
+  choices: WildChoice[]; palette: Palette;
+  onHover: (value: number | null) => void; onPick: (value: number) => void; onClose: () => void;
+}) => (
+  <div role="dialog" aria-label="Play the wildcard as" className="rounded-lg border border-slate-300 bg-white p-2 shadow-lg">
+    <div className="mb-1 flex items-center gap-2 text-xs text-slate-500">
+      <span className="mr-auto">Play ★ as</span>
+      <button onClick={onClose} aria-label="Cancel" className="px-1 text-base leading-none hover:text-slate-900">×</button>
+    </div>
+    <div className="flex gap-1">
+      {choices.map(c => {
+        const { fill, text } = colorsFor(c.value, palette);
+        const note = c.merges ? `makes ${label(c.result)}, clears ${c.cleared}` : 'no merge';
+        return (
+          <button key={c.value} onClick={() => onPick(c.value)}
+            onPointerEnter={() => onHover(c.value)} onPointerLeave={() => onHover(null)}
+            onFocus={() => onHover(c.value)} onBlur={() => onHover(null)}
+            aria-label={`${label(c.value)}: ${note}${c.best ? ', best' : ''}`}
+            className={`flex w-16 flex-col items-center rounded-md border px-1 py-1 hover:bg-slate-50 ${
+              c.best ? 'border-indigo-600 ring-2 ring-indigo-600/40' : 'border-slate-300'
+            }`}>
+            <b className="flex h-8 w-8 items-center justify-center rounded text-lg" style={{ background: fill, color: text }}>
+              {label(c.value)}
+            </b>
+            <span className="mt-0.5 text-center text-[10px] leading-tight text-slate-600">
+              {c.merges ? <>makes {label(c.result)}<br />clears {c.cleared}</> : 'no merge'}
+            </span>
+            {c.best && <span className="text-[10px] font-semibold text-indigo-700">best</span>}
+          </button>
+        );
+      })}
+    </div>
+  </div>
+);
+
+// Q17 'before': the menu from the ★ Next chip: Best (the wildcard chooses
+// where it lands), or a value to play it as (see wildPickValues).
+const WildMenu = ({ values, chosen, palette, onChoose }: {
+  values: number[]; chosen: number | null; palette: Palette; onChoose: (value: number | null) => void;
+}) => (
+  <div role="menu" aria-label="Play the wildcard as"
+    className="absolute right-0 z-30 mt-1 w-56 rounded-md border border-slate-200 bg-white p-2 shadow-lg landscape:top-full portrait:bottom-full portrait:mb-1">
+    <p className="mb-1 text-xs text-slate-500">Play ★ as</p>
+    <button role="menuitemradio" aria-checked={chosen === null} onClick={() => onChoose(null)}
+      className={`mb-1 w-full rounded border px-2 py-1 text-left text-sm ${chosen === null ? 'border-indigo-600 font-semibold' : 'border-slate-300'}`}>
+      Best (it chooses where it lands)
+    </button>
+    <div className="flex flex-wrap gap-1">
+      {values.map(v => {
+        const { fill, text } = colorsFor(v, palette);
+        return (
+          <button key={v} role="menuitemradio" aria-checked={chosen === v} aria-label={label(v)} onClick={() => onChoose(v)}
+            className={`h-8 w-8 rounded text-base font-bold ${chosen === v ? 'ring-2 ring-indigo-600' : ''}`}
+            style={{ background: fill, color: text }}>
+            {label(v)}
+          </button>
+        );
+      })}
+    </div>
+  </div>
+);
+
 // A power-up in the tray: a small tile with its symbol, its name and how
 // many charges are held. Armed (waiting for a tap on the board), it fills
 // with its own color; tapping it again cancels.
@@ -86,12 +154,18 @@ const PowerUpTile = ({ symbol, name, count, title, onClick, disabled, armed = fa
 const Game = () => {
   const [prefs, setPrefs] = useState(() => load(PREFS_STORAGE_KEY, parsePrefs));
   const [hovered, setHovered] = useState(-1);
+  // The rule options for the open questions (Q17), tried from How to play
+  const [rules, setRules] = useState(() => load(RULES_STORAGE_KEY, parseRuleOptions));
+  // Q17: the choice under the pointer in the wildcard's picker, and
+  // whether the Next chip's menu is open
+  const [wildHover, setWildHover] = useState<number | null>(null);
+  const [showWildMenu, setShowWildMenu] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showPrefs, setShowPrefs] = useState(false);
   const [showSizes, setShowSizes] = useState(false);
   const [showScores, setShowScores] = useState(false);
   // The top 10 opens by itself when a game ends
-  const game = useGame(hovered, useCallback(() => setShowScores(true), []));
+  const game = useGame(hovered, wildHover, useCallback(() => setShowScores(true), []));
   const { board, state, cells, result, armed, armedPowerUp, tapUse, picked, latest } = game;
   const { moves, score, next: drawn } = state;
 
@@ -115,6 +189,19 @@ const Game = () => {
     // A preview selected by a first tap belongs to the old tap rule
     if (key === 'tap') game.clearSelection();
   };
+  // A changed rule option applies at once, and the game carries on. A
+  // wildcard's picker or pick from the old option is dropped.
+  const setRule = <K extends keyof RuleOptions>(key: K, value: RuleOptions[K]) => {
+    const updated = { ...rules, [key]: value };
+    setRules(updated);
+    save(RULES_STORAGE_KEY, JSON.stringify(updated));
+    game.closeWild();
+    game.chooseWild(null);
+  };
+  // The picker closed or moved: nothing under the pointer in it; a new
+  // deal: the Next chip's menu closed
+  useEffect(() => setWildHover(null), [game.choosing]);
+  useEffect(() => setShowWildMenu(false), [moves, drawn]);
   const closeHelp = useCallback(() => setShowHelp(false), []);
   const closePrefs = useCallback(() => setShowPrefs(false), []);
   const closeScores = useCallback(() => setShowScores(false), []);
@@ -135,7 +222,9 @@ const Game = () => {
     moves,
     dealtShape,
     tapRule: prefs.tap,
-    hint: armedPowerUp?.hint?.(picked, cells, label, board.tiles, game.freed) ?? null,
+    hint: game.choosing >= 0
+      ? 'Wild: tap what the ★ plays as here; the best is marked (tap ×, another tile, or press Escape, to cancel).'
+      : armedPowerUp?.hint?.(picked, cells, label, board.tiles, game.freed) ?? null,
     result,
     score,
     latest,
@@ -163,7 +252,12 @@ const Game = () => {
           mustBe={game.placementArmed ? null : dealtShape}
           previewed={game.previewed} preview={game.preview} doomed={game.doomed}
           picked={tapUse?.canPick ? picked : -1} crosshair={!!tapUse} label={label} palette={palette}
-          onHover={setHovered} onTap={(id, pointerType) => game.tapBoard(id, pointerType, prefs.tap)}
+          onHover={setHovered} onTap={(id, pointerType) => game.tapBoard(id, pointerType, prefs.tap, rules.wild)}
+          overlay={game.choosing >= 0 ? {
+            id: game.choosing,
+            content: <WildPicker choices={game.wildOptions} palette={palette}
+              onHover={setWildHover} onPick={game.placeWild} onClose={game.closeWild} />,
+          } : undefined}
         />
       </main>
 
@@ -171,8 +265,27 @@ const Game = () => {
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <h1 className="portrait:text-xl landscape:text-2xl font-bold text-indigo-700 mr-auto">Penrosum</h1>
           <span className="text-sm text-slate-600">Next</span>
-          <NextChip palette={palette} drawn={drawn} label={label(drawn)} shape={state.nextShape}
-            dealKey={`${moves}:${drawn}:${state.nextShape}`} />
+          {rules.wild === 'before' && drawn === WILD && !result.over ? (
+            // Q17 'before': the ★ chip opens a menu to pick what it plays as
+            <div className="relative">
+              <button onClick={() => setShowWildMenu(s => !s)} aria-haspopup="menu" aria-expanded={showWildMenu}
+                title="Choose what the wildcard plays as" className="rounded-md hover:bg-slate-100">
+                <NextChip palette={palette} drawn={drawn}
+                  label={game.wildAs === null ? label(drawn) : `${label(drawn)}${label(game.wildAs)}`}
+                  shape={state.nextShape} dealKey={`${moves}:${drawn}:${state.nextShape}`} />
+              </button>
+              {showWildMenu && (
+                <>
+                  <div className="fixed inset-0 z-20" onClick={() => setShowWildMenu(false)} />
+                  <WildMenu values={wildPickValues(highestTile(cells))} chosen={game.wildAs} palette={palette}
+                    onChoose={v => { game.chooseWild(v); setShowWildMenu(false); }} />
+                </>
+              )}
+            </div>
+          ) : (
+            <NextChip palette={palette} drawn={drawn} label={label(drawn)} shape={state.nextShape}
+              dealKey={`${moves}:${drawn}:${state.nextShape}`} />
+          )}
           <button onClick={game.swap} disabled={result.over}
             title={state.spare ? 'Swap the next value with the spare' : 'Keep the next value as the spare'}
             className="flex items-center gap-2 rounded-lg px-1.5 py-0.5 hover:bg-slate-100 disabled:opacity-40">
@@ -245,7 +358,7 @@ const Game = () => {
         <p className="text-sm font-medium min-h-10" aria-live="polite">{status}</p>
       </aside>
 
-      {showHelp && <HowToPlay onClose={closeHelp} />}
+      {showHelp && <HowToPlay rules={rules} setRule={setRule} onClose={closeHelp} />}
       {showPrefs && <Preferences prefs={prefs} setPref={setPref} onClose={closePrefs} />}
       {showScores && <Scoreboard scores={game.scores} size={board.size} latest={latest} onClose={closeScores} />}
     </div>

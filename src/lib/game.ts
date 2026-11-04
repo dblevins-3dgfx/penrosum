@@ -10,7 +10,7 @@ import {
   type ArmedPowerUp, type Charges, newlyCompleted, powerUp, startCharges, toggleArmed, undosAfterUndo,
 } from './powerups';
 import {
-  WILD, type Cell, type Deal, type Drawn, type Shape, type TapRule,
+  WILD, type Cell, type Deal, type Drawn, type Shape, type TapRule, type WildRule,
   canPlace, canPlaceDealt, dealShape, drawValue, outcome, place, previewAt, seedBoard, swapSpare,
   tapAction, valueToPlace,
 } from './rules';
@@ -48,12 +48,23 @@ export interface Game {
   free: boolean;
   picked: number; // for a power-up taking two taps (Swap), the first tile, or -1
   selected: number; // the tile a first tap selected, with Tap to preview on, or -1
+  // Q17, choosing what a wildcard plays as: with 'tile', the tile whose
+  // picker is open (-1 for none); with 'before', the value picked for the
+  // ★ dealt (null for Best)
+  choosing: number;
+  wildAs: number | null;
 }
 
 export type GameAction =
   | { type: 'newGame'; size: BoardSize }
   // A press on tile `id` (-1 off the board) by a mouse, a finger or a pen
-  | { type: 'tap'; id: number; pointerType: string; tapRule: TapRule }
+  | { type: 'tap'; id: number; pointerType: string; tapRule: TapRule; wildRule?: WildRule }
+  // Q17 'tile': places the ★ as `value` on the tile whose picker is open
+  | { type: 'placeWild'; value: number }
+  // Q17 'tile': closes the picker without placing
+  | { type: 'closeWild' }
+  // Q17 'before': picks what the ★ plays as (null for Best)
+  | { type: 'chooseWild'; value: number | null }
   | { type: 'undo' }
   | { type: 'swapSpare' }
   | { type: 'toggle'; which: ArmedPowerUp }
@@ -83,6 +94,8 @@ export const newGame = (size: BoardSize, id: number, rand: () => number): Game =
     free: false,
     picked: -1,
     selected: -1,
+    choosing: -1,
+    wildAs: null,
   };
 };
 
@@ -119,13 +132,17 @@ export const isFreed = (game: Game) => {
 // power-up armed that is used on the board, the hovered tile if it
 // previews there (none for Clear and Sweep).
 export const previewedTile = (game: Game, hovered: number) => {
+  // A wildcard's picker is open: its tile
+  if (game.choosing >= 0) return game.choosing;
   const use = tapUseOf(game);
   if (use) return use.preview && use.canUse(game.board.tiles, game.position.cells, hovered, game.picked, isFreed(game)) ? hovered : -1;
   return hovered >= 0 ? hovered : game.selected;
 };
 
-// What the previewed tile would do (see previewedTile), or null.
-export const previewFor = (game: Game, hovered: number) => {
+// What the previewed tile would do (see previewedTile), or null. With a
+// wildcard's picker open, `wildHover` is the choice under the pointer (the
+// best when none).
+export const previewFor = (game: Game, hovered: number, wildHover: number | null = null) => {
   const id = previewedTile(game, hovered);
   if (id < 0 || isOver(game)) return null;
   const { tiles } = game.board;
@@ -133,7 +150,7 @@ export const previewFor = (game: Game, hovered: number) => {
   const use = tapUseOf(game);
   if (use?.preview) return use.preview(tiles, cells, id, game.picked, isFreed(game));
   if (!fits(game, id)) return null;
-  return previewAt(tiles, cells, id, next);
+  return previewAt(tiles, cells, id, next, game.choosing >= 0 ? wildHover : game.wildAs);
 };
 
 // The tiles the armed power-up would empty with `hovered` under the
@@ -157,14 +174,18 @@ const toggled = (game: Game, which: ArmedPowerUp): Pick<Game, 'armed' | 'free'> 
 
 const disarmed = (game: Game): Game => ({ ...game, armed: null, free: false, picked: -1 });
 
+// The wildcard's choosing reset: the picker closed, and Best
+const unchosen = (game: Game): Game => ({ ...game, choosing: -1, wildAs: null });
+
 // Places the next value on tile `id`, if it fits: its merges settle, the
-// position is kept for Undo, and the next value is dealt. Any shape, if
-// armed, is spent.
-const play = (game: Game, id: number, rand: () => number): Game => {
+// position is kept for Undo, and the next value is dealt. A wildcard plays
+// as `wildAs` if one was chosen, else the best there. Any shape, if armed,
+// is spent.
+const play = (game: Game, id: number, rand: () => number, wildAs: number | null = game.wildAs): Game => {
   if (isOver(game) || !fits(game, id)) return game;
   const { tiles, rosettes } = game.board;
   const position = game.position;
-  const value = valueToPlace(tiles, position.cells, id, position.next);
+  const value = valueToPlace(tiles, position.cells, id, position.next, wildAs);
   const { cells: placed, merges } = place(tiles, position.cells, id, value);
   const settled = settle(
     tiles, rosettes, position, id, placed, merges,
@@ -172,7 +193,7 @@ const play = (game: Game, id: number, rand: () => number): Game => {
     placementArmed(game) && game.armed ? [game.armed] : [],
   );
   return {
-    ...game,
+    ...unchosen(game),
     armed: null,
     history: [...game.history, position],
     position: {
@@ -219,8 +240,17 @@ const useOnBoard = (game: Game, id: number): Game => {
 // follows `tapRule`, the Tap to preview preference (tapAction): place at
 // once, or preview on the first tap and place on a second tap on the same
 // tile.
-const tap = (game: Game, id: number, pointerType: string, tapRule: TapRule, rand: () => number): Game => {
+//
+// With a wildcard dealt and Q17's 'tile', a tap on a tile it fits opens
+// its picker there instead (or moves it there); a tap anywhere else closes
+// it. The picker is the preview step, so the tap rule doesn't apply.
+const tap = (
+  game: Game, id: number, pointerType: string, tapRule: TapRule, rand: () => number, wildRule: WildRule = 'auto',
+): Game => {
   if (tapUseOf(game)) return useOnBoard(game, id);
+  if (wildRule === 'tile' && game.position.next === WILD) {
+    return { ...game, selected: -1, choosing: !isOver(game) && fits(game, id) ? id : -1 };
+  }
   if (pointerType === 'mouse') return play({ ...game, selected: -1 }, id, rand);
   const action = tapAction(tapRule, game.selected, id, !isOver(game) && fits(game, id));
   const selected = { ...game, selected: action.select };
@@ -234,7 +264,7 @@ const undo = (game: Game): Game => {
   const restored = game.history[game.history.length - 1];
   const undos = undosAfterUndo(game.position.charges.undo, restored.charges.undo);
   return {
-    ...disarmed(game),
+    ...unchosen(disarmed(game)),
     selected: -1,
     history: game.history.slice(0, -1),
     position: {
@@ -257,7 +287,7 @@ const swapWithSpare = (game: Game, rand: () => number): Game => {
     () => ({ value: drawValue(rand), shape: dealShape(tiles, cells, rand) }),
   );
   return {
-    ...game,
+    ...unchosen(game),
     position: {
       ...position, next: current.value, nextShape: current.shape, spare,
       message: position.spare
@@ -272,12 +302,17 @@ const swapWithSpare = (game: Game, rand: () => number): Game => {
 export const gameReducer = (game: Game, action: GameAction, rand: () => number = Math.random): Game => {
   switch (action.type) {
     case 'newGame': return newGame(action.size, game.id + 1, rand);
-    case 'tap': return tap(game, action.id, action.pointerType, action.tapRule, rand);
+    case 'tap': return tap(game, action.id, action.pointerType, action.tapRule, rand, action.wildRule);
+    case 'placeWild':
+      return game.choosing >= 0 && game.position.next === WILD ? play(game, game.choosing, rand, action.value) : game;
+    case 'closeWild': return { ...game, choosing: -1 };
+    case 'chooseWild': return game.position.next === WILD ? { ...game, wildAs: action.value } : game;
     case 'undo': return undo(game);
     case 'swapSpare': return swapWithSpare(game, rand);
     // Arms one power-up (or disarms it if armed), disarming the others
-    case 'toggle': return { ...game, ...toggled(game, action.which), picked: -1 };
-    case 'disarm': return disarmed(game);
+    case 'toggle': return { ...game, ...toggled(game, action.which), picked: -1, choosing: -1 };
+    // Escape: disarms a power-up and closes a wildcard's picker
+    case 'disarm': return { ...disarmed(game), choosing: -1 };
     // Drops a tile selected by a first tap (when the tap rule changes)
     case 'clearSelection': return { ...game, selected: -1 };
   }
