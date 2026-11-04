@@ -9,6 +9,7 @@ import {
   type Deal, shapeInPlay, swapSpare, tapAction,
   TOP_VALUE, floorPow3, mergeResult,
   type Merge, mergePoints, rungOf, scoreMerges, scoreRubble,
+  wildChoices, wildPickValues,
 } from './rules';
 
 // A small graph to test on:
@@ -245,6 +246,35 @@ describe('wildcards', () => {
 
   it('becomes the number that merges', () => {
     expect(resolveWild(star, [EMPTY, 2, 2, 1, EMPTY], 0)).toBe(2);
+  });
+
+  it('lists what it could play as: each neighbor\'s value and A, with what each would do, the best marked', () => {
+    // As A (1) it merges three As into B (3); as C (9) it makes D (27)
+    const choices = wildChoices(star, [EMPTY, 1, 1, 9, 9], 0);
+    expect(choices).toEqual([
+      { value: 1, result: 3, cleared: 2, merges: true, best: false },
+      { value: 9, result: 27, cleared: 2, merges: true, best: true },
+    ]);
+    // A # neighbor is a choice too, and A is offered even with no A beside it
+    expect(wildChoices(star, [EMPTY, 0, 3, EMPTY, EMPTY], 0).map(c => [c.value, c.merges, c.best]))
+      .toEqual([[0, false, false], [1, false, true], [3, false, false]]);
+  });
+
+  it('marks as best exactly what it plays as when it chooses for itself', () => {
+    for (const cells of [[EMPTY, 2, 2, 1, EMPTY], [EMPTY, 1, 1, 9, 9], [EMPTY, 0, 0, 1, EMPTY], [EMPTY, 3, 9, EMPTY, EMPTY]] as Cell[][]) {
+      expect(wildChoices(star, cells, 0).find(c => c.best)!.value).toBe(resolveWild(star, cells, 0));
+    }
+  });
+
+  it('plays as a value chosen for it, if any (Q17)', () => {
+    expect(valueToPlace(star, [EMPTY, 1, 1, 9, 9], 0, WILD, 1)).toBe(1);
+    expect(valueToPlace(star, [EMPTY, 1, 1, 9, 9], 0, WILD, null)).toBe(9);
+    expect(valueToPlace(star, [EMPTY, 1, 1, 9, 9], 0, 3, 1)).toBe(3); // not a wildcard: unchanged
+  });
+
+  it('can be picked before placing as #, or A up to the highest letter on the board, at least C', () => {
+    expect(wildPickValues(1)).toEqual([0, 1, 3, 9]);
+    expect(wildPickValues(81)).toEqual([0, 1, 3, 9, 27, 81]);
   });
 
   it('prefers the merge that leaves the biggest number', () => {

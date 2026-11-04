@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { centroid, tileAtPoint, type BoardTile, type Rosette, boardBounds } from './lib/board';
 import { type Palette, fillFor, textFor, tileFill } from './lib/colors';
 import type { Preview } from './lib/powerups';
@@ -127,6 +127,9 @@ export interface BoardCanvasProps {
   crosshair: boolean; // the cursor while a power-up waits for a tap
   label: (v: number) => string;
   palette: Palette; // every color it draws in
+  // Something shown over the board at a tile (the wildcard's picker, Q17):
+  // below it, or above it in the lower part of the board, kept on screen
+  overlay?: { id: number; content: ReactNode };
   onHover: (id: number) => void; // the tile under the pointer, or -1
   onTap: (id: number, pointerType: string) => void; // a press on tile `id` (-1 off the board)
 }
@@ -136,7 +139,7 @@ export interface BoardCanvasProps {
 // which is pressed. It draws what it is told; the game decides what.
 const BoardCanvas = ({
   tiles, bounds, rosettes, completed, cells, lastMove, mustBe, previewed, preview, doomed, picked,
-  crosshair, label, palette, onHover, onTap,
+  crosshair, label, palette, overlay, onHover, onTap,
 }: BoardCanvasProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -181,6 +184,15 @@ const BoardCanvas = ({
     return tileAtPoint(tiles, p.x, p.y);
   };
 
+  // Where the overlay goes: the tile's label point on screen
+  const anchor = overlay && tiles[overlay.id] && (() => {
+    const p = labelPoint(tiles[overlay.id]);
+    const x = p.x * view.scale + view.offsetX;
+    const y = p.y * view.scale + view.offsetY;
+    const half = Math.min(140, space.width / 2);
+    return { left: Math.min(Math.max(x, half), space.width - half), top: y, above: y > space.height * 0.55 };
+  })();
+
   return (
     <div ref={containerRef} className="absolute inset-0">
       <canvas
@@ -190,6 +202,14 @@ const BoardCanvas = ({
         onPointerLeave={() => onHover(-1)}
         onPointerDown={e => onTap(tileFromEvent(e), e.pointerType)}
       />
+      {overlay && anchor && (
+        <div className="absolute z-10" style={{
+          left: anchor.left, top: anchor.top,
+          transform: anchor.above ? 'translate(-50%, calc(-100% - 14px))' : 'translate(-50%, 14px)',
+        }}>
+          {overlay.content}
+        </div>
+      )}
     </div>
   );
 };

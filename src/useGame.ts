@@ -6,7 +6,7 @@ import {
 import { TOP_VALUE } from './lib/labels';
 import { type ArmedPowerUp, powerUp } from './lib/powerups';
 import { parseBoardSize } from './lib/prefs';
-import { type TapRule, highestTile, outcome } from './lib/rules';
+import { type TapRule, type WildRule, highestTile, outcome, wildChoices } from './lib/rules';
 import { addScore, parseScores } from './lib/scores';
 import { SCORES_STORAGE_KEY, SIZE_STORAGE_KEY, load, save } from './storage';
 
@@ -17,9 +17,10 @@ export type { Board, Snapshot } from './lib/game';
 // isn't pure: remembering the board size, Escape to disarm, and recording a
 // finished game on the top 10. The first game starts at once, on the board
 // size remembered, so there is always a game. `hovered` is the tile under
-// the pointer (for the preview); `onGameEnd` is called once when a game
-// ends, after it is recorded.
-export const useGame = (hovered: number, onGameEnd: () => void) => {
+// the pointer (for the preview), and `wildHover` the choice under the
+// pointer in a wildcard's picker (Q17); `onGameEnd` is called once when a
+// game ends, after it is recorded.
+export const useGame = (hovered: number, wildHover: number | null, onGameEnd: () => void) => {
   const [game, setGame] = useState(() => newGame(load(SIZE_STORAGE_KEY, parseBoardSize), 1, Math.random));
   const dispatch = (action: GameAction) => setGame(g => gameReducer(g, action));
   const [scores, setScores] = useState(() => load(SCORES_STORAGE_KEY, parseScores));
@@ -38,14 +39,15 @@ export const useGame = (hovered: number, onGameEnd: () => void) => {
     dispatch({ type: 'newGame', size });
   };
 
-  // Escape cancels an armed power-up
-  const { armed } = game;
+  // Escape cancels an armed power-up, or closes a wildcard's picker
+  const { armed, choosing } = game;
+  const escapable = !!armed || choosing >= 0;
   useEffect(() => {
-    if (!armed) return;
+    if (!escapable) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setGame(g => gameReducer(g, { type: 'disarm' }));
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [armed]);
+  }, [escapable]);
 
   const result = outcome(game.position.cells);
 
@@ -69,7 +71,12 @@ export const useGame = (hovered: number, onGameEnd: () => void) => {
     onGameEndRef.current();
   }, [result.over, game, scores]);
 
-  const preview = useMemo(() => previewFor(game, hovered), [game, hovered]);
+  const preview = useMemo(() => previewFor(game, hovered, wildHover), [game, hovered, wildHover]);
+  // Q17 'tile': what the ★ could play as on the tile whose picker is open
+  const wildOptions = useMemo(
+    () => (choosing >= 0 ? wildChoices(game.board.tiles, game.position.cells, choosing) : []),
+    [game.board.tiles, game.position.cells, choosing],
+  );
   const doomed = useMemo(() => doomedAt(game, hovered), [game, hovered]);
 
   return {
@@ -97,7 +104,16 @@ export const useGame = (hovered: number, onGameEnd: () => void) => {
     undoMove: () => dispatch({ type: 'undo' }),
     swap: () => dispatch({ type: 'swapSpare' }),
     toggle: (which: ArmedPowerUp) => dispatch({ type: 'toggle', which }),
-    tapBoard: (id: number, pointerType: string, tapRule: TapRule) => dispatch({ type: 'tap', id, pointerType, tapRule }),
+    tapBoard: (id: number, pointerType: string, tapRule: TapRule, wildRule: WildRule) =>
+      dispatch({ type: 'tap', id, pointerType, tapRule, wildRule }),
+    // Q17: the tile whose wildcard picker is open (-1 for none) and its
+    // choices; the value picked ahead for the ★ (null for Best)
+    choosing,
+    wildOptions,
+    wildAs: game.wildAs,
+    placeWild: (value: number) => dispatch({ type: 'placeWild', value }),
+    closeWild: () => dispatch({ type: 'closeWild' }),
+    chooseWild: (value: number | null) => dispatch({ type: 'chooseWild', value }),
     clearSelection: () => dispatch({ type: 'clearSelection' }),
   };
 };

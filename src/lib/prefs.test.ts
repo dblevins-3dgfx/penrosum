@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_PREFS, parseBoardSize, parsePrefs } from './prefs';
+import { DEFAULT_PREFS, parseBoardSize, parsePrefs, parseRuleOptions } from './prefs';
 
 describe('parseBoardSize', () => {
   it('reads a saved size, or falls back to medium', () => {
@@ -35,5 +35,15 @@ describe('parsePrefs', () => {
     expect(parsePrefs('{not json')).toEqual(DEFAULT_PREFS);
     expect(parsePrefs('null')).toEqual(DEFAULT_PREFS);
     expect(parsePrefs('42')).toEqual(DEFAULT_PREFS);
+  });
+});
+
+describe('parseRuleOptions', () => {
+  it('reads Q17, falling back to the wildcard choosing for itself', () => {
+    expect(parseRuleOptions(null)).toEqual({ wild: 'auto' });
+    expect(parseRuleOptions(JSON.stringify({ wild: 'tile' }))).toEqual({ wild: 'tile' });
+    expect(parseRuleOptions(JSON.stringify({ wild: 'before' }))).toEqual({ wild: 'before' });
+    expect(parseRuleOptions(JSON.stringify({ wild: 'dice' }))).toEqual({ wild: 'auto' });
+    expect(parseRuleOptions('{oops')).toEqual({ wild: 'auto' });
   });
 });

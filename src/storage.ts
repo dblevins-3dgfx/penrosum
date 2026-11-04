@@ -8,6 +8,8 @@
 export const PREFS_STORAGE_KEY = 'penrosum.options';
 export const SIZE_STORAGE_KEY = 'penrosum.boardSize';
 export const SCORES_STORAGE_KEY = 'penrosum.topTen';
+// The rule options for the open questions (Q17), tried from How to play
+export const RULES_STORAGE_KEY = 'penrosum.rules';
 
 // Stored data no longer used: the top 10 from the fixed boards (scored on
 // different tilings, so cleared when boards became random). Removed at
