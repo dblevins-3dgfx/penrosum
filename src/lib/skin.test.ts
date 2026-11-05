@@ -72,7 +72,9 @@ describe('termsFor', () => {
     expect(pics.rubbleCount(2)).toBe('2 🦴');
   });
 
-  it('a symbol for rubble takes no s, even in a text skin', () => {
+  it('a symbol for rubble takes no s, even in a text skin, and "an" when it sounds like one', () => {
+    expect(termsFor({ ...letters, rubble: { glyph: 'e⁺', name: 'positron' } }).rubble(1)).toBe('an e⁺');
+    expect(termsFor({ ...letters, rubble: { glyph: 'e⁺', name: 'positron' } }).rubble(2)).toBe('2 e⁺');
     const symbols = termsFor({ ...letters, rubble: { glyph: '☄️', name: 'comet' } });
     expect(symbols.rubble(3)).toBe('3 ☄️');
     expect(symbols.rubbleCount(2)).toBe('2 ☄️');

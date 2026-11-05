@@ -1,8 +1,9 @@
 // Star forge: the first 26 chemical elements, hydrogen to iron, in order
 // of atomic number. An ordinary star builds elements by fusion up to iron,
-// so making Fe means you've forged a star's core. Rubble is a comet (☄️):
-// debris. A text skin: the pieces are element symbols, drawn in the
-// palette's text colors.
+// so making Fe means you've forged a star's core. Rubble is antimatter, a
+// positron (e⁺): it can't sit with matter, so it's in the way until
+// cleared. A text skin: the pieces, and the rubble, are symbols drawn in
+// the palette's text colors.
 
 import { DEFAULT_PALETTE, type Palette } from '../colors';
 import type { Skin } from '../skin';
@@ -49,9 +50,9 @@ const palette: Palette = {
   ...DEFAULT_PALETTE,
   rungFills: ELEMENTS.map(e => e[2]),
   rungTexts: ELEMENTS.map(e => e[3]),
-  // Comets on cinder
-  zeroFill: '#475569',
-  zeroText: WHITE,
+  // Antimatter: pink on deep indigo
+  zeroFill: '#1e1b4b',
+  zeroText: '#f0abfc',
   wild: {
     fill: 'linear-gradient(135deg, #9333ea, #60a5fa, #22c55e, #facc15, #dc2626)',
     text: WHITE,
@@ -61,9 +62,9 @@ const palette: Palette = {
 export default {
   id: 'star-forge',
   name: 'Star forge',
-  description: 'The elements a star forges, hydrogen to iron. Rubble is comets.',
+  description: 'The elements a star forges, hydrogen to iron. Rubble is antimatter.',
   pieces: ELEMENTS.map(([glyph, name]) => ({ glyph, name })),
-  rubble: { glyph: '☄️', name: 'comet' },
+  rubble: { glyph: 'e⁺', name: 'positron' },
   piece: 'element',
   ladder: "a star's forge",
   pictures: false,

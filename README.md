@@ -6,7 +6,7 @@ The board comes from [Penrogo](https://github.com/dblevins-3dgfx/penrogo). The g
 
 ## On a phone
 
-On an iPhone, open the game in Safari and use **Share → Add to Home Screen**: it then opens full screen from its own icon, like an app. (Its scores and settings are kept apart from Safari's.) In **⚙ Preferences**, **Tap to preview** lets a tap show what a move would do before you commit, and **Skin** changes the ladder the tiles climb: **Alphabet** (A to Z), **Evolution** (🦠 microbe to 🧑 human, with 🦴 bones for rubble) or **Star forge** (the elements, H hydrogen to Fe iron, with ☄️ comets for rubble). The rules are the same in every skin.
+On an iPhone, open the game in Safari and use **Share → Add to Home Screen**: it then opens full screen from its own icon, like an app. (Its scores and settings are kept apart from Safari's.) In **⚙ Preferences**, **Tap to preview** lets a tap show what a move would do before you commit, and **Skin** changes the ladder the tiles climb: **Alphabet** (A to Z), **Evolution** (🦠 microbe to 🧑 human, with 🦴 bones for rubble) or **Star forge** (the elements, H hydrogen to Fe iron, with e⁺ antimatter for rubble). The rules are the same in every skin.
 
 ## Running
 

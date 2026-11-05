@@ -47,7 +47,8 @@ export const resolvePieces = (skin: Skin, canDraw: (glyph: string) => boolean): 
 // "a 🦴", "3 🦴").
 //
 // A rubble icon written in plain keyboard characters (#) takes an s for
-// more than one; a picture or symbol (🦴, ☄️) doesn't.
+// more than one; a picture or symbol (🦴, e⁺) doesn't. A single one is
+// "a #", or "an e⁺" for one that sounds like a vowel.
 export const rubblePlural = (glyph: string) => (/^[\x21-\x7e]+$/.test(glyph) ? 's' : '');
 
 // Whether a skin's pieces are the letters A to Z themselves (and its
@@ -82,7 +83,7 @@ export const termsFor = (skin: Skin): Terms => {
     piece: skin.piece,
     aPiece: withArticle(skin.piece),
     ladder: skin.ladder,
-    rubble: n => (n === 1 ? `a ${r}` : `${n} ${r}${s}`),
+    rubble: n => (n === 1 ? withArticle(r) : `${n} ${r}${s}`),
     title: value => {
       if (value === WILD) return 'wildcard';
       const piece = value === 0 ? skin.rubble : pieceAt(value);

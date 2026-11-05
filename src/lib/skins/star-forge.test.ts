@@ -11,7 +11,7 @@ describe('Star forge', () => {
     );
     expect(starForge.pieces[0].name).toBe('hydrogen');
     expect(starForge.pieces[25].name).toBe('iron');
-    expect(starForge.rubble).toMatchObject({ glyph: '☄️', name: 'comet' });
+    expect(starForge.rubble).toMatchObject({ glyph: 'e⁺', name: 'positron' });
     expect(starForge.pictures).toBe(false);
   });
 
@@ -27,10 +27,13 @@ describe('Star forge', () => {
     for (const s of ['F', 'Cl']) expect(fill(s).slice(1, 3)).toMatch(/^f/);
   });
 
-  it('speaks of elements, with "an", and of a star\'s forge', () => {
+  it('speaks of elements and antimatter, with "an", and of a star\'s forge', () => {
     expect(terms.aPiece).toBe('an element');
     expect(terms.title(3)).toBe('He helium, 2 of 26');
     expect(terms.ladder).toBe("a star's forge");
-    expect(terms.rubble(3)).toBe('3 ☄️');
+    expect(terms.rubble(1)).toBe('an e⁺');
+    expect(terms.rubble(3)).toBe('3 e⁺');
+    expect(terms.rubbleCount(2)).toBe('2 e⁺');
+    expect(terms.title(0)).toBe('e⁺ positron, rubble');
   });
 });
