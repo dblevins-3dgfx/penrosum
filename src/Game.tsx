@@ -266,12 +266,13 @@ const Game = () => {
 
       <aside className="flex-1 min-w-0 min-h-0 overflow-y-auto flex flex-col gap-3 p-4 bg-white border-slate-200 portrait:border-t landscape:border-l">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <h1 className="portrait:text-xl landscape:text-2xl font-bold text-indigo-700 mr-auto">
+          <h1 className="flex flex-col portrait:text-xl landscape:text-2xl font-bold text-indigo-700 mr-auto">
             Penrosum
             {PREVIEW && (
-              // A pull request's preview build: says so, and links to the PR
+              // A pull request's preview build: says so under the title (in
+              // the row's height, which the Next chip sets), and links to the PR
               <a href={PREVIEW_URL} target="_blank" rel="noreferrer" title="A preview of a change, before it is merged; its scores and settings are its own"
-                className="ml-2 align-middle rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800 hover:bg-amber-200">
+                className="self-start -mt-0.5 rounded bg-amber-100 px-1 text-[10px] leading-4 font-semibold uppercase tracking-wide text-amber-800 hover:bg-amber-200">
                 Preview #{PREVIEW}
               </a>
             )}
