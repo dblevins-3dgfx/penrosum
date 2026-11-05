@@ -21,7 +21,7 @@ describe('the status line', () => {
     const evo = termsFor(skinById('evolution'));
     expect(statusLine(input(), evo)).toMatch(/^Place the Next creature on an empty kite\./);
     expect(statusLine(input({ moves: 9, score: 50, result: { over: true, won: false, highest: 27 } }), evo))
-      .toBe('Board full. Score: 50 (highest tile 🪼, 9 moves).');
+      .toBe('Board full. Score: 50 (highest tile 🦑, 9 moves).');
     expect(statusLine(input({ moves: 400, score: 9000, result: { over: true, won: true, highest: 3 ** 25 } }), evo))
       .toBe('You made 🧑, the top of evolution, in 400 moves. You win! Score: 9000.');
   });

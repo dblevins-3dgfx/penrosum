@@ -1,6 +1,7 @@
-// Star forge: the first 26 chemical elements, hydrogen to iron, in order
-// of atomic number. An ordinary star builds elements by fusion up to iron,
-// so making Fe means you've forged a star's core. Rubble is antimatter, a
+// Star forge: the first 34 chemical elements, hydrogen to selenium, in
+// order of atomic number. An ordinary star builds elements by fusion up to
+// iron (Fe, 26); the ones after it are forged in a supernova, so making
+// selenium means a star has exploded. Rubble is antimatter, a
 // positron (e⁺): it can't sit with matter, so it's in the way until
 // cleared. A text skin: the pieces, and the rubble, are symbols drawn in
 // the palette's text colors.
@@ -15,8 +16,9 @@ const WHITE = '#ffffff';
 // families, as periodic tables color them, each family stepping darker as
 // the atomic number rises: reactive non-metals green, noble gases violet,
 // alkali metals red, alkaline earths orange, metalloids teal, halogens
-// yellow, aluminium (a post-transition metal) sky blue, the transition
-// metals steel blue, and iron, the top, ember.
+// yellow, aluminium and gallium (post-transition metals) sky blue, the
+// transition metals steel blue deepening to navy, except iron, where an
+// ordinary star's fusion stops, in ember.
 const ELEMENTS: [symbol: string, name: string, fill: string, text: string][] = [
   ['H', 'hydrogen', '#dcfce7', DARK],
   ['He', 'helium', '#f3e8ff', DARK],
@@ -39,11 +41,19 @@ const ELEMENTS: [symbol: string, name: string, fill: string, text: string][] = [
   ['K', 'potassium', '#dc2626', WHITE],
   ['Ca', 'calcium', '#c2410c', WHITE],
   ['Sc', 'scandium', '#dbeafe', DARK],
-  ['Ti', 'titanium', '#93c5fd', DARK],
-  ['V', 'vanadium', '#60a5fa', DARK],
-  ['Cr', 'chromium', '#1d4ed8', WHITE],
-  ['Mn', 'manganese', '#1e3a8a', WHITE],
+  ['Ti', 'titanium', '#bfdbfe', DARK],
+  ['V', 'vanadium', '#93c5fd', DARK],
+  ['Cr', 'chromium', '#60a5fa', DARK],
+  ['Mn', 'manganese', '#2563eb', WHITE],
   ['Fe', 'iron', '#7c2d12', WHITE],
+  ['Co', 'cobalt', '#1d4ed8', WHITE],
+  ['Ni', 'nickel', '#1e40af', WHITE],
+  ['Cu', 'copper', '#1e3a8a', WHITE],
+  ['Zn', 'zinc', '#172554', WHITE],
+  ['Ga', 'gallium', '#38bdf8', DARK],
+  ['Ge', 'germanium', '#0f766e', WHITE],
+  ['As', 'arsenic', '#134e4a', WHITE],
+  ['Se', 'selenium', '#14532d', WHITE],
 ];
 
 const palette: Palette = {
@@ -62,7 +72,7 @@ const palette: Palette = {
 export default {
   id: 'star-forge',
   name: 'Star forge',
-  description: 'The elements a star forges, hydrogen to iron. Rubble is antimatter.',
+  description: 'The elements stars forge, hydrogen to selenium. Rubble is antimatter.',
   pieces: ELEMENTS.map(([glyph, name]) => ({ glyph, name })),
   rubble: { glyph: 'e⁺', name: 'positron' },
   piece: 'element',

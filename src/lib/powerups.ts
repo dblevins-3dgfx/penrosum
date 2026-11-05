@@ -7,7 +7,7 @@
 
 import type { Terms } from './skin';
 import {
-  EMPTY, TOP_VALUE, type Cell, type Merge, type PlaceResult, type Tile,
+  EMPTY, type Cell, type Merge, type PlaceResult, type Tile,
   place, previewAt, previewOf, rungOf,
 } from './rules';
 
@@ -90,11 +90,12 @@ export const BIG_MERGE = 5;
 export const upgradesEarned = (merges: Merge[]) =>
   merges.filter(m => m.sum > 0 && m.from.length + 1 >= BIG_MERGE).length;
 
-// Whether tile `id` can be upgraded: it holds a letter below Z (not a #,
-// which would stay a #, and not empty).
+// Whether tile `id` can be upgraded: it holds a letter (not a #, which
+// would stay a #, and not empty). A game still going holds nothing at the
+// ladder's top, which ends it, so every letter on the board is below it.
 export const canUpgrade = (cells: Cell[], id: number) => {
   const v = id >= 0 && id < cells.length ? cells[id] : EMPTY;
-  return v !== EMPTY && v > 0 && v < TOP_VALUE;
+  return v !== EMPTY && v > 0;
 };
 
 // Upgrades tile `id` (see canUpgrade): it takes the next letter up and then

@@ -3,11 +3,11 @@
 
 import { describe, expect, it } from 'vitest';
 import { contrast, fillFor, textFor } from '../colors';
-import { termsFor } from '../skin';
+import { MAX_RUNGS, MIN_RUNGS, termsFor, topValue } from '../skin';
 import { DEFAULT_SKIN, SKINS, SKIN_IDS, skinById } from '.';
 
-// Every rung's value: A (1), B (3) ... Z (3 to the 25th)
-const rungs = Array.from({ length: 26 }, (_, i) => 3 ** i);
+// Every rung's value on a ladder of `n`: 1, 3, 9 ... 3 to the (n - 1)
+const rungsOf = (n: number) => Array.from({ length: n }, (_, i) => 3 ** i);
 
 describe('the skins on offer', () => {
   it('finds each skin\'s file, with Alphabet, the default, first', () => {
@@ -32,16 +32,19 @@ describe('the skins on offer', () => {
 
 for (const skin of SKINS) {
   const { name, palette, pictures } = skin;
+  const n = skin.pieces.length;
+  const rungs = rungsOf(n);
 
   describe(`${name} (every skin)`, () => {
-    it('has a name, a description, its words, and 26 distinct named pieces', () => {
+    it(`has a name, a description, its words, and ${MIN_RUNGS} to ${MAX_RUNGS} distinct named pieces`, () => {
       expect(name).not.toBe('');
       expect(skin.description).not.toBe('');
       expect(skin.piece).not.toBe('');
       expect(skin.ladder).not.toBe('');
-      expect(skin.pieces).toHaveLength(26);
-      expect(new Set(skin.pieces.map(p => p.glyph)).size).toBe(26);
-      expect(new Set(skin.pieces.map(p => p.name)).size).toBe(26);
+      expect(n).toBeGreaterThanOrEqual(MIN_RUNGS);
+      expect(n).toBeLessThanOrEqual(MAX_RUNGS);
+      expect(new Set(skin.pieces.map(p => p.glyph)).size).toBe(n);
+      expect(new Set(skin.pieces.map(p => p.name)).size).toBe(n);
       for (const p of skin.pieces) expect(p.name).not.toBe('');
     });
 
@@ -56,14 +59,16 @@ for (const skin of SKINS) {
     });
 
     it('names its top piece in the win message', () => {
-      expect(termsFor(skin).label(3 ** 25)).toBe(skin.pieces[25].glyph);
+      expect(termsFor(skin).label(topValue(skin))).toBe(skin.pieces[n - 1].glyph);
+      // and its value stays exact
+      expect(Number.isSafeInteger(topValue(skin))).toBe(true);
     });
 
     it('gives every rung its own fill, and # one of its own', () => {
-      expect(palette.rungFills).toHaveLength(26);
-      expect(palette.rungTexts).toHaveLength(26);
+      expect(palette.rungFills).toHaveLength(n);
+      expect(palette.rungTexts).toHaveLength(n);
       const fills = rungs.map(v => fillFor(v, palette));
-      expect(new Set(fills).size).toBe(26);
+      expect(new Set(fills).size).toBe(n);
       for (const other of [palette.zeroFill, palette.emptyFill, palette.offShapeFill]) expect(fills).not.toContain(other);
       expect(new Set([palette.zeroFill, palette.emptyFill, palette.offShapeFill]).size).toBe(3);
     });

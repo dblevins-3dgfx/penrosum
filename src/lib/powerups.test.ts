@@ -301,9 +301,14 @@ describe('the Upgrade power-up', () => {
     expect(UPGRADE_MAX).toBe(3);
   });
 
-  it('upgrades a letter below Z, not a #, an empty tile or a Z', () => {
-    const c: Cell[] = [9, 0, EMPTY, TOP_VALUE, 1];
-    expect([0, 1, 2, 3, 4, -1].map(id => canUpgrade(c, id))).toEqual([true, false, false, false, true, false]);
+  it('upgrades a letter, not a # or an empty tile', () => {
+    const c: Cell[] = [9, 0, EMPTY, 1];
+    expect([0, 1, 2, 3, -1].map(id => canUpgrade(c, id))).toEqual([true, false, false, true, false]);
+  });
+
+  it('upgrades a letter above Z, on a ladder longer than the alphabet (the game\'s end guards its top)', () => {
+    expect(canUpgrade([TOP_VALUE, 3 ** 30], 0)).toBe(true);
+    expect(canUpgrade([TOP_VALUE, 3 ** 30], 1)).toBe(true);
   });
 
   it('raises the letter a rung', () => {

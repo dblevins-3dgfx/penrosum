@@ -1,12 +1,12 @@
 # Penrosum
 
-A merging game on a Penrose tiling of kites and darts. Values climb a ladder of powers of 3 written as letters: # (0), A (1), B (3), C (9) and on up to Z. Place the next value (dealt at random, with a shape; now and then a ★ wildcard) on an empty tile of that shape. When that makes a group of three or more matching tiles, they merge into the tile you placed, one rung up or more: three As make a B, nine make a C. A merge of exactly three leaves a # of rubble behind. Merges score points as you play. Make a Z to win.
+A merging game on a Penrose tiling of kites and darts. Values climb a ladder of powers of 3 written as letters: # (0), A (1), B (3), C (9) and on up to Z. Place the next value (dealt at random, with a shape; now and then a ★ wildcard) on an empty tile of that shape. When that makes a group of three or more matching tiles, they merge into the tile you placed, one rung up or more: three As make a B, nine make a C. A merge of exactly three leaves a # of rubble behind. Merges score points as you play. Make the top of the ladder (Z in the Alphabet skin) to win.
 
 The board comes from [Penrogo](https://github.com/dblevins-3dgfx/penrogo). The game ends when the board is full; each board size keeps a **Top 10** of scores in your browser. [SPEC.md](SPEC.md) describes the rules, and the decisions behind them; rules still being tried (its open questions) can be switched in the game's **How to play** dialog. **New Game** deals a new board every time, cut from a different part of the tiling at a random angle, in three square sizes (exactly 50, 100 and 200 tiles), fitted to the screen.
 
 ## On a phone
 
-On an iPhone, open the game in Safari and use **Share → Add to Home Screen**: it then opens full screen from its own icon, like an app. (Its scores and settings are kept apart from Safari's.) In **⚙ Preferences**, **Tap to preview** lets a tap show what a move would do before you commit, and **Skin** changes the ladder the tiles climb: **Alphabet** (A to Z), **Evolution** (🦠 microbe to 🧑 human, with 🦴 bones for rubble) or **Star forge** (the elements, H hydrogen to Fe iron, with e⁺ antimatter for rubble). The rules are the same in every skin.
+On an iPhone, open the game in Safari and use **Share → Add to Home Screen**: it then opens full screen from its own icon, like an app. (Its scores and settings are kept apart from Safari's.) In **⚙ Preferences**, **Tap to preview** lets a tap show what a move would do before you commit, and **Skin** changes the ladder the tiles climb: **Alphabet** (A to Z, 26 rungs), **Evolution** (🦠 microbe to 🧑 human in 18, with 🦴 bones for rubble) or **Star forge** (the elements, H hydrogen to Se selenium in 34, with e⁺ antimatter for rubble). The rules are the same in every skin; each ladder has its own length, and each skin keeps its own top 10.
 
 ## Running
 
@@ -48,7 +48,7 @@ One-time setup: repository **Settings → Pages → Build and deployment → Sou
 - `src/lib/board.ts`: board sizes, cuts this game's random square boards from the patch, and finds the tile under a point
 - `src/lib/view.ts`: fits the board to the space on screen
 - `src/lib/colors.ts`: what a palette is (every color the board and the Next and Spare chips are drawn in), and the game's own, `DEFAULT_PALETTE`
-- `src/lib/skin.ts`: what a skin is (a ladder of 26 pieces, a rubble icon, a palette) and the words its messages use (`termsFor`)
+- `src/lib/skin.ts`: what a skin is (a ladder of 10 to 34 pieces, a rubble icon, a palette) and the words its messages use (`termsFor`)
 - `src/lib/skins/`: the skins, one file each (`alphabet.ts`, `evolution.ts`, `star-forge.ts`), with their tests; `index.ts` finds them and `skins.test.ts` checks every one
 - `src/emoji.ts`: which emoji this device can draw, so a picture skin falls back to older ones
 - `src/lib/labels.ts`: how values are written (as letters)
@@ -74,9 +74,9 @@ One-time setup: repository **Settings → Pages → Build and deployment → Sou
 
 A skin changes only how the game looks and what its pieces are called. The rules stay the same. To add one:
 
-1. Add `src/lib/skins/<id>.ts`. It default-exports a `Skin` (see `src/lib/skin.ts`) whose `id` is the file name. It needs 26 pieces, each with a name; a rubble icon; the words its messages use (`piece`, `ladder`); and a palette, usually `{ ...DEFAULT_PALETTE, rungFills, rungTexts, zeroFill }`. If the pieces are emoji, set `pictures: true` and give newer emoji a `fallback`.
+1. Add `src/lib/skins/<id>.ts`. It default-exports a `Skin` (see `src/lib/skin.ts`) whose `id` is the file name. It needs 10 to 34 pieces (its ladder: the last is the top, which wins), each with a name, and a palette fill and text color for each; a rubble icon; the words its messages use (`piece`, `ladder`); and a palette, usually `{ ...DEFAULT_PALETTE, rungFills, rungTexts, zeroFill }`. If the pieces are emoji, set `pictures: true` and give newer emoji a `fallback`.
 2. Optionally, add `src/lib/skins/<id>.test.ts` for anything particular to it.
 3. List it in SPEC.md's **Skin** row.
 
-Nothing else changes. The registry (`src/lib/skins/index.ts`) finds the file, and the skin appears in Preferences, How to play and the game. `skins.test.ts` runs the shared checks on it: 26 distinct named pieces, a distinct rubble icon, distinct fills, readable text and distinct outlines.
+Nothing else changes. The registry (`src/lib/skins/index.ts`) finds the file, and the skin appears in Preferences, How to play and the game. `skins.test.ts` runs the shared checks on it: 10 to 34 distinct named pieces, a distinct rubble icon, distinct fills, readable text and distinct outlines.
 

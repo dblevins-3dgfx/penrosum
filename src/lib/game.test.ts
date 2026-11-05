@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { BoardTile } from './board';
-import { type Game, type GameAction, type Snapshot, canUndo, doomedAt, gameReducer, newGame, placementArmed, previewFor } from './game';
+import { type Game, type GameAction, type Snapshot, canSetTop, canUndo, doomedAt, gameOutcome, gameReducer, isOver, newGame, placementArmed, previewFor } from './game';
 import { type Charges, startCharges } from './powerups';
-import { EMPTY, WILD, type Cell } from './rules';
+import { EMPTY, TOP_VALUE, WILD, type Cell } from './rules';
 import { termsFor } from './skin';
 import { skinById } from './skins';
 
@@ -33,6 +33,7 @@ const gameOf = (cells: Cell[] = [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY], position: P
   selected: -1,
   choosing: -1,
   wildAs: null,
+  top: TOP_VALUE,
 });
 
 // Runs `actions` in turn
@@ -174,9 +175,9 @@ describe('the skin\'s words', () => {
     const evo = termsFor(skinById('evolution'));
     const g = gameOf([EMPTY, 1, 1, 9, 27], { next: 3 });
     const kept = gameReducer(g, { type: 'swapSpare' }, rand, evo);
-    expect(kept.position.message).toBe('🧽 kept as the spare.');
+    expect(kept.position.message).toBe('🪼 kept as the spare.');
     const played = gameReducer(kept, click(0), rand, evo);
-    expect(played.position.message).toMatch(/^Merged 3 tiles into 🧽 \(\+6\)\. Rubble dropped a 🦴\./);
+    expect(played.position.message).toMatch(/^Merged 3 tiles into 🪼 \(\+6\)\. Rubble dropped a 🦴\./);
     expect(played.position.cells).toEqual(run(kept, click(0)).position.cells);
   });
 });
@@ -373,3 +374,33 @@ describe('the end of the game', () => {
     expect(run(full, { type: 'toggle', which: 'clear' }, click(0)).position).toBe(full.position);
   });
 });
+
+describe('the ladder\'s top', () => {
+  it('ends the game as a win when the game\'s own top is made, whatever its length', () => {
+    // Three Cs make a D: the top of a 4-rung ladder (D is 3 cubed, 27)
+    const g = { ...gameOf([EMPTY, 9, 9, 1, 1], { next: 9 }), top: 27 };
+    const won = run(g, click(0));
+    expect(gameOutcome(won)).toEqual({ over: true, won: true, highest: 27 });
+    expect(isOver(won)).toBe(true);
+    // The same move on Alphabet's ladder goes on
+    expect(isOver(run({ ...g, top: TOP_VALUE }, click(0)))).toBe(false);
+  });
+
+  it('moves the goal to a new skin\'s top only when it is above the highest tile', () => {
+    const g = gameOf([EMPTY, 27, 3, EMPTY, EMPTY]);
+    expect(canSetTop(g, 81)).toBe(true);
+    expect(canSetTop(g, 27)).toBe(false);
+    expect(gameReducer(g, { type: 'setTop', top: 81 }, rand).top).toBe(81);
+    // A top at or below the highest tile would hand over a win: refused
+    expect(gameReducer(g, { type: 'setTop', top: 27 }, rand)).toBe(g);
+    expect(gameReducer(g, { type: 'setTop', top: 9 }, rand)).toBe(g);
+  });
+
+  it('plays a new game to the top it is given, or else the last game\'s', () => {
+    const g = { ...gameOf(), top: 3 ** 17 };
+    expect(gameReducer(g, { type: 'newGame', size: 'small', top: 3 ** 33 }, rand).top).toBe(3 ** 33);
+    expect(gameReducer(g, { type: 'newGame', size: 'small' }, rand).top).toBe(3 ** 17);
+    expect(newGame('small', 1, rand).top).toBe(TOP_VALUE);
+  });
+});
+

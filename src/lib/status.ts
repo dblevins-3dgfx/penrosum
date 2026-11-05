@@ -2,7 +2,7 @@
 // to do next. A plain function, so the screen only shows what it returns.
 
 import { BOARD_SIZES, type BoardSize } from './board';
-import { MIN_GROUP, TOP_VALUE, type Outcome, type Shape, type TapRule } from './rules';
+import { MIN_GROUP, type Outcome, type Shape, type TapRule } from './rules';
 import type { Terms } from './skin';
 import { DEFAULT_TERMS } from './skins';
 
@@ -28,7 +28,7 @@ export const statusLine = (
 ): string => {
   if (result.over) {
     const end = result.won
-      ? `You made ${terms.label(TOP_VALUE)}, the top of ${terms.ladder}, in ${moves} moves. You win! Score: ${score}.`
+      ? `You made ${terms.label(result.highest)}, the top of ${terms.ladder}, in ${moves} moves. You win! Score: ${score}.`
       : `Board full. Score: ${score} (highest tile ${terms.label(result.highest)}, ${moves} moves).`;
     const size = latest && BOARD_SIZES.find(s => s.id === latest.size);
     return latest && size ? `${end} #${latest.rank} on the ${size.name.toLowerCase()} board!` : end;

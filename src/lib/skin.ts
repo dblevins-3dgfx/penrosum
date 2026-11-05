@@ -18,11 +18,18 @@ export interface Piece {
   fallback?: string;
 }
 
+// How long a skin's ladder may be. The top is 3 to the (length - 1), and
+// values stay exact as plain numbers up to 3 to the 33rd, so 34 rungs.
+export const MIN_RUNGS = 10;
+export const MAX_RUNGS = 34;
+
 export interface Skin {
   id: string; // what the preference saves; the file's name
   name: string;
   description: string;
-  pieces: Piece[]; // 26, rung 1 to 26
+  // The ladder, bottom rung up: MIN_RUNGS to MAX_RUNGS pieces. The last is
+  // the top, which wins the game.
+  pieces: Piece[];
   rubble: Piece; // what a 0 (rubble, a seeded or dealt obstacle) is drawn as
   // What a piece is called in the status line and hints ("tap a letter")
   piece: string;
@@ -54,7 +61,7 @@ export const rubblePlural = (glyph: string) => (/^[\x21-\x7e]+$/.test(glyph) ? '
 // Whether a skin's pieces are the letters A to Z themselves (and its
 // rubble #), so the rules, told in letters, need no key to read it
 export const isAlphabet = (skin: Skin) =>
-  skin.rubble.glyph === '#' && skin.pieces.every((p, i) => p.glyph === LETTERS[i]);
+  skin.rubble.glyph === '#' && skin.pieces.length === LETTERS.length && skin.pieces.every((p, i) => p.glyph === LETTERS[i]);
 
 // "a letter", "an element"
 export const withArticle = (word: string) => `${/^[aeiou]/i.test(word) ? 'an' : 'a'} ${word}`;
@@ -100,3 +107,22 @@ export const termsFor = (skin: Skin): Terms => {
 // where the letter says it all.
 export const tileTip = (skin: Skin, terms: Terms, value: Cell): string | null =>
   value === EMPTY || isAlphabet(skin) ? null : terms.title(value);
+
+// The value at the top of a skin's ladder (3 to the length - 1): making it
+// wins. Z, 3 to the 25th, for Alphabet's 26.
+export const topValue = (skin: Skin) => 3 ** (skin.pieces.length - 1);
+
+// Whether a game can switch to `skin` now, with `highest` its highest tile:
+// only when the skin's top is above it, so a switch never hands over a win
+// or leaves tiles past the top. A skin it has outgrown waits for the next
+// game.
+export const skinAllowed = (skin: Skin, highest: number) => topValue(skin) > highest;
+
+// A value as a piece and its name: "🦍 gorilla", "He helium", or for a
+// letter, the letter: "K"
+export const pieceName = (terms: Terms, value: Drawn) => {
+  const glyph = terms.label(value);
+  const name = terms.name(value);
+  return name === glyph ? glyph : `${glyph} ${name}`;
+};
+

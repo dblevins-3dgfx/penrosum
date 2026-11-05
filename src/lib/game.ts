@@ -9,8 +9,8 @@ import {
   type ArmedPowerUp, type Charges, newlyCompleted, powerUp, startCharges, toggleArmed, undosAfterUndo,
 } from './powerups';
 import {
-  WILD, type Cell, type Deal, type Drawn, type Shape, type TapRule, type WildRule,
-  canPlace, canPlaceDealt, dealShape, drawValue, outcome, place, previewAt, seedBoard, swapSpare,
+  TOP_VALUE, WILD, type Cell, type Deal, type Drawn, type Shape, type TapRule, type WildRule,
+  canPlace, canPlaceDealt, dealShape, drawValue, highestTile, outcome, place, previewAt, seedBoard, swapSpare,
   tapAction, valueToPlace,
 } from './rules';
 import { settle } from './settle';
@@ -54,10 +54,17 @@ export interface Game {
   // ★ dealt (null for Best)
   choosing: number;
   wildAs: number | null;
+  // The ladder's top: making it wins. It follows the skin (topValue), and
+  // only ever moves to above the highest tile (see setTop).
+  top: number;
 }
 
 export type GameAction =
-  | { type: 'newGame'; size: BoardSize }
+  // A new game on a board of `size`, played to `top` (Z if not given)
+  | { type: 'newGame'; size: BoardSize; top?: number }
+  // The skin changed: the goal moves to its top, if that is above the
+  // highest tile (a skin that is too short can't be picked mid-game)
+  | { type: 'setTop'; top: number }
   // A press on tile `id` (-1 off the board) by a mouse, a finger or a pen
   | { type: 'tap'; id: number; pointerType: string; tapRule: TapRule; wildRule?: WildRule }
   // Q17 'tile': places the ★ as `value` on the tile whose picker is open
@@ -72,9 +79,9 @@ export type GameAction =
   | { type: 'disarm' }
   | { type: 'clearSelection' };
 
-// Starts a new game on a board of `size`: a new random board, seeded, with
-// the first value dealt and the starting charges.
-export const newGame = (size: BoardSize, id: number, rand: () => number): Game => {
+// Starts a new game on a board of `size`, played to `top`: a new random
+// board, seeded, with the first value dealt and the starting charges.
+export const newGame = (size: BoardSize, id: number, rand: () => number, top: number = TOP_VALUE): Game => {
   const tiles = boardFor(size, rand);
   const rosettes = findRosettes(tiles);
   const cells = seedBoard(tiles, rand);
@@ -94,11 +101,20 @@ export const newGame = (size: BoardSize, id: number, rand: () => number): Game =
     selected: -1,
     choosing: -1,
     wildAs: null,
+    top,
   };
 };
 
-// Whether the game has ended (board full, or a Z made).
-export const isOver = (game: Game) => outcome(game.position.cells).over;
+// How the game stands: going on, or over (board full, or the ladder's top
+// made, a win).
+export const gameOutcome = (game: Game) => outcome(game.position.cells, game.top);
+
+// Whether the game has ended.
+export const isOver = (game: Game) => gameOutcome(game).over;
+
+// Whether the goal can move to `top` now: only to above the highest tile,
+// so a switch of skin never hands over a win or leaves tiles past the top.
+export const canSetTop = (game: Game, top: number) => top > highestTile(game.position.cells);
 
 // Whether a power-up that changes placement (Any shape) is armed.
 export const placementArmed = (game: Game) => !!game.armed && powerUp(game.armed).kind === 'placement';
@@ -306,7 +322,8 @@ export const gameReducer = (
   game: Game, action: GameAction, rand: () => number = Math.random, terms: Terms = DEFAULT_TERMS,
 ): Game => {
   switch (action.type) {
-    case 'newGame': return newGame(action.size, game.id + 1, rand);
+    case 'newGame': return newGame(action.size, game.id + 1, rand, action.top ?? game.top);
+    case 'setTop': return canSetTop(game, action.top) ? { ...game, top: action.top } : game;
     case 'tap': return tap(game, action.id, action.pointerType, action.tapRule, rand, action.wildRule ?? 'auto', terms);
     case 'placeWild':
       return game.choosing >= 0 && game.position.next === WILD ? play(game, game.choosing, rand, terms, action.value) : game;
