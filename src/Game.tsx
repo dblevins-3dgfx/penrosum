@@ -9,7 +9,7 @@ import { parsePrefs, parseRuleOptions, type Prefs } from './lib/prefs';
 import {
   EMPTY, WILD, type Drawn, type RuleOptions, type Shape, type WildChoice, highestTile, shapeToPlace, wildPickValues,
 } from './lib/rules';
-import { PREFS_STORAGE_KEY, RULES_STORAGE_KEY, load, save } from './storage';
+import { PREFS_STORAGE_KEY, PREVIEW, PREVIEW_URL, RULES_STORAGE_KEY, load, save } from './storage';
 import { statusLine } from './lib/status';
 import { useGame } from './useGame';
 import HowToPlay from './HowToPlay';
@@ -266,7 +266,16 @@ const Game = () => {
 
       <aside className="flex-1 min-w-0 min-h-0 overflow-y-auto flex flex-col gap-3 p-4 bg-white border-slate-200 portrait:border-t landscape:border-l">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <h1 className="portrait:text-xl landscape:text-2xl font-bold text-indigo-700 mr-auto">Penrosum</h1>
+          <h1 className="portrait:text-xl landscape:text-2xl font-bold text-indigo-700 mr-auto">
+            Penrosum
+            {PREVIEW && (
+              // A pull request's preview build: says so, and links to the PR
+              <a href={PREVIEW_URL} target="_blank" rel="noreferrer" title="A preview of a change, before it is merged; its scores and settings are its own"
+                className="ml-2 align-middle rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800 hover:bg-amber-200">
+                Preview #{PREVIEW}
+              </a>
+            )}
+          </h1>
           <span className="text-sm text-slate-600">Next</span>
           {rules.wild === 'before' && drawn === WILD && !result.over ? (
             // Q17 'before': the ★ chip opens a menu to pick what it plays as
