@@ -6,6 +6,7 @@
 // there by the registry (src/lib/skins/index.ts).
 
 import type { Palette } from './colors';
+import { LETTERS } from './labels';
 import { WILD, rungOf, type Drawn } from './rules';
 
 // One step of a skin's ladder: what is drawn, its name (for labels and
@@ -42,12 +43,27 @@ export const resolvePieces = (skin: Skin, canDraw: (glyph: string) => boolean): 
 };
 
 // The words a skin's messages use: how a value is drawn (`label`), what
-// a piece is called, and a count of rubble ("a #", "3 #s"; for a picture,
+// a piece is called, and a count of rubble ("a #", "3 #s"; for an icon,
 // "a 🦴", "3 🦴").
+//
+// A rubble icon written in plain keyboard characters (#) takes an s for
+// more than one; a picture or symbol (🦴, e⁺) doesn't. A single one is
+// "a #", or "an e⁺" for one that sounds like a vowel.
+export const rubblePlural = (glyph: string) => (/^[\x21-\x7e]+$/.test(glyph) ? 's' : '');
+
+// Whether a skin's pieces are the letters A to Z themselves (and its
+// rubble #), so the rules, told in letters, need no key to read it
+export const isAlphabet = (skin: Skin) =>
+  skin.rubble.glyph === '#' && skin.pieces.every((p, i) => p.glyph === LETTERS[i]);
+
+// "a letter", "an element"
+export const withArticle = (word: string) => `${/^[aeiou]/i.test(word) ? 'an' : 'a'} ${word}`;
+
 export interface Terms {
   label: (value: Drawn) => string;
   name: (value: Drawn) => string;
   piece: string;
+  aPiece: string; // with its article: "a letter", "an element"
   ladder: string;
   rubble: (n: number) => string;
   // A piece's tooltip: its picture and name, and its rung ("🦈 shark, 11
@@ -60,19 +76,21 @@ export interface Terms {
 export const termsFor = (skin: Skin): Terms => {
   const pieceAt = (value: number) => skin.pieces[Math.min(rungOf(value), skin.pieces.length) - 1];
   const r = skin.rubble.glyph;
+  const s = rubblePlural(r);
   return {
     label: value => (value === WILD ? '★' : value === 0 ? r : pieceAt(value).glyph),
     name: value => (value === WILD ? 'wildcard' : value === 0 ? skin.rubble.name : pieceAt(value).name),
     piece: skin.piece,
+    aPiece: withArticle(skin.piece),
     ladder: skin.ladder,
-    rubble: n => (n === 1 ? `a ${r}` : `${n} ${r}${skin.pictures ? '' : 's'}`),
+    rubble: n => (n === 1 ? withArticle(r) : `${n} ${r}${s}`),
     title: value => {
       if (value === WILD) return 'wildcard';
       const piece = value === 0 ? skin.rubble : pieceAt(value);
       const named = piece.name === piece.glyph ? piece.glyph : `${piece.glyph} ${piece.name}`;
       return value === 0 ? `${named}, rubble` : `${named}, ${Math.min(rungOf(value), skin.pieces.length)} of ${skin.pieces.length}`;
     },
-    rubbleCount: n => `${n} ${r}${n === 1 || skin.pictures ? '' : 's'}`,
+    rubbleCount: n => `${n} ${r}${n === 1 ? '' : s}`,
   };
 };
 

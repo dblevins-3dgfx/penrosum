@@ -2,7 +2,7 @@ import Dialog from './Dialog';
 import { ANY_SHAPE_MAX, BIG_MERGE, CLEAR_MAX, SWAP_MAX, SWAP_SCORE_STEP, SWEEP_MAX, UNDO_MAX, UNDO_START, UPGRADE_MAX } from './lib/powerups';
 import { MIN_GROUP, type RuleOptions } from './lib/rules';
 import { LETTERS } from './lib/labels';
-import type { Skin } from './lib/skin';
+import { type Skin, isAlphabet, withArticle } from './lib/skin';
 import { EMOJI_FONTS } from './emoji';
 
 interface ChoiceProps<T extends string> {
@@ -32,17 +32,19 @@ const Choice = <T extends string>({ label, value, options, onChange }: ChoicePro
 );
 
 // The skin's ladder, bottom rung to top, each piece on its own fill (its
-// name and rung as a tooltip), then its rubble. A picture skin shows each
-// piece's letter under it, since the rules below are told in letters.
+// name and rung as a tooltip), then its rubble. A skin whose pieces aren't
+// the letters themselves shows each piece's letter under it, since the
+// rules below are told in letters.
 const Ladder = ({ skin }: { skin: Skin }) => {
   const { palette, pictures } = skin;
   const cell = 'flex h-7 w-7 items-center justify-center rounded-sm';
   const font = pictures ? { fontFamily: EMOJI_FONTS } : {};
+  const keyed = !isAlphabet(skin);
   return (
     <figure>
       <figcaption className="mb-1 text-xs text-slate-500">
-        {skin.name}: {pictures
-          ? `the rules below are told in letters; each letter is drawn as a ${skin.piece}, and rubble (#) as ${skin.rubble.glyph}.`
+        {skin.name}: {keyed
+          ? `the rules below are told in letters; each letter is drawn as ${withArticle(skin.piece)}, and rubble (#) as ${skin.rubble.glyph}.`
           : 'the ladder, A to Z, and rubble.'}
       </figcaption>
       <ol aria-label={`The ${skin.name} ladder`} className="flex flex-wrap gap-0.5">
@@ -51,14 +53,14 @@ const Ladder = ({ skin }: { skin: Skin }) => {
             className="flex flex-col items-center">
             <span className={`${cell} ${pictures ? 'text-base' : 'text-xs font-bold'}`}
               style={{ background: palette.rungFills[i], color: palette.rungTexts[i], ...font }}>{p.glyph}</span>
-            {pictures && <span className="text-[9px] leading-tight text-slate-500">{LETTERS[i]}</span>}
+            {keyed && <span className="text-[9px] leading-tight text-slate-500">{LETTERS[i]}</span>}
           </li>
         ))}
         <li title={`${skin.rubble.glyph === skin.rubble.name ? skin.rubble.glyph : `${skin.rubble.glyph} ${skin.rubble.name}`}, rubble`}
           className="ml-1.5 flex flex-col items-center">
           <span className={`${cell} ${pictures ? 'text-base' : 'text-xs font-bold'}`}
             style={{ background: palette.zeroFill, color: palette.zeroText, ...font }}>{skin.rubble.glyph}</span>
-          {pictures && <span className="text-[9px] leading-tight text-slate-500">#</span>}
+          {keyed && <span className="text-[9px] leading-tight text-slate-500">#</span>}
         </li>
       </ol>
     </figure>
