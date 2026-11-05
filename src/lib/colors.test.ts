@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_PALETTE, EMPTY_FILL, NIGHT_PALETTE, OFF_SHAPE_FILL, type Palette, RUNG_FILLS, SKINS, SKIN_IDS, WILD_COLORS, ZERO_FILL, colorsFor, fillFor, textFor, tileFill,
+  DEFAULT_PALETTE, EMPTY_FILL, OFF_SHAPE_FILL, type Palette, RUNG_FILLS, WILD_COLORS, ZERO_FILL, colorsFor, fillFor, textFor, tileFill,
 } from './colors';
+import { SKINS, SKIN_IDS } from './skins';
 import { EMPTY, TOP_VALUE, WILD } from './rules';
 
 // The WCAG contrast ratio between two #rrggbb colors
@@ -124,17 +125,11 @@ describe('board tile fills', () => {
   });
 });
 
-describe('skins', () => {
-  it('offers Day, the default look, and Night', () => {
-    expect(SKIN_IDS).toEqual(['day', 'night']);
-    expect(SKINS.day.palette).toBe(DEFAULT_PALETTE);
-    expect(SKINS.night.palette).toBe(NIGHT_PALETTE);
-  });
-
+describe('skin palettes', () => {
   for (const id of SKIN_IDS) {
-    const { name, palette } = SKINS[id];
+    const { name, palette, pictures } = SKINS[id];
 
-    it(`${name}: gives every letter its own fill, and # one of its own`, () => {
+    it(`${name}: gives every rung its own fill, and # one of its own`, () => {
       expect(palette.rungFills).toHaveLength(26);
       expect(palette.rungTexts).toHaveLength(26);
       const fills = rungs.map(v => fillFor(v, palette));
@@ -143,8 +138,13 @@ describe('skins', () => {
       expect(new Set([palette.zeroFill, palette.emptyFill, palette.offShapeFill]).size).toBe(3);
     });
 
-    it(`${name}: keeps every letter, #, and the preview readable: contrast of at least 4.5 to 1`, () => {
-      for (const v of [0, ...rungs]) expect(contrast(fillFor(v, palette), textFor(v, palette))).toBeGreaterThanOrEqual(4.5);
+    // Pictures draw in their own colors, so only a text skin's letters
+    // need contrast with their tiles; the preview's text is always drawn
+    // in the palette
+    it(`${name}: keeps ${pictures ? 'the preview' : 'every letter, #, and the preview'} readable: contrast of at least 4.5 to 1`, () => {
+      if (!pictures) {
+        for (const v of [0, ...rungs]) expect(contrast(fillFor(v, palette), textFor(v, palette))).toBeGreaterThanOrEqual(4.5);
+      }
       expect(contrast(palette.previewText, palette.previewTint)).toBeGreaterThanOrEqual(4.5);
       expect(contrast(palette.previewText, palette.previewTintMerging)).toBeGreaterThanOrEqual(4.5);
     });
@@ -154,12 +154,4 @@ describe('skins', () => {
       expect(new Set([previewOutline, doomedOutline, pickedOutline, lastMoveOutline]).size).toBe(4);
     });
   }
-
-  it('Night is dark and soft: dark empty tiles and page, and no tile as bright as Day\'s', () => {
-    expect(luminance(NIGHT_PALETTE.emptyFill)).toBeLessThan(0.03);
-    expect(luminance(NIGHT_PALETTE.offShapeFill)).toBeLessThan(luminance(NIGHT_PALETTE.emptyFill));
-    expect(luminance(SKINS.night.page)).toBeLessThan(0.03);
-    const brightestDay = Math.max(...DEFAULT_PALETTE.rungFills.map(luminance));
-    for (const fill of NIGHT_PALETTE.rungFills) expect(luminance(fill)).toBeLessThan(brightestDay * 0.7);
-  });
 });

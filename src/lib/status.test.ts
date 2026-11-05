@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { type StatusInput, statusLine } from './status';
+import { SKINS, termsFor } from './skins';
 
 // The game going on, before the first move, with nothing to report
 const input = (more: Partial<StatusInput> = {}): StatusInput => ({
@@ -13,6 +14,15 @@ describe('the status line', () => {
       'Place the Next letter on an empty kite. 3 or more matching tiles merge into the one you placed, a rung higher.',
     );
     expect(statusLine(input({ dealtShape: null }))).toContain('on an empty tile.');
+  });
+
+  it('speaks the skin\'s words', () => {
+    const evo = termsFor(SKINS.evolution);
+    expect(statusLine(input(), evo)).toMatch(/^Place the Next creature on an empty kite\./);
+    expect(statusLine(input({ moves: 9, score: 50, result: { over: true, won: false, highest: 27 } }), evo))
+      .toBe('Board full. Score: 50 (highest tile 🪼, 9 moves).');
+    expect(statusLine(input({ moves: 400, score: 9000, result: { over: true, won: true, highest: 3 ** 25 } }), evo))
+      .toBe('You made 🧑, the top of evolution, in 400 moves. You win! Score: 9000.');
   });
 
   it('with Tap to preview on, says to tap twice', () => {

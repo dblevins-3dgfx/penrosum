@@ -5,7 +5,6 @@
 // what isn't pure: storage, keys, and recording a finished game.
 
 import { boardBounds, boardFor, findRosettes, type BoardSize, type BoardTile, type Rosette } from './board';
-import { valueLabel } from './labels';
 import {
   type ArmedPowerUp, type Charges, newlyCompleted, powerUp, startCharges, toggleArmed, undosAfterUndo,
 } from './powerups';
@@ -15,6 +14,7 @@ import {
   tapAction, valueToPlace,
 } from './rules';
 import { settle } from './settle';
+import { ALPHABET_TERMS, type Terms } from './skins';
 
 export interface Board {
   size: BoardSize;
@@ -70,9 +70,6 @@ export type GameAction =
   | { type: 'toggle'; which: ArmedPowerUp }
   | { type: 'disarm' }
   | { type: 'clearSelection' };
-
-// How values are written in the status line: as letters
-const label = valueLabel;
 
 // Starts a new game on a board of `size`: a new random board, seeded, with
 // the first value dealt and the starting charges.
@@ -181,7 +178,9 @@ const unchosen = (game: Game): Game => ({ ...game, choosing: -1, wildAs: null })
 // position is kept for Undo, and the next value is dealt. A wildcard plays
 // as `wildAs` if one was chosen, else the best there. Any shape, if armed,
 // is spent.
-const play = (game: Game, id: number, rand: () => number, wildAs: number | null = game.wildAs): Game => {
+const play = (
+  game: Game, id: number, rand: () => number, terms: Terms, wildAs: number | null = game.wildAs,
+): Game => {
   if (isOver(game) || !fits(game, id)) return game;
   const { tiles, rosettes } = game.board;
   const position = game.position;
@@ -189,8 +188,9 @@ const play = (game: Game, id: number, rand: () => number, wildAs: number | null 
   const { cells: placed, merges } = place(tiles, position.cells, id, value);
   const settled = settle(
     tiles, rosettes, position, id, placed, merges,
-    position.next === WILD ? `Wild played as ${label(value)}.` : '',
+    position.next === WILD ? `Wild played as ${terms.label(value)}.` : '',
     placementArmed(game) && game.armed ? [game.armed] : [],
+    terms,
   );
   return {
     ...unchosen(game),
@@ -212,7 +212,7 @@ const play = (game: Game, id: number, rand: () => number, wildAs: number | null 
 // move: the deal and the move count stay, but Undo can take it back. A tap
 // where it can't be used disarms it, except that a power-up taking two
 // taps picks (or unpicks) its first tile.
-const useOnBoard = (game: Game, id: number): Game => {
+const useOnBoard = (game: Game, id: number, terms: Terms): Game => {
   const { armed, picked, position } = game;
   const use = tapUseOf(game);
   if (!armed || !use || isOver(game) || position.charges[armed] <= 0) return disarmed(game);
@@ -224,14 +224,14 @@ const useOnBoard = (game: Game, id: number): Game => {
   }
   if (!use.canUse(tiles, cells, id, picked, free)) return disarmed(game);
   const { cells: placed, merges } = use.apply(tiles, cells, id, picked);
-  const lead = use.lead(tiles, cells, id, picked, position.charges[armed], label);
+  const lead = use.lead(tiles, cells, id, picked, position.charges[armed], terms);
   // A use that needed the freeing power-up (a swap across shapes) spends it too
   const spent = use.freedBy && use.usesFree?.(tiles, id, picked) ? [armed, use.freedBy] : [armed];
   return {
     ...disarmed(game),
     selected: -1,
     history: [...game.history, position],
-    position: { ...position, ...settle(tiles, rosettes, position, id, placed, merges, lead, spent) },
+    position: { ...position, ...settle(tiles, rosettes, position, id, placed, merges, lead, spent, terms) },
   };
 };
 
@@ -245,16 +245,17 @@ const useOnBoard = (game: Game, id: number): Game => {
 // its picker there instead (or moves it there); a tap anywhere else closes
 // it. The picker is the preview step, so the tap rule doesn't apply.
 const tap = (
-  game: Game, id: number, pointerType: string, tapRule: TapRule, rand: () => number, wildRule: WildRule = 'auto',
+  game: Game, id: number, pointerType: string, tapRule: TapRule, rand: () => number, wildRule: WildRule,
+  terms: Terms,
 ): Game => {
-  if (tapUseOf(game)) return useOnBoard(game, id);
+  if (tapUseOf(game)) return useOnBoard(game, id, terms);
   if (wildRule === 'tile' && game.position.next === WILD) {
     return { ...game, selected: -1, choosing: !isOver(game) && fits(game, id) ? id : -1 };
   }
-  if (pointerType === 'mouse') return play({ ...game, selected: -1 }, id, rand);
+  if (pointerType === 'mouse') return play({ ...game, selected: -1 }, id, rand, terms);
   const action = tapAction(tapRule, game.selected, id, !isOver(game) && fits(game, id));
   const selected = { ...game, selected: action.select };
-  return action.place ? play(selected, id, rand) : selected;
+  return action.place ? play(selected, id, rand, terms) : selected;
 };
 
 // Steps back one move, spending an Undo charge and taking back any the
@@ -277,7 +278,7 @@ const undo = (game: Game): Game => {
 
 // Swaps the next value with the hot spare, or keeps it as the spare when
 // none is held. Not a move: it changes only the deal.
-const swapWithSpare = (game: Game, rand: () => number): Game => {
+const swapWithSpare = (game: Game, rand: () => number, terms: Terms): Game => {
   if (isOver(game)) return game;
   const { tiles } = game.board;
   const position = game.position;
@@ -291,24 +292,27 @@ const swapWithSpare = (game: Game, rand: () => number): Game => {
     position: {
       ...position, next: current.value, nextShape: current.shape, spare,
       message: position.spare
-        ? `Swapped: ${label(current.value)} is next, ${label(spare.value)} is the spare.`
-        : `${label(spare.value)} kept as the spare.`,
+        ? `Swapped: ${terms.label(current.value)} is next, ${terms.label(spare.value)} is the spare.`
+        : `${terms.label(spare.value)} kept as the spare.`,
     },
   };
 };
 
 // The game after `action`. The first game is made by newGame; a new game
-// after it counts up. The input is unchanged.
-export const gameReducer = (game: Game, action: GameAction, rand: () => number = Math.random): Game => {
+// after it counts up. `terms` are the skin's words for the status line
+// (letters by default). The input is unchanged.
+export const gameReducer = (
+  game: Game, action: GameAction, rand: () => number = Math.random, terms: Terms = ALPHABET_TERMS,
+): Game => {
   switch (action.type) {
     case 'newGame': return newGame(action.size, game.id + 1, rand);
-    case 'tap': return tap(game, action.id, action.pointerType, action.tapRule, rand, action.wildRule);
+    case 'tap': return tap(game, action.id, action.pointerType, action.tapRule, rand, action.wildRule ?? 'auto', terms);
     case 'placeWild':
-      return game.choosing >= 0 && game.position.next === WILD ? play(game, game.choosing, rand, action.value) : game;
+      return game.choosing >= 0 && game.position.next === WILD ? play(game, game.choosing, rand, terms, action.value) : game;
     case 'closeWild': return { ...game, choosing: -1 };
     case 'chooseWild': return game.position.next === WILD ? { ...game, wildAs: action.value } : game;
     case 'undo': return undo(game);
-    case 'swapSpare': return swapWithSpare(game, rand);
+    case 'swapSpare': return swapWithSpare(game, rand, terms);
     // Arms one power-up (or disarms it if armed), disarming the others
     case 'toggle': return { ...game, ...toggled(game, action.which), picked: -1, choosing: -1 };
     // Escape: disarms a power-up and closes a wildcard's picker

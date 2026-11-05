@@ -1,6 +1,9 @@
 import Dialog from './Dialog';
 import { ANY_SHAPE_MAX, BIG_MERGE, CLEAR_MAX, SWAP_MAX, SWAP_SCORE_STEP, SWEEP_MAX, UNDO_MAX, UNDO_START, UPGRADE_MAX } from './lib/powerups';
 import { MIN_GROUP, type RuleOptions } from './lib/rules';
+import { LETTERS } from './lib/labels';
+import type { Skin } from './lib/skins';
+import { EMOJI_FONTS } from './emoji';
 
 interface ChoiceProps<T extends string> {
   label: string;
@@ -28,7 +31,42 @@ const Choice = <T extends string>({ label, value, options, onChange }: ChoicePro
   </fieldset>
 );
 
+// The skin's ladder, bottom rung to top, each piece on its own fill (its
+// name and rung as a tooltip), then its rubble. A picture skin shows each
+// piece's letter under it, since the rules below are told in letters.
+const Ladder = ({ skin }: { skin: Skin }) => {
+  const { palette, pictures } = skin;
+  const cell = 'flex h-7 w-7 items-center justify-center rounded-sm';
+  const font = pictures ? { fontFamily: EMOJI_FONTS } : {};
+  return (
+    <figure>
+      <figcaption className="mb-1 text-xs text-slate-500">
+        {skin.name}: {pictures
+          ? `the rules below are told in letters; each letter is drawn as a ${skin.piece}, and rubble (#) as ${skin.rubble.glyph}.`
+          : 'the ladder, A to Z, and rubble.'}
+      </figcaption>
+      <ol aria-label={`The ${skin.name} ladder`} className="flex flex-wrap gap-0.5">
+        {skin.pieces.map((p, i) => (
+          <li key={i} title={`${p.name === p.glyph ? p.glyph : `${p.glyph} ${p.name}`}, ${i + 1} of ${skin.pieces.length}`}
+            className="flex flex-col items-center">
+            <span className={`${cell} ${pictures ? 'text-base' : 'text-xs font-bold'}`}
+              style={{ background: palette.rungFills[i], color: palette.rungTexts[i], ...font }}>{p.glyph}</span>
+            {pictures && <span className="text-[9px] leading-tight text-slate-500">{LETTERS[i]}</span>}
+          </li>
+        ))}
+        <li title={`${skin.rubble.glyph === skin.rubble.name ? skin.rubble.glyph : `${skin.rubble.glyph} ${skin.rubble.name}`}, rubble`}
+          className="ml-1.5 flex flex-col items-center">
+          <span className={`${cell} ${pictures ? 'text-base' : 'text-xs font-bold'}`}
+            style={{ background: palette.zeroFill, color: palette.zeroText, ...font }}>{skin.rubble.glyph}</span>
+          {pictures && <span className="text-[9px] leading-tight text-slate-500">#</span>}
+        </li>
+      </ol>
+    </figure>
+  );
+};
+
 interface HowToPlayProps {
+  skin: Skin;
   rules: RuleOptions;
   setRule: <K extends keyof RuleOptions>(key: K, value: RuleOptions[K]) => void;
   onClose: () => void;
@@ -36,7 +74,7 @@ interface HowToPlayProps {
 
 // How to play, in a dialog over the board, with the rules still being
 // tried (the open questions in the spec, now Q17) as buttons at the top.
-const HowToPlay = ({ rules, setRule, onClose }: HowToPlayProps) => (
+const HowToPlay = ({ skin, rules, setRule, onClose }: HowToPlayProps) => (
   <Dialog title="How to play" onClose={onClose}>
     <div className="mb-4 rounded-md bg-slate-50 p-3">
       <p className="text-xs text-slate-500 mb-2">
@@ -58,6 +96,7 @@ const HowToPlay = ({ rules, setRule, onClose }: HowToPlayProps) => (
         up the alphabet (three As make a B; nine make a C). If the new letter then makes a group too,
         it merges again.
       </p>
+      <Ladder skin={skin} />
       <p>
         A merge of exactly {MIN_GROUP} leaves rubble, a #, on its farthest cleared tile; bigger merges
         leave none. # tiles are obstacles that only a placed # or rubble merges away. A ★ is a

@@ -6,7 +6,7 @@ The board comes from [Penrogo](https://github.com/dblevins-3dgfx/penrogo). The g
 
 ## On a phone
 
-On an iPhone, open the game in Safari and use **Share → Add to Home Screen**: it then opens full screen from its own icon, like an app. (Its scores and settings are kept apart from Safari's.) In **⚙ Preferences**, **Tap to preview** lets a tap show what a move would do before you commit, and the **Night** skin turns the whole screen dark and calm for playing before bed.
+On an iPhone, open the game in Safari and use **Share → Add to Home Screen**: it then opens full screen from its own icon, like an app. (Its scores and settings are kept apart from Safari's.) In **⚙ Preferences**, **Tap to preview** lets a tap show what a move would do before you commit, and **Skin** changes the ladder the tiles climb: **Alphabet** (A to Z) or **Evolution** (🦠 microbe to 🧑 human, with 🦴 bones for rubble). The rules are the same in every skin.
 
 ## Running
 
@@ -42,7 +42,9 @@ One-time setup, needed before the first deploy: repository **Settings → Pages 
 - `penrose-board.ts`: Penrose tiling generation and the tile adjacency graph (from Penrogo, unchanged)
 - `src/lib/board.ts`: board sizes, cuts this game's random square boards from the patch, and finds the tile under a point
 - `src/lib/view.ts`: fits the board to the space on screen
-- `src/lib/colors.ts`: the palettes: every color the board and the Next and Spare chips are drawn in, and the skins that pick one (Day, `DEFAULT_PALETTE`; Night, `NIGHT_PALETTE`)
+- `src/lib/colors.ts`: the palettes: every color the board and the Next and Spare chips are drawn in (Alphabet's `DEFAULT_PALETTE`, `EVOLUTION_PALETTE`)
+- `src/lib/skins.ts`: the skins: each a ladder of 26 pieces, a rubble icon, a palette, and the words its messages use (`termsFor`)
+- `src/emoji.ts`: which emoji this device can draw, so a picture skin falls back to older ones
 - `src/lib/labels.ts`: how values are written (as letters)
 - `src/lib/prefs.ts`: the player's preferences, and reading them and the board size from storage
 - `src/lib/powerups.ts`: the power-ups' rules (what earns each, what each does), then the power-ups in one table (names, caps, what earns each, what using one on the board does), and which one is armed

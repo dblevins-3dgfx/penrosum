@@ -2,8 +2,8 @@
 // to do next. A plain function, so the screen only shows what it returns.
 
 import { BOARD_SIZES, type BoardSize } from './board';
-import { TOP_LABEL, valueLabel } from './labels';
-import { MIN_GROUP, type Outcome, type Shape, type TapRule } from './rules';
+import { MIN_GROUP, TOP_VALUE, type Outcome, type Shape, type TapRule } from './rules';
+import { ALPHABET_TERMS, type Terms } from './skins';
 
 export interface StatusInput {
   message: string; // what the last action said ('' for none)
@@ -23,19 +23,19 @@ export interface StatusInput {
 //   before the first move, a hint on how to play.
 export const statusLine = (
   { message, moves, dealtShape, tapRule, hint, result, score, latest }: StatusInput,
-  label: (v: number) => string = valueLabel,
+  terms: Terms = ALPHABET_TERMS,
 ): string => {
   if (result.over) {
     const end = result.won
-      ? `You made ${TOP_LABEL}, the top of the alphabet, in ${moves} moves. You win! Score: ${score}.`
-      : `Board full. Score: ${score} (highest tile ${label(result.highest)}, ${moves} moves).`;
+      ? `You made ${terms.label(TOP_VALUE)}, the top of ${terms.ladder}, in ${moves} moves. You win! Score: ${score}.`
+      : `Board full. Score: ${score} (highest tile ${terms.label(result.highest)}, ${moves} moves).`;
     const size = latest && BOARD_SIZES.find(s => s.id === latest.size);
     return latest && size ? `${end} #${latest.rank} on the ${size.name.toLowerCase()} board!` : end;
   }
   if (hint) return hint;
   if (message) return message;
   if (moves > 0) return '';
-  return `Place the Next letter on an empty ${dealtShape ?? 'tile'}${
+  return `Place the Next ${terms.piece} on an empty ${dealtShape ?? 'tile'}${
     tapRule === 'preview' ? ' (on a touch screen, tap once to preview and again to place)' : ''
   }. ${MIN_GROUP} or more matching tiles merge into the one you placed, a rung higher.`;
 };

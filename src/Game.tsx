@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import BoardCanvas from './BoardCanvas';
 import { BOARD_SIZES } from './lib/board';
-import { type Palette, SKINS, colorsFor } from './lib/colors';
-import { valueLabel } from './lib/labels';
+import { type Palette, colorsFor } from './lib/colors';
+import { termsFor } from './lib/skins';
+import { EMOJI_FONTS, skinFor } from './emoji';
 import { type ArmedPowerUp, POWER_UPS } from './lib/powerups';
 import { parsePrefs, parseRuleOptions, type Prefs } from './lib/prefs';
 import {
@@ -14,10 +15,6 @@ import { useGame } from './useGame';
 import HowToPlay from './HowToPlay';
 import Preferences from './Preferences';
 import Scoreboard from './Scoreboard';
-
-// How values are written: as letters
-const label = valueLabel;
-
 
 // The chip's outline for the shape the next value was dealt: a kite,
 // or a dart with its notch at the bottom
@@ -34,13 +31,15 @@ const chipOutline = (edge: string) => [[1, 0], [-1, 0], [0, 1], [0, -1]]
 // A deal as a chip in the tile's own colors (the wildcard in its rainbow),
 // cut as a kite or dart and outlined like a board tile. `dealKey` changes with each new deal, so it pops
 // in. Used for the next value and the hot spare (`role`).
-const NextChip = ({ drawn, label, shape, dealKey, palette, role = 'Next' }: {
-  drawn: Drawn; label: string; shape: Shape | null; dealKey: string; palette: Palette; role?: string;
+// `name` is what it is called (for a screen reader) and `title` its tooltip
+// ("🦈 shark, 11 of 26"); with `pictures`, the label is an emoji.
+const NextChip = ({ drawn, label, name, title, shape, dealKey, palette, pictures, role = 'Next' }: {
+  drawn: Drawn; label: string; name: string; title: string; shape: Shape | null; dealKey: string;
+  palette: Palette; pictures: boolean; role?: string;
 }) => {
   const { fill, text } = colorsFor(drawn, palette);
-  const name = drawn === WILD ? 'wildcard' : label;
   return (
-    <span className="inline-flex" style={{ filter: shape ? chipOutline(palette.tileEdge) : undefined }}>
+    <span className="inline-flex" title={title} style={{ filter: shape ? chipOutline(palette.tileEdge) : undefined }}>
       <b
         key={dealKey}
         aria-label={`${role}: ${name}${shape ? ` on a ${shape}` : ''}`}
@@ -53,6 +52,7 @@ const NextChip = ({ drawn, label, shape, dealKey, palette, role = 'Next' }: {
           textShadow: drawn === WILD ? '0 1px 2px #0006' : undefined,
           clipPath: shape ? CHIP_CLIP[shape] : undefined,
           paddingBottom: shape === 'dart' ? '0.6rem' : undefined,
+          fontFamily: pictures && drawn !== WILD ? EMOJI_FONTS : undefined,
         }}
       >
         {label}
@@ -65,8 +65,8 @@ const NextChip = ({ drawn, label, shape, dealKey, palette, role = 'Next' }: {
 // chip for each value the ★ could play as there, in its tile colors, with
 // what it would do; the best is marked. Pointing at a chip previews it on
 // the board; tapping one places the ★ as that value.
-const WildPicker = ({ choices, palette, onHover, onPick, onClose }: {
-  choices: WildChoice[]; palette: Palette;
+const WildPicker = ({ choices, palette, label, onHover, onPick, onClose }: {
+  choices: WildChoice[]; palette: Palette; label: (value: number) => string;
   onHover: (value: number | null) => void; onPick: (value: number) => void; onClose: () => void;
 }) => (
   <div role="dialog" aria-label="Play the wildcard as" className="rounded-lg border border-slate-300 bg-white p-2 shadow-lg">
@@ -102,8 +102,8 @@ const WildPicker = ({ choices, palette, onHover, onPick, onClose }: {
 
 // Q17 'before': the menu from the ★ Next chip: Best (the wildcard chooses
 // where it lands), or a value to play it as (see wildPickValues).
-const WildMenu = ({ values, chosen, palette, onChoose }: {
-  values: number[]; chosen: number | null; palette: Palette; onChoose: (value: number | null) => void;
+const WildMenu = ({ values, chosen, palette, label, onChoose }: {
+  values: number[]; chosen: number | null; palette: Palette; label: (value: number) => string; onChoose: (value: number | null) => void;
 }) => (
   <div role="menu" aria-label="Play the wildcard as"
     className="absolute right-0 z-30 mt-1 w-56 rounded-md border border-slate-200 bg-white p-2 shadow-lg landscape:top-full portrait:bottom-full portrait:mb-1">
@@ -153,6 +153,13 @@ const PowerUpTile = ({ symbol, name, count, title, onClick, disabled, armed = fa
 // BoardCanvas.
 const Game = () => {
   const [prefs, setPrefs] = useState(() => load(PREFS_STORAGE_KEY, parsePrefs));
+  // The skin: the ladder the values are drawn as (with any emoji this
+  // device lacks swapped for older ones), its words and its palette
+  const skin = useMemo(() => skinFor(prefs.skin), [prefs.skin]);
+  const terms = useMemo(() => termsFor(skin), [skin]);
+  const { palette, pictures } = skin;
+  const label = terms.label;
+  const chip = (value: Drawn) => ({ label: label(value), name: terms.name(value), title: terms.title(value) });
   const [hovered, setHovered] = useState(-1);
   // The rule options for the open questions (Q17), tried from How to play
   const [rules, setRules] = useState(() => load(RULES_STORAGE_KEY, parseRuleOptions));
@@ -165,18 +172,14 @@ const Game = () => {
   const [showSizes, setShowSizes] = useState(false);
   const [showScores, setShowScores] = useState(false);
   // The top 10 opens by itself when a game ends
-  const game = useGame(hovered, wildHover, useCallback(() => setShowScores(true), []));
+  const game = useGame(hovered, wildHover, useCallback(() => setShowScores(true), []), terms);
   const { board, state, cells, result, armed, armedPowerUp, tapUse, picked, latest } = game;
   const { moves, score, next: drawn } = state;
 
-  // The skin: the board and chips draw from its palette, and the page
-  // follows it (index.css, keyed by data-skin on <html>)
-  const skin = SKINS[prefs.skin];
-  const { palette } = skin;
+  // The browser's theme color follows the skin's page
   useEffect(() => {
-    document.documentElement.dataset.skin = prefs.skin;
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', skin.page);
-  }, [prefs.skin, skin.page]);
+  }, [skin.page]);
 
   // A new board: the pointer is over none of its tiles yet
   useEffect(() => setHovered(-1), [board]);
@@ -224,11 +227,11 @@ const Game = () => {
     tapRule: prefs.tap,
     hint: game.choosing >= 0
       ? 'Wild: tap what the ★ plays as here; the best is marked (tap ×, another tile, or press Escape, to cancel).'
-      : armedPowerUp?.hint?.(picked, cells, label, board.tiles, game.freed) ?? null,
+      : armedPowerUp?.hint?.(picked, cells, terms, board.tiles, game.freed) ?? null,
     result,
     score,
     latest,
-  }, label);
+  }, terms);
 
   const button = 'px-3 py-1.5 rounded text-sm border border-slate-300 bg-white hover:bg-slate-50 disabled:opacity-40';
   const stats: [string, string | number][] = [
@@ -251,11 +254,11 @@ const Game = () => {
           // Empty tiles of the shape not dealt are shaded (none with Any shape armed)
           mustBe={game.placementArmed ? null : dealtShape}
           previewed={game.previewed} preview={game.preview} doomed={game.doomed}
-          picked={tapUse?.canPick ? picked : -1} crosshair={!!tapUse} label={label} palette={palette}
+          picked={tapUse?.canPick ? picked : -1} crosshair={!!tapUse} label={label} pictures={pictures} palette={palette}
           onHover={setHovered} onTap={(id, pointerType) => game.tapBoard(id, pointerType, prefs.tap, rules.wild)}
           overlay={game.choosing >= 0 ? {
             id: game.choosing,
-            content: <WildPicker choices={game.wildOptions} palette={palette}
+            content: <WildPicker choices={game.wildOptions} palette={palette} label={label}
               onHover={setWildHover} onPick={game.placeWild} onClose={game.closeWild} />,
           } : undefined}
         />
@@ -270,20 +273,20 @@ const Game = () => {
             <div className="relative">
               <button onClick={() => setShowWildMenu(s => !s)} aria-haspopup="menu" aria-expanded={showWildMenu}
                 title="Choose what the wildcard plays as" className="rounded-md hover:bg-slate-100">
-                <NextChip palette={palette} drawn={drawn}
+                <NextChip palette={palette} pictures={pictures} drawn={drawn} {...chip(drawn)}
                   label={game.wildAs === null ? label(drawn) : `${label(drawn)}${label(game.wildAs)}`}
                   shape={state.nextShape} dealKey={`${moves}:${drawn}:${state.nextShape}`} />
               </button>
               {showWildMenu && (
                 <>
                   <div className="fixed inset-0 z-20" onClick={() => setShowWildMenu(false)} />
-                  <WildMenu values={wildPickValues(highestTile(cells))} chosen={game.wildAs} palette={palette}
+                  <WildMenu values={wildPickValues(highestTile(cells))} chosen={game.wildAs} palette={palette} label={label}
                     onChoose={v => { game.chooseWild(v); setShowWildMenu(false); }} />
                 </>
               )}
             </div>
           ) : (
-            <NextChip palette={palette} drawn={drawn} label={label(drawn)} shape={state.nextShape}
+            <NextChip palette={palette} pictures={pictures} drawn={drawn} {...chip(drawn)} shape={state.nextShape}
               dealKey={`${moves}:${drawn}:${state.nextShape}`} />
           )}
           <button onClick={game.swap} disabled={result.over}
@@ -291,7 +294,8 @@ const Game = () => {
             className="flex items-center gap-2 rounded-lg px-1.5 py-0.5 hover:bg-slate-100 disabled:opacity-40">
             <span className="text-sm text-slate-600">Spare ⇄</span>
             {state.spare ? (
-              <NextChip palette={palette} role="Spare" drawn={state.spare.value} label={label(state.spare.value)} shape={state.spare.shape}
+              <NextChip palette={palette} pictures={pictures} role="Spare" drawn={state.spare.value} {...chip(state.spare.value)}
+                shape={state.spare.shape}
                 dealKey={`${moves}:${state.spare.value}:${state.spare.shape}`} />
             ) : (
               <b aria-label="Spare: empty" className="inline-flex w-11 h-11 rounded-lg border-2 border-dashed border-slate-300" />
@@ -316,10 +320,10 @@ const Game = () => {
             const isArmed = armed === p.id || (game.free && tapUse?.freedBy === p.id);
             // A power-up that acts at once: Undo, the only one
             return p.kind === 'now' ? (
-              <PowerUpTile key={p.id} symbol={p.symbol} name={p.short} count={count} title={p.title}
+              <PowerUpTile key={p.id} symbol={p.symbol(terms)} name={p.short} count={count} title={p.title(terms)}
                 onClick={game.undoMove} disabled={!game.canUndo} />
             ) : (
-              <PowerUpTile key={p.id} symbol={p.symbol} name={p.short} count={count} title={p.title}
+              <PowerUpTile key={p.id} symbol={p.symbol(terms)} name={p.short} count={count} title={p.title(terms)}
                 armed={isArmed} armedClass={p.armedClass}
                 onClick={() => game.toggle(p.id as ArmedPowerUp)} disabled={!isArmed && (result.over || count <= 0)} />
             );
@@ -358,7 +362,7 @@ const Game = () => {
         <p className="text-sm font-medium min-h-10" aria-live="polite">{status}</p>
       </aside>
 
-      {showHelp && <HowToPlay rules={rules} setRule={setRule} onClose={closeHelp} />}
+      {showHelp && <HowToPlay skin={skin} rules={rules} setRule={setRule} onClose={closeHelp} />}
       {showPrefs && <Preferences prefs={prefs} setPref={setPref} onClose={closePrefs} />}
       {showScores && <Scoreboard scores={game.scores} size={board.size} latest={latest} onClose={closeScores} />}
     </div>

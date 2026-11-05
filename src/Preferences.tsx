@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import Dialog from './Dialog';
-import { SKINS, SKIN_IDS } from './lib/colors';
+import { SKIN_IDS } from './lib/skins';
+import { EMOJI_FONTS, skinFor } from './emoji';
 import type { Prefs } from './lib/prefs';
 
 interface ToggleProps {
@@ -33,26 +34,38 @@ const Toggle = ({ label, hint, on, onChange }: ToggleProps) => {
   );
 };
 
-// The skin picker: a button per skin, each with a swatch of its empty
-// tile and first letters, the one in use marked.
+// The skin picker: a button per skin, the one in use marked, each with
+// its name, its first four pieces on their own fills and its rubble, and
+// a line on what it is.
 const SkinChoice = ({ skin, onChange }: { skin: Prefs['skin']; onChange: (skin: Prefs['skin']) => void }) => (
   <fieldset className="py-2">
     <legend className="text-sm font-semibold text-slate-700">Skin</legend>
-    <p className="text-xs text-slate-500 mb-2">The colors of the board and the page. Night is dark and calm, for winding down.</p>
-    <div className="flex gap-2">
+    <p className="text-xs text-slate-500 mb-2">The ladder the tiles climb. The rules are the same in every skin.</p>
+    <div className="flex flex-col gap-2">
       {SKIN_IDS.map(id => {
-        const { name, palette } = SKINS[id];
+        const { name, description, pieces, rubble, pictures, palette } = skinFor(id);
+        const swatch = [
+          ...pieces.slice(0, 4).map((p, i) => ({ glyph: p.glyph, fill: palette.rungFills[i], text: palette.rungTexts[i] })),
+          { glyph: rubble.glyph, fill: palette.zeroFill, text: palette.zeroText },
+        ];
         return (
           <button key={id} onClick={() => onChange(id)} aria-pressed={skin === id}
-            className={`flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm ${
-              skin === id ? 'border-indigo-600 ring-2 ring-indigo-600/40 font-semibold' : 'border-slate-300'
+            className={`flex items-center gap-3 rounded-md border px-3 py-1.5 text-left text-sm ${
+              skin === id ? 'border-indigo-600 ring-2 ring-indigo-600/40' : 'border-slate-300'
             }`}>
-            <span aria-hidden="true" className="flex h-5 overflow-hidden rounded-sm border" style={{ borderColor: palette.tileEdge }}>
-              {[palette.emptyFill, ...palette.rungFills.slice(0, 4)].map(c => (
-                <span key={c} className="w-2.5" style={{ background: c }} />
+            <span aria-hidden="true" className="flex shrink-0 overflow-hidden rounded-sm border" style={{ borderColor: palette.tileEdge }}>
+              {swatch.map((c, i) => (
+                <span key={i} className={`flex h-7 w-7 items-center justify-center ${pictures ? 'text-base' : 'text-sm font-bold'} ${
+                  i === swatch.length - 1 ? 'ml-1' : ''
+                }`} style={{ background: c.fill, color: c.text, fontFamily: pictures ? EMOJI_FONTS : undefined }}>
+                  {c.glyph}
+                </span>
               ))}
             </span>
-            {name}
+            <span>
+              <span className={skin === id ? 'font-semibold' : ''}>{name}</span>
+              <span className="block text-xs text-slate-500">{description}</span>
+            </span>
           </button>
         );
       })}
