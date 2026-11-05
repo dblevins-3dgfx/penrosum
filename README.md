@@ -24,7 +24,7 @@ Then open http://localhost:5173. The dev server also listens on your local netwo
 Every pull request and every push to `main` runs the typecheck and unit tests. Once they pass, `.github/workflows/deploy.yml` publishes the game to GitHub Pages from the `gh-pages` branch. It is a static site, so there is no server to run.
 
 - **`main`** is the live game: `https://dblevins-3dgfx.github.io/penrosum/`.
-- **Each open pull request** gets a preview: `https://dblevins-3dgfx.github.io/penrosum/pr-preview/pr-<number>/`. One comment on the pull request links to it and is kept up to date. Each push to the pull request rebuilds it, and closing or merging the pull request removes it. Pages can take a minute or two to update.
+- **Each open pull request** gets a preview: `https://dblevins-3dgfx.github.io/penrosum/pr-preview/pr-<number>/`. One comment on the pull request links to it and is kept up to date. Each push to the pull request rebuilds it, and closing or merging the pull request removes it. Pages can take a minute or two to update. The comment's link changes with each push (`?v=<commit>`), so it always opens the newest build rather than a copy the browser kept.
 
 A preview is the game as it would be after merging. It shows a small **Preview #<number>** badge under the title, linking to the pull request. It keeps its own scores and settings, so trying a change can never alter the live game's top 10 or preferences. The first time a preview opens, it copies the live game's data, so a change to stored data is tried out on real data (`src/lib/preview.ts`). A pull request from a fork gets the checks but no preview.
 
