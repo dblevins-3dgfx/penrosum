@@ -48,10 +48,10 @@ describe('settle', () => {
     const base = holdings([EMPTY, 1, 1]);
     const { cells: placed, merges } = place(line, base.cells, 0, 1);
     const s = settle(line, [], base, 0, placed, merges, '', [], termsFor(skinById('evolution')));
-    expect(s.message).toBe('Merged 3 tiles into 🧽 (+6). Rubble dropped a 🦴. New creature 🧽! +1 Undo.');
+    expect(s.message).toBe('Merged 3 tiles into 🪼 (+6). Rubble dropped a 🦴. New creature 🪼! +1 Undo.');
     const { cells: p2, merges: m2 } = place(hub, [EMPTY, 1, 1, 3, 3], 0, 1);
     expect(settle(hub, [], holdings([EMPTY, 1, 1, 3, 3]), 0, p2, m2, '', [], termsFor(skinById('evolution'))).message).toBe(
-      'Merged 3 tiles into 🧽, then 3 tiles into 🪸 (+24). Rubble dropped 2 🦴. New creature 🪸! +1 Undo. Chain! +1 Clear.',
+      'Merged 3 tiles into 🪼, then 3 tiles into 🪱 (+24). Rubble dropped 2 🦴. New creature 🪱! +1 Undo. Chain! +1 Clear.',
     );
   });
 

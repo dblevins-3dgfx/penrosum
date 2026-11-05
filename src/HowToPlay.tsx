@@ -2,7 +2,7 @@ import Dialog from './Dialog';
 import { ANY_SHAPE_MAX, BIG_MERGE, CLEAR_MAX, SWAP_MAX, SWAP_SCORE_STEP, SWEEP_MAX, UNDO_MAX, UNDO_START, UPGRADE_MAX } from './lib/powerups';
 import { MIN_GROUP, type RuleOptions } from './lib/rules';
 import { LETTERS } from './lib/labels';
-import { type Skin, isAlphabet, withArticle } from './lib/skin';
+import { type Skin, isAlphabet, pieceName, termsFor, topValue, withArticle } from './lib/skin';
 import { EMOJI_FONTS } from './emoji';
 
 interface ChoiceProps<T extends string> {
@@ -44,7 +44,7 @@ const Ladder = ({ skin }: { skin: Skin }) => {
     <figure>
       <figcaption className="mb-1 text-xs text-slate-500">
         {skin.name}: {keyed
-          ? `the rules below are told in letters; each letter is drawn as ${withArticle(skin.piece)}, and rubble (#) as ${skin.rubble.glyph}.`
+          ? `${skin.pieces.length} rungs. The rules below are told in letters (A the first rung, B the second …); each is drawn as ${withArticle(skin.piece)}, and rubble (#) as ${skin.rubble.glyph}.`
           : 'the ladder, A to Z, and rubble.'}
       </figcaption>
       <ol aria-label={`The ${skin.name} ladder`} className="flex flex-wrap gap-0.5">
@@ -53,7 +53,7 @@ const Ladder = ({ skin }: { skin: Skin }) => {
             className="flex flex-col items-center">
             <span className={`${cell} ${pictures ? 'text-base' : 'text-xs font-bold'}`}
               style={{ background: palette.rungFills[i], color: palette.rungTexts[i], ...font }}>{p.glyph}</span>
-            {keyed && <span className="text-[9px] leading-tight text-slate-500">{LETTERS[i]}</span>}
+            {keyed && <span className="text-[9px] leading-tight text-slate-500">{LETTERS[i] ?? i + 1}</span>}
           </li>
         ))}
         <li title={`${skin.rubble.glyph === skin.rubble.name ? skin.rubble.glyph : `${skin.rubble.glyph} ${skin.rubble.name}`}, rubble`}
@@ -108,7 +108,10 @@ const HowToPlay = ({ skin, rules, setRule, onClose }: HowToPlayProps) => (
       <p>
         A merge scores its new letter's rung (its place in the alphabet: A 1, B 2 …) times the tiles
         merged, times 2, 3 … for later merges in a chain. The game ends when the board is full; make
-        the top 10 on your board size. Making a Z wins outright.
+        the top 10 on your board size (each skin keeps its own). Making the top of the ladder wins
+        outright: {pieceName(termsFor(skin), topValue(skin))}, rung {skin.pieces.length}. Each skin's ladder has its own
+        length; switching skin mid-game moves the goal to its top, so a skin whose top you've already
+        passed waits for your next game.
       </p>
       <p>
         Tap <b>Spare ⇄</b> to keep the next value for later (a new one is dealt); after that, tap it

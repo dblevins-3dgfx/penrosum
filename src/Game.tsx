@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import BoardCanvas from './BoardCanvas';
 import { BOARD_SIZES } from './lib/board';
 import { type Palette, colorsFor } from './lib/colors';
-import { termsFor, tileTip } from './lib/skin';
+import { pieceName, termsFor, tileTip, topValue } from './lib/skin';
 import { EMOJI_FONTS, skinFor } from './emoji';
 import { type ArmedPowerUp, POWER_UPS } from './lib/powerups';
 import { parsePrefs, parseRuleOptions, type Prefs } from './lib/prefs';
@@ -172,7 +172,7 @@ const Game = () => {
   const [showSizes, setShowSizes] = useState(false);
   const [showScores, setShowScores] = useState(false);
   // The top 10 opens by itself when a game ends
-  const game = useGame(hovered, wildHover, useCallback(() => setShowScores(true), []), terms);
+  const game = useGame(hovered, wildHover, useCallback(() => setShowScores(true), []), terms, prefs.skin, topValue(skin));
   const { board, state, cells, result, armed, armedPowerUp, tapUse, picked, latest } = game;
   const { moves, score, next: drawn } = state;
 
@@ -191,6 +191,9 @@ const Game = () => {
     save(PREFS_STORAGE_KEY, JSON.stringify(updated));
     // A preview selected by a first tap belongs to the old tap rule
     if (key === 'tap') game.clearSelection();
+    // A new skin moves the goal to its ladder's top (Preferences offers only
+    // skins whose top is above the highest tile)
+    if (key === 'skin') game.setTop(topValue(skinFor(value as Prefs['skin'])));
   };
   // A changed rule option applies at once, and the game carries on. A
   // wildcard's picker or pick from the old option is dropped.
@@ -373,8 +376,9 @@ const Game = () => {
       </aside>
 
       {showHelp && <HowToPlay skin={skin} rules={rules} setRule={setRule} onClose={closeHelp} />}
-      {showPrefs && <Preferences prefs={prefs} setPref={setPref} onClose={closePrefs} />}
-      {showScores && <Scoreboard scores={game.scores} size={board.size} latest={latest} onClose={closeScores} />}
+      {showPrefs && <Preferences prefs={prefs} setPref={setPref} onClose={closePrefs}
+        highest={highestTile(cells)} highestName={pieceName(terms, highestTile(cells))} />}
+      {showScores && <Scoreboard scores={game.scores} size={board.size} skin={prefs.skin} latest={latest} onClose={closeScores} />}
     </div>
   );
 };

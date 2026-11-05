@@ -367,16 +367,19 @@ export const highestTile = (cells: Cell[]) =>
 
 export const boardFull = (cells: Cell[]) => !cells.some(c => c === EMPTY);
 
-// The top of the ladder: Z, 3 to the 25th. Making it wins the game at once.
+// The top of Alphabet's ladder: Z, 3 to the 25th, and the default goal.
+// Each skin's ladder has its own top (topValue in skin.ts); making it wins
+// the game at once.
 export const TOP_VALUE = 3 ** 25;
 
 export type Outcome = { over: false } | { over: true; won: boolean; highest: number };
 
 // The goal is to use up the board: the game ends when no empty tile is
-// left, and the result is the score. Making a Z ends it early, as a win.
-export const outcome = (cells: Cell[]): Outcome => {
+// left, and the result is the score. Making the ladder's top (`top`, Z in
+// Alphabet) ends it early, as a win.
+export const outcome = (cells: Cell[], top: number = TOP_VALUE): Outcome => {
   const highest = highestTile(cells);
-  if (highest >= TOP_VALUE) return { over: true, won: true, highest };
+  if (highest >= top) return { over: true, won: true, highest };
   if (boardFull(cells)) return { over: true, won: false, highest };
   return { over: false };
 };

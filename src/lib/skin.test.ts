@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { LETTERS } from './labels';
 import { EMPTY, WILD } from './rules';
-import { type Skin, isAlphabet, resolvePieces, rubblePlural, termsFor, tileTip, withArticle } from './skin';
+import { type Skin, isAlphabet, pieceName, resolvePieces, rubblePlural, skinAllowed, termsFor, tileTip, topValue, withArticle } from './skin';
 import { DEFAULT_PALETTE } from './colors';
 
 // Two skins made up for the tests: one of text, one of pictures
@@ -121,6 +121,34 @@ describe('tileTip', () => {
     expect(tileTip(pictures, termsFor(pictures), EMPTY)).toBeNull();
     expect(tileTip(letters, termsFor(letters), 3 ** 10)).toBeNull();
     expect(tileTip(letters, termsFor(letters), 0)).toBeNull();
+  });
+});
+
+describe('topValue and skinAllowed', () => {
+  const short: Skin = { ...pictures, pieces: pictures.pieces.slice(0, 12) };
+
+  it('puts the top of a ladder of n rungs at 3 to the n - 1', () => {
+    expect(topValue(letters)).toBe(3 ** 25);
+    expect(topValue(short)).toBe(3 ** 11);
+  });
+
+  it('allows switching to a skin only while its top is above the highest tile', () => {
+    expect(skinAllowed(short, 3 ** 10)).toBe(true);
+    expect(skinAllowed(short, 3 ** 11)).toBe(false);
+    expect(skinAllowed(short, 3 ** 20)).toBe(false);
+    expect(skinAllowed(letters, 3 ** 20)).toBe(true);
+    expect(skinAllowed(short, 0)).toBe(true);
+  });
+
+  it('a ladder that isn\'t all 26 letters isn\'t the alphabet', () => {
+    expect(isAlphabet({ ...letters, pieces: letters.pieces.slice(0, 12) })).toBe(false);
+  });
+});
+
+describe('pieceName', () => {
+  it('names a value as its piece and name, or a letter as itself', () => {
+    expect(pieceName(termsFor(pictures), 3 ** 3)).toBe('<D> thing 4');
+    expect(pieceName(termsFor(letters), 3 ** 10)).toBe('K');
   });
 });
 
