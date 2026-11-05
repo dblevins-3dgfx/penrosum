@@ -120,19 +120,36 @@ jobs:
           cd "$RUNNER_TEMP/main"
           npm ci
           BASE_PATH="$BASE" npm run build
-          rsync -a --exclude .git --exclude pr-preview/ dist/ "$SITE/"
+          rsync -a --checksum --exclude .git --exclude pr-preview/ dist/ "$SITE/"
 
       - name: Copy into the site
         run: |
           if [ -z "$PR" ]; then
-            rsync -a --delete --exclude .git --exclude pr-preview/ --exclude .nojekyll dist/ "$SITE/"
+            rsync -a --checksum --delete --exclude .git --exclude pr-preview/ --exclude .nojekyll dist/ "$SITE/"
           elif [ "$CLOSED" = true ]; then
             rm -rf "$SITE/pr-preview/pr-$PR"
           else
             mkdir -p "$SITE/pr-preview/pr-$PR"
-            rsync -a --delete dist/ "$SITE/pr-preview/pr-$PR/"
+            rsync -a --checksum --delete dist/ "$SITE/pr-preview/pr-$PR/"
           fi
           touch "$SITE/.nojekyll"
+
+      # Every file a page names must be there: a page whose script is
+      # missing is blank. (rsync compares contents, --checksum: by size and
+      # time alone, a rebuilt index.html, the same size with a new script
+      # hash, could be skipped when the build and the clone shared a second.)
+      - name: Check the published pages
+        if: env.CLOSED != 'true'
+        run: |
+          check() { # $1 the folder, $2 the path it is served at
+            [ -f "$1/index.html" ] || { echo "::error::$1/index.html is missing"; exit 1; }
+            for ref in $(grep -oE '(src|href)="'"$2"'[^"]+"' "$1/index.html" | sed -E 's/^(src|href)="//; s/"$//'); do
+              [ -e "$1/${ref#"$2"}" ] || { echo "::error::$1/index.html names $ref, which is missing"; exit 1; }
+            done
+            echo "ok: $1"
+          }
+          # Each run checks the part it published: the live game, or its preview
+          if [ -z "$PR" ]; then check "$SITE" "$BASE"; else check "$SITE/pr-preview/pr-$PR" "${BASE}pr-preview/pr-$PR/"; fi
 
       # Each run changes only its own part of the site (the root, or one
       # preview's folder), so a run that lost a race rebases and retries
