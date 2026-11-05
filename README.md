@@ -6,7 +6,7 @@ The board comes from [Penrogo](https://github.com/dblevins-3dgfx/penrogo). The g
 
 ## On a phone
 
-On an iPhone, open the game in Safari and use **Share → Add to Home Screen**: it then opens full screen from its own icon, like an app. (Its scores and settings are kept apart from Safari's.) In **⚙ Preferences**, **Tap to preview** lets a tap show what a move would do before you commit, and **Skin** changes the ladder the tiles climb: **Alphabet** (A to Z) or **Evolution** (🦠 microbe to 🧑 human, with 🦴 bones for rubble). The rules are the same in every skin.
+On an iPhone, open the game in Safari and use **Share → Add to Home Screen**: it then opens full screen from its own icon, like an app. (Its scores and settings are kept apart from Safari's.) In **⚙ Preferences**, **Tap to preview** lets a tap show what a move would do before you commit, and **Skin** changes the ladder the tiles climb: **Alphabet** (A to Z), **Evolution** (🦠 microbe to 🧑 human, with 🦴 bones for rubble) or **Star forge** (the elements, H hydrogen to Fe iron, with ☄️ comets for rubble). The rules are the same in every skin.
 
 ## Running
 
@@ -49,7 +49,7 @@ One-time setup: repository **Settings → Pages → Build and deployment → Sou
 - `src/lib/view.ts`: fits the board to the space on screen
 - `src/lib/colors.ts`: what a palette is (every color the board and the Next and Spare chips are drawn in), and the game's own, `DEFAULT_PALETTE`
 - `src/lib/skin.ts`: what a skin is (a ladder of 26 pieces, a rubble icon, a palette) and the words its messages use (`termsFor`)
-- `src/lib/skins/`: the skins, one file each (`alphabet.ts`, `evolution.ts`), with their tests; `index.ts` finds them and `skins.test.ts` checks every one
+- `src/lib/skins/`: the skins, one file each (`alphabet.ts`, `evolution.ts`, `star-forge.ts`), with their tests; `index.ts` finds them and `skins.test.ts` checks every one
 - `src/emoji.ts`: which emoji this device can draw, so a picture skin falls back to older ones
 - `src/lib/labels.ts`: how values are written (as letters)
 - `src/lib/prefs.ts`: the player's preferences, and reading them and the board size from storage

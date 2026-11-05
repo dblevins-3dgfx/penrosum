@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { LETTERS } from './labels';
 import { WILD } from './rules';
-import { type Skin, resolvePieces, termsFor } from './skin';
+import { type Skin, isAlphabet, resolvePieces, rubblePlural, termsFor, withArticle } from './skin';
 import { DEFAULT_PALETTE } from './colors';
 
 // Two skins made up for the tests: one of text, one of pictures
@@ -72,8 +72,39 @@ describe('termsFor', () => {
     expect(pics.rubbleCount(2)).toBe('2 🦴');
   });
 
-  it('passes on what a piece and the ladder are called', () => {
+  it('a symbol for rubble takes no s, even in a text skin', () => {
+    const symbols = termsFor({ ...letters, rubble: { glyph: '☄️', name: 'comet' } });
+    expect(symbols.rubble(3)).toBe('3 ☄️');
+    expect(symbols.rubbleCount(2)).toBe('2 ☄️');
+  });
+
+  it('passes on what a piece and the ladder are called, with its article', () => {
+    expect(text.aPiece).toBe('a letter');
+    expect(termsFor({ ...letters, piece: 'element' }).aPiece).toBe('an element');
     expect(pics.piece).toBe('thing');
     expect(pics.ladder).toBe('things');
   });
 });
+
+describe('rubblePlural and withArticle', () => {
+  it('gives a keyboard rubble icon an s, and a picture or symbol none', () => {
+    expect(rubblePlural('#')).toBe('s');
+    expect(rubblePlural('🦴')).toBe('');
+    expect(rubblePlural('☄️')).toBe('');
+  });
+
+  it('puts "a" or "an" before a word', () => {
+    expect(withArticle('letter')).toBe('a letter');
+    expect(withArticle('element')).toBe('an element');
+    expect(withArticle('creature')).toBe('a creature');
+  });
+});
+
+describe('isAlphabet', () => {
+  it('is true only for pieces that are the letters themselves, with # rubble', () => {
+    expect(isAlphabet(letters)).toBe(true);
+    expect(isAlphabet(pictures)).toBe(false);
+    expect(isAlphabet({ ...letters, rubble: { glyph: '☄️', name: 'comet' } })).toBe(false);
+  });
+});
+

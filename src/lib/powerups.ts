@@ -274,7 +274,7 @@ export const POWER_UPS: PowerUp[] = [
     armedClass: 'bg-red-600 border-red-700',
     earned: ctx => clearsEarned(ctx.merges),
     reason: () => 'Chain!',
-    hint: (_f, _c, t) => `Clear: tap a ${t.piece} or ${t.label(0)} to empty it (tap Clear again, or press Escape, to keep it).`,
+    hint: (_f, _c, t) => `Clear: tap ${t.aPiece} or ${t.label(0)} to empty it (tap Clear again, or press Escape, to keep it).`,
     tap: {
       canUse: (_tiles, cells, id) => canClear(cells, id),
       apply: (_tiles, cells, id) => ({ cells: clearTile(cells, id), merges: [] }),
@@ -296,7 +296,7 @@ export const POWER_UPS: PowerUp[] = [
     armedClass: 'bg-emerald-600 border-emerald-700',
     earned: ctx => upgradesEarned(ctx.merges),
     reason: () => 'Big merge!',
-    hint: (_f, _c, t) => `Upgrade: tap a ${t.piece} to raise it a rung; it merges if it then matches (tap Upgrade again, or press Escape, to keep it).`,
+    hint: (_f, _c, t) => `Upgrade: tap ${t.aPiece} to raise it a rung; it merges if it then matches (tap Upgrade again, or press Escape, to keep it).`,
     tap: {
       canUse: (_tiles, cells, id) => canUpgrade(cells, id),
       apply: (tiles, cells, id) => upgradeAt(tiles, cells, id),
@@ -327,8 +327,8 @@ export const POWER_UPS: PowerUp[] = [
     hint: (first, cells, t, tiles, free) => {
       if (first < 0) {
         return free
-          ? `Swap with Any shape: tap the first tile to swap, a ${t.piece} or ${t.label(0)}; it can go with a tile of either shape (tap Swap again, or press Escape, to keep them).`
-          : `Swap: tap the first tile to swap, a ${t.piece} or ${t.label(0)}; a kite swaps with a kite, a dart with a dart (tap Shape too to swap across shapes; tap Swap again, or press Escape, to keep it).`;
+          ? `Swap with Any shape: tap the first tile to swap, ${t.aPiece} or ${t.label(0)}; it can go with a tile of either shape (tap Swap again, or press Escape, to keep them).`
+          : `Swap: tap the first tile to swap, ${t.aPiece} or ${t.label(0)}; a kite swaps with a kite, a dart with a dart (tap Shape too to swap across shapes; tap Swap again, or press Escape, to keep it).`;
       }
       const shape = free ? 'tile' : tiles[first].type ?? 'tile';
       return `Swap: now tap a ${shape} holding something other than ${t.label(cells[first] as number)} to swap it with.`;
