@@ -3,7 +3,7 @@
 // saved value never breaks the game.
 
 import { BOARD_SIZES, DEFAULT_BOARD_SIZE, type BoardSize } from './board';
-import { SKIN_IDS, type SkinId } from './colors';
+import { DEFAULT_SKIN, SKIN_IDS, type SkinId } from './skins';
 import { DEFAULT_RULE_OPTIONS, type RuleOptions, type TapRule } from './rules';
 
 // The player's preferences, set in the Preferences dialog.
@@ -11,13 +11,15 @@ export interface Prefs {
   // Tap to preview: on a touch screen, a first tap previews the move and a
   // second places it ('preview'), or a tap places at once ('place')
   tap: TapRule;
-  // The skin: the colors of the board and the page (see SKINS)
+  // The skin: the ladder the values are drawn as, and its colors (see
+  // src/lib/skins/). A saved skin that no longer exists (the old 'day' and 'night')
+  // falls back to Alphabet.
   skin: SkinId;
 }
 
 export const DEFAULT_PREFS: Prefs = {
   tap: 'place',
-  skin: 'day',
+  skin: DEFAULT_SKIN,
 };
 
 const ALLOWED: { [K in keyof Prefs]: readonly Prefs[K][] } = {

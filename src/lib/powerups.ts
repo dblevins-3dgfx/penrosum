@@ -5,6 +5,7 @@
 // outlines. The game loops over the table, so adding a power-up is adding
 // an entry here.
 
+import type { Terms } from './skin';
 import {
   EMPTY, TOP_VALUE, type Cell, type Merge, type PlaceResult, type Tile,
   place, previewAt, previewOf, rungOf,
@@ -224,7 +225,7 @@ export interface TapUse {
   // settle like a move's: rubble, points and power-ups earned).
   apply: (tiles: Tile[], cells: Cell[], id: number, first: number) => PlaceResult;
   // The status line's opening once used. `held` is the charges held before.
-  lead: (tiles: Tile[], cells: Cell[], id: number, first: number, held: number, label: (v: number) => string) => string;
+  lead: (tiles: Tile[], cells: Cell[], id: number, first: number, held: number, terms: Terms) => string;
   // The merge preview while hovering a tile it can be used on.
   preview?: (tiles: Tile[], cells: Cell[], id: number, first: number, free: boolean) => Preview;
   // The tiles it would empty, outlined in red while hovering `id`.
@@ -242,19 +243,19 @@ export type PowerUpKind = 'now' | 'placement' | 'board';
 export interface PowerUp {
   id: PowerUpId;
   kind: PowerUpKind;
-  symbol: string; // on its tile in the tray
+  symbol: (terms: Terms) => string; // on its tile in the tray (Sweep's is the skin's rubble icon)
   short: string; // its name on the tile
   name: string; // its name in the status line ("+1 Any shape")
   start: number; // charges a game starts with
   max: number; // the most held
-  title: string; // the tile's tooltip: what it does and what earns it
+  title: (terms: Terms) => string; // the tile's tooltip: what it does and what earns it
   armedClass?: string; // the tile's colors while armed (Tailwind classes)
   // The charges a move earns, before the cap, and the reason given for them
   earned: (ctx: EarnContext) => number;
-  reason: (ctx: EarnContext, label: (v: number) => string) => string;
+  reason: (ctx: EarnContext, terms: Terms) => string;
   // The status line while armed. `first` is as in TapUse.
   // `free` is as in TapUse.
-  hint?: (first: number, cells: Cell[], label: (v: number) => string, tiles: Tile[], free: boolean) => string;
+  hint?: (first: number, cells: Cell[], terms: Terms, tiles: Tile[], free: boolean) => string;
   tap?: TapUse;
 }
 
@@ -262,75 +263,75 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 export const POWER_UPS: PowerUp[] = [
   {
-    id: 'undo', kind: 'now', symbol: '↶', short: 'Undo', name: 'Undo', start: UNDO_START, max: UNDO_MAX,
-    title: 'Undo: step back one move (earned by making a new highest letter)',
+    id: 'undo', kind: 'now', symbol: () => '↶', short: 'Undo', name: 'Undo', start: UNDO_START, max: UNDO_MAX,
+    title: t => `Undo: step back one move (earned by making a new highest ${t.piece})`,
     earned: ctx => undosEarned(ctx.highestBefore, ctx.merges),
-    reason: (ctx, label) => `New letter ${label(ctx.highestAfter)}!`,
+    reason: (ctx, t) => `New ${t.piece} ${t.label(ctx.highestAfter)}!`,
   },
   {
-    id: 'clear', kind: 'board', symbol: '✕', short: 'Clear', name: 'Clear', start: 0, max: CLEAR_MAX,
-    title: 'Clear: empty one tile of your choice (earned by chain reactions)',
+    id: 'clear', kind: 'board', symbol: () => '✕', short: 'Clear', name: 'Clear', start: 0, max: CLEAR_MAX,
+    title: () => 'Clear: empty one tile of your choice (earned by chain reactions)',
     armedClass: 'bg-red-600 border-red-700',
     earned: ctx => clearsEarned(ctx.merges),
     reason: () => 'Chain!',
-    hint: () => 'Clear: tap a letter or # to empty it (tap Clear again, or press Escape, to keep it).',
+    hint: (_f, _c, t) => `Clear: tap a ${t.piece} or ${t.label(0)} to empty it (tap Clear again, or press Escape, to keep it).`,
     tap: {
       canUse: (_tiles, cells, id) => canClear(cells, id),
       apply: (_tiles, cells, id) => ({ cells: clearTile(cells, id), merges: [] }),
-      lead: (_tiles, cells, id, _first, held, label) => `Cleared ${label(cells[id] as number)}. ${plural(held - 1, 'Clear')} left.`,
+      lead: (_tiles, cells, id, _first, held, t) => `Cleared ${t.label(cells[id] as number)}. ${plural(held - 1, 'Clear')} left.`,
       doomed: (_tiles, cells, id) => (canClear(cells, id) ? [id] : []),
     },
   },
   {
-    id: 'anyShape', kind: 'placement', symbol: '◇', short: 'Shape', name: 'Any shape', start: 0, max: ANY_SHAPE_MAX,
-    title: 'Any shape: place the next value on a kite or a dart (earned by completing suns and stars)',
+    id: 'anyShape', kind: 'placement', symbol: () => '◇', short: 'Shape', name: 'Any shape', start: 0, max: ANY_SHAPE_MAX,
+    title: () => 'Any shape: place the next value on a kite or a dart (earned by completing suns and stars)',
     armedClass: 'bg-amber-500 border-amber-600',
     earned: ctx => anyShapesEarned(ctx.completed),
     reason: ctx => ctx.completed.map(kind => (kind === 'sun' ? 'Sun!' : 'Star!')).join(' '),
-    hint: () => 'Any shape: place the Next letter on any empty tile, kite or dart (tap Shape again, or press Escape, to keep it).',
+    hint: (_f, _c, t) => `Any shape: place the Next ${t.piece} on any empty tile, kite or dart (tap Shape again, or press Escape, to keep it).`,
   },
   {
-    id: 'upgrade', kind: 'board', symbol: '⇧', short: 'Upgrade', name: 'Upgrade', start: 0, max: UPGRADE_MAX,
-    title: 'Upgrade: raise one letter a rung (earned by merges of 5 or more tiles)',
+    id: 'upgrade', kind: 'board', symbol: () => '⇧', short: 'Upgrade', name: 'Upgrade', start: 0, max: UPGRADE_MAX,
+    title: t => `Upgrade: raise one ${t.piece} a rung (earned by merges of 5 or more tiles)`,
     armedClass: 'bg-emerald-600 border-emerald-700',
     earned: ctx => upgradesEarned(ctx.merges),
     reason: () => 'Big merge!',
-    hint: () => 'Upgrade: tap a letter to raise it a rung; it merges if it then matches (tap Upgrade again, or press Escape, to keep it).',
+    hint: (_f, _c, t) => `Upgrade: tap a ${t.piece} to raise it a rung; it merges if it then matches (tap Upgrade again, or press Escape, to keep it).`,
     tap: {
       canUse: (_tiles, cells, id) => canUpgrade(cells, id),
       apply: (tiles, cells, id) => upgradeAt(tiles, cells, id),
-      lead: (_tiles, cells, id, _first, _held, label) => `Upgraded ${label(cells[id] as number)} to ${label((cells[id] as number) * 3)}.`,
+      lead: (_tiles, cells, id, _first, _held, t) => `Upgraded ${t.label(cells[id] as number)} to ${t.label((cells[id] as number) * 3)}.`,
       preview: (tiles, cells, id) => previewUpgradeAt(tiles, cells, id),
     },
   },
   {
-    id: 'sweep', kind: 'board', symbol: '#', short: 'Sweep', name: 'Sweep', start: 0, max: SWEEP_MAX,
-    title: 'Sweep: clear every # on a tile and the tiles touching it (earned by rubble merges)',
+    id: 'sweep', kind: 'board', symbol: t => t.label(0), short: 'Sweep', name: 'Sweep', start: 0, max: SWEEP_MAX,
+    title: t => `Sweep: clear every ${t.label(0)} on a tile and the tiles touching it (earned by rubble merges)`,
     armedClass: 'bg-slate-600 border-slate-700',
     earned: ctx => sweepsEarned(ctx.rubbleMerges),
     reason: () => 'Rubble merge!',
-    hint: () => 'Sweep: tap a tile to clear every # on it and the tiles touching it (tap Sweep again, or press Escape, to keep it).',
+    hint: (_f, _c, t) => `Sweep: tap a tile to clear every ${t.label(0)} on it and the tiles touching it (tap Sweep again, or press Escape, to keep it).`,
     tap: {
       canUse: (tiles, cells, id) => sweepTargets(tiles, cells, id).length > 0,
       apply: (tiles, cells, id) => ({ cells: sweepAt(tiles, cells, id), merges: [] }),
-      lead: (tiles, cells, id, _first, held) => `Swept ${plural(sweepTargets(tiles, cells, id).length, '#')}. ${plural(held - 1, 'Sweep')} left.`,
+      lead: (tiles, cells, id, _first, held, t) => `Swept ${t.rubbleCount(sweepTargets(tiles, cells, id).length)}. ${plural(held - 1, 'Sweep')} left.`,
       doomed: (tiles, cells, id) => sweepTargets(tiles, cells, id),
     },
   },
   {
-    id: 'swap', kind: 'board', symbol: '⇆', short: 'Swap', name: 'Swap', start: 0, max: SWAP_MAX,
-    title: 'Swap: exchange two tiles (earned every 500 points)',
+    id: 'swap', kind: 'board', symbol: () => '⇆', short: 'Swap', name: 'Swap', start: 0, max: SWAP_MAX,
+    title: () => 'Swap: exchange two tiles (earned every 500 points)',
     armedClass: 'bg-teal-600 border-teal-700',
     earned: ctx => swapsEarned(ctx.scoreBefore, ctx.scoreAfter),
     reason: ctx => `${Math.floor(ctx.scoreAfter / SWAP_SCORE_STEP) * SWAP_SCORE_STEP} points!`,
-    hint: (first, cells, label, tiles, free) => {
+    hint: (first, cells, t, tiles, free) => {
       if (first < 0) {
         return free
-          ? 'Swap with Any shape: tap the first tile to swap, a letter or #; it can go with a tile of either shape (tap Swap again, or press Escape, to keep them).'
-          : 'Swap: tap the first tile to swap, a letter or #; a kite swaps with a kite, a dart with a dart (tap Shape too to swap across shapes; tap Swap again, or press Escape, to keep it).';
+          ? `Swap with Any shape: tap the first tile to swap, a ${t.piece} or ${t.label(0)}; it can go with a tile of either shape (tap Swap again, or press Escape, to keep them).`
+          : `Swap: tap the first tile to swap, a ${t.piece} or ${t.label(0)}; a kite swaps with a kite, a dart with a dart (tap Shape too to swap across shapes; tap Swap again, or press Escape, to keep it).`;
       }
       const shape = free ? 'tile' : tiles[first].type ?? 'tile';
-      return `Swap: now tap a ${shape} holding something other than ${label(cells[first] as number)} to swap it with.`;
+      return `Swap: now tap a ${shape} holding something other than ${t.label(cells[first] as number)} to swap it with.`;
     },
     tap: {
       canPick: (cells, id) => id >= 0 && cells[id] !== EMPTY,
@@ -338,8 +339,8 @@ export const POWER_UPS: PowerUp[] = [
       usesFree: (tiles, id, first) => crossesShapes(tiles, first, id),
       canUse: (tiles, cells, id, first, free) => canSwap(tiles, cells, first, id, free),
       apply: (tiles, cells, id, first) => swapAt(tiles, cells, first, id),
-      lead: (tiles, cells, id, first, _held, label) =>
-        `Swapped ${label(cells[first] as number)} and ${label(cells[id] as number)}${crossesShapes(tiles, first, id) ? ', across shapes with Any shape' : ''}.`,
+      lead: (tiles, cells, id, first, _held, t) =>
+        `Swapped ${t.label(cells[first] as number)} and ${t.label(cells[id] as number)}${crossesShapes(tiles, first, id) ? ', across shapes with Any shape' : ''}.`,
       preview: (tiles, cells, id, first) => previewSwapAt(tiles, cells, first, id),
     },
   },
@@ -357,7 +358,7 @@ export const startCharges = (): Charges =>
 // each power-up earned: "Chain! +1 Clear.", or at the cap "Chain! Clears
 // full (3).".
 export const earnCharges = (
-  held: Charges, spent: PowerUpId[], ctx: EarnContext, label: (v: number) => string,
+  held: Charges, spent: PowerUpId[], ctx: EarnContext, terms: Terms,
 ) => {
   const charges = { ...held };
   for (const id of spent) charges[id] -= 1;
@@ -368,7 +369,7 @@ export const earnCharges = (
     const before = charges[p.id];
     charges[p.id] = Math.min(p.max, before + earned);
     const got = charges[p.id] - before;
-    messages.push(`${p.reason(ctx, label)} ${got ? `+${got} ${p.name}` : `${p.name}s full (${charges[p.id]})`}.`);
+    messages.push(`${p.reason(ctx, terms)} ${got ? `+${got} ${p.name}` : `${p.name}s full (${charges[p.id]})`}.`);
   }
   return { charges, messages };
 };

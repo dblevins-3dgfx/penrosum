@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { EMPTY, type Cell, type Tile, place } from './rules';
 import { CLEAR_MAX, type Charges, type RosetteTiles, UPGRADE_MAX, startCharges } from './powerups';
 import { type Holdings, describeMerges, settle } from './settle';
+import { termsFor } from './skin';
+import { skinById } from './skins';
 
 // The game before a move, with the starting charges unless `charges` says
 // otherwise
@@ -40,6 +42,17 @@ describe('settle', () => {
     expect(s.score).toBe(16);
     expect(s.lastMove).toBe(0);
     expect(s.message).toBe('Merged 3 tiles into B (+6). Rubble dropped a #. New letter B! +1 Undo.');
+  });
+
+  it('speaks the skin\'s words: its pieces, its rubble and what a piece is called', () => {
+    const base = holdings([EMPTY, 1, 1]);
+    const { cells: placed, merges } = place(line, base.cells, 0, 1);
+    const s = settle(line, [], base, 0, placed, merges, '', [], termsFor(skinById('evolution')));
+    expect(s.message).toBe('Merged 3 tiles into 🧽 (+6). Rubble dropped a 🦴. New creature 🧽! +1 Undo.');
+    const { cells: p2, merges: m2 } = place(hub, [EMPTY, 1, 1, 3, 3], 0, 1);
+    expect(settle(hub, [], holdings([EMPTY, 1, 1, 3, 3]), 0, p2, m2, '', [], termsFor(skinById('evolution'))).message).toBe(
+      'Merged 3 tiles into 🧽, then 3 tiles into 🪸 (+24). Rubble dropped 2 🦴. New creature 🪸! +1 Undo. Chain! +1 Clear.',
+    );
   });
 
   it('leaves the input unchanged', () => {

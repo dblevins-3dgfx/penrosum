@@ -3,6 +3,8 @@ import type { BoardTile } from './board';
 import { type Game, type GameAction, type Snapshot, canUndo, doomedAt, gameReducer, newGame, placementArmed, previewFor } from './game';
 import { type Charges, startCharges } from './powerups';
 import { EMPTY, WILD, type Cell } from './rules';
+import { termsFor } from './skin';
+import { skinById } from './skins';
 
 // A line of five tiles: three kites, then two darts
 //
@@ -164,6 +166,18 @@ describe('the hot spare', () => {
     expect(swapped.position.spare?.value).toBe(1);
     expect(swapped.history).toEqual(moved.history); // not a move
     expect(run(swapped, { type: 'undo' }).position.spare).toEqual({ value: 3, shape: 'kite' });
+  });
+});
+
+describe('the skin\'s words', () => {
+  it('writes the status line in the skin it is given, and plays the same', () => {
+    const evo = termsFor(skinById('evolution'));
+    const g = gameOf([EMPTY, 1, 1, 9, 27], { next: 3 });
+    const kept = gameReducer(g, { type: 'swapSpare' }, rand, evo);
+    expect(kept.position.message).toBe('🧽 kept as the spare.');
+    const played = gameReducer(kept, click(0), rand, evo);
+    expect(played.position.message).toMatch(/^Merged 3 tiles into 🧽 \(\+6\)\. Rubble dropped a 🦴\./);
+    expect(played.position.cells).toEqual(run(kept, click(0)).position.cells);
   });
 });
 

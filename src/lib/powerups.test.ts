@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { valueLabel } from './labels';
+import { DEFAULT_TERMS } from './skins';
 import {
   type EarnContext, POWER_UPS, earnCharges, powerUp, startCharges, toggleArmed,
   UNDO_MAX, UNDO_START, undosAfterUndo, undosEarned,
@@ -79,27 +79,27 @@ describe('earnCharges', () => {
       ...quiet,
       merges: [{ into: 0, from: [1, 2], sum: 9 }, { into: 0, from: [3, 4], sum: 27 }],
       highestAfter: 27,
-    }, valueLabel);
+    }, DEFAULT_TERMS);
     expect(charges).toMatchObject({ undo: 5, clear: 1 });
     expect(messages).toEqual(['New letter D! +2 Undo.', 'Chain! +1 Clear.']);
   });
 
   it('holds each at its cap, saying so when nothing was gained', () => {
     const ctx = { ...quiet, scoreBefore: 490, scoreAfter: 510 };
-    expect(earnCharges({ ...held, swap: 3 }, [], ctx, valueLabel)).toEqual({
+    expect(earnCharges({ ...held, swap: 3 }, [], ctx, DEFAULT_TERMS)).toEqual({
       charges: { ...held, swap: 3 }, messages: ['500 points! Swaps full (3).'],
     });
-    expect(earnCharges({ ...held, swap: 2 }, [], ctx, valueLabel).messages).toEqual(['500 points! +1 Swap.']);
+    expect(earnCharges({ ...held, swap: 2 }, [], ctx, DEFAULT_TERMS).messages).toEqual(['500 points! +1 Swap.']);
   });
 
   it('takes off the charge spent first, and leaves the input unchanged', () => {
     const before = { ...held, sweep: 2 };
-    expect(earnCharges(before, ['sweep'], quiet, valueLabel)).toEqual({ charges: { ...held, sweep: 1 }, messages: [] });
+    expect(earnCharges(before, ['sweep'], quiet, DEFAULT_TERMS)).toEqual({ charges: { ...held, sweep: 1 }, messages: [] });
     expect(before.sweep).toBe(2);
   });
 
   it('earns Any shape for suns and stars, naming each', () => {
-    expect(earnCharges(held, [], { ...quiet, completed: ['star'] }, valueLabel).messages).toEqual(['Star! +2 Any shape.']);
+    expect(earnCharges(held, [], { ...quiet, completed: ['star'] }, DEFAULT_TERMS).messages).toEqual(['Star! +2 Any shape.']);
   });
 });
 
@@ -111,22 +111,22 @@ describe('power-ups used on the board', () => {
     expect(use('clear').canUse(line, cells, 1, -1, false)).toBe(false);
     expect(use('clear').doomed!(line, cells, 0)).toEqual([0]);
     expect(use('clear').apply(line, cells, 2, -1)).toEqual({ cells: [3, EMPTY, EMPTY], merges: [] });
-    expect(use('clear').lead(line, cells, 2, -1, 1, valueLabel)).toBe('Cleared #. 0 Clears left.');
+    expect(use('clear').lead(line, cells, 2, -1, 1, DEFAULT_TERMS)).toBe('Cleared #. 0 Clears left.');
   });
 
   it('Sweep clears the #s on and beside a tile, counting them', () => {
     const cells: Cell[] = [0, 3, 0];
     expect(use('sweep').doomed!(line, cells, 1)).toEqual([0, 2]);
     expect(use('sweep').apply(line, cells, 1, -1).cells).toEqual([EMPTY, 3, EMPTY]);
-    expect(use('sweep').lead(line, cells, 1, -1, 3, valueLabel)).toBe('Swept 2 #s. 2 Sweeps left.');
-    expect(use('sweep').lead(line, cells, 0, -1, 2, valueLabel)).toBe('Swept 1 #. 1 Sweep left.');
+    expect(use('sweep').lead(line, cells, 1, -1, 3, DEFAULT_TERMS)).toBe('Swept 2 #s. 2 Sweeps left.');
+    expect(use('sweep').lead(line, cells, 0, -1, 2, DEFAULT_TERMS)).toBe('Swept 1 #. 1 Sweep left.');
   });
 
   it('Upgrade raises a letter and previews it', () => {
     const cells: Cell[] = [1, EMPTY, 0];
     expect(use('upgrade').canUse(line, cells, 2, -1, false)).toBe(false);
     expect(use('upgrade').apply(line, cells, 0, -1).cells[0]).toBe(3);
-    expect(use('upgrade').lead(line, cells, 0, -1, 1, valueLabel)).toBe('Upgraded A to B.');
+    expect(use('upgrade').lead(line, cells, 0, -1, 1, DEFAULT_TERMS)).toBe('Upgraded A to B.');
     expect(use('upgrade').preview!(line, cells, 0, -1, false).value).toBe(3);
   });
 
@@ -137,8 +137,8 @@ describe('power-ups used on the board', () => {
     expect(use('swap').canUse(line, cells, 1, -1, false)).toBe(false);
     expect(use('swap').canUse(line, cells, 1, 0, false)).toBe(true);
     expect(use('swap').apply(line, cells, 1, 0).cells).toEqual([3, 1, EMPTY]);
-    expect(use('swap').lead(line, cells, 1, 0, 1, valueLabel)).toBe('Swapped A and B.');
-    expect(powerUp('swap').hint!(0, cells, valueLabel, line, false)).toBe('Swap: now tap a tile holding something other than A to swap it with.');
+    expect(use('swap').lead(line, cells, 1, 0, 1, DEFAULT_TERMS)).toBe('Swapped A and B.');
+    expect(powerUp('swap').hint!(0, cells, DEFAULT_TERMS, line, false)).toBe('Swap: now tap a tile holding something other than A to swap it with.');
   });
 
   it('Swap across shapes needs Any shape, which it then spends too, and says so', () => {
@@ -149,9 +149,9 @@ describe('power-ups used on the board', () => {
     expect(swap.canUse(shaped, cells, 1, 0, false)).toBe(false);
     expect(swap.canUse(shaped, cells, 1, 0, true)).toBe(true);
     expect(swap.usesFree!(shaped, 1, 0)).toBe(true);
-    expect(swap.lead(shaped, cells, 1, 0, 1, valueLabel)).toBe('Swapped A and B, across shapes with Any shape.');
-    expect(powerUp('swap').hint!(0, cells, valueLabel, shaped, false)).toBe('Swap: now tap a kite holding something other than A to swap it with.');
-    expect(powerUp('swap').hint!(0, cells, valueLabel, shaped, true)).toBe('Swap: now tap a tile holding something other than A to swap it with.');
+    expect(swap.lead(shaped, cells, 1, 0, 1, DEFAULT_TERMS)).toBe('Swapped A and B, across shapes with Any shape.');
+    expect(powerUp('swap').hint!(0, cells, DEFAULT_TERMS, shaped, false)).toBe('Swap: now tap a kite holding something other than A to swap it with.');
+    expect(powerUp('swap').hint!(0, cells, DEFAULT_TERMS, shaped, true)).toBe('Swap: now tap a tile holding something other than A to swap it with.');
   });
 });
 

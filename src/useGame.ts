@@ -8,6 +8,7 @@ import { type ArmedPowerUp, powerUp } from './lib/powerups';
 import { parseBoardSize } from './lib/prefs';
 import { type TapRule, type WildRule, highestTile, outcome, wildChoices } from './lib/rules';
 import { addScore, parseScores } from './lib/scores';
+import type { Terms } from './lib/skin';
 import { SCORES_STORAGE_KEY, SIZE_STORAGE_KEY, load, save } from './storage';
 
 export type { Board, Snapshot } from './lib/game';
@@ -19,10 +20,13 @@ export type { Board, Snapshot } from './lib/game';
 // size remembered, so there is always a game. `hovered` is the tile under
 // the pointer (for the preview), and `wildHover` the choice under the
 // pointer in a wildcard's picker (Q17); `onGameEnd` is called once when a
-// game ends, after it is recorded.
-export const useGame = (hovered: number, wildHover: number | null, onGameEnd: () => void) => {
+// game ends, after it is recorded. `terms` are the skin's words for the
+// status line.
+export const useGame = (hovered: number, wildHover: number | null, onGameEnd: () => void, terms: Terms) => {
   const [game, setGame] = useState(() => newGame(load(SIZE_STORAGE_KEY, parseBoardSize), 1, Math.random));
-  const dispatch = (action: GameAction) => setGame(g => gameReducer(g, action));
+  const termsRef = useRef(terms);
+  termsRef.current = terms;
+  const dispatch = (action: GameAction) => setGame(g => gameReducer(g, action, Math.random, termsRef.current));
   const [scores, setScores] = useState(() => load(SCORES_STORAGE_KEY, parseScores));
   // Each game is recorded on the scoreboard once, the first time it ends
   // (Undo can reopen a finished game, but finishing it again doesn't count)

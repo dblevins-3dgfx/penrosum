@@ -3,7 +3,8 @@
 // power-ups earned are added up to their caps, and the status line is
 // written. A plain function, so the component only calls it.
 
-import { valueLabel } from './labels';
+import type { Terms } from './skin';
+import { DEFAULT_TERMS } from './skins';
 import { type Charges, type PowerUpId, type RosetteTiles, earnCharges, newlyCompleted } from './powerups';
 import {
   type Cell, type Merge, type Tile,
@@ -25,9 +26,9 @@ export interface Settled extends Holdings {
 }
 
 // "Merged 3 tiles into B, then 3 tiles into C"
-export const describeMerges = (merges: Merge[], label: (v: number) => string = valueLabel) =>
+export const describeMerges = (merges: Merge[], terms: Terms = DEFAULT_TERMS) =>
   merges.length
-    ? `Merged ${merges.map(m => `${m.from.length + 1} tiles into ${label(m.sum)}`).join(', then ')}`
+    ? `Merged ${merges.map(m => `${m.from.length + 1} tiles into ${terms.label(m.sum)}`).join(', then ')}`
     : '';
 
 // Settles the merges an action made on tile `id`. `base` is the game
@@ -40,7 +41,7 @@ export const describeMerges = (merges: Merge[], label: (v: number) => string = v
 export const settle = (
   tiles: Tile[], rosettes: RosetteTiles[], base: Holdings, id: number,
   placed: Cell[], merges: Merge[], lead = '', spent: PowerUpId[] = [],
-  label: (v: number) => string = valueLabel,
+  terms: Terms = DEFAULT_TERMS,
 ): Settled => {
   const { cells: after, zeros, rubbleMerges } = dropRubble(tiles, placed, merges);
   const gained = scoreMerges(merges);
@@ -55,7 +56,7 @@ export const settle = (
     scoreBefore: base.score,
     scoreAfter: score,
     completed: completedNow.map(i => rosettes[i].kind),
-  }, label);
+  }, terms);
   return {
     cells: after,
     score,
@@ -64,9 +65,9 @@ export const settle = (
     completed: [...base.completed, ...completedNow],
     message: [
       lead,
-      describeMerges(merges, label) + (gained ? ` (+${gained}).` : ''),
-      zeros.length === 1 ? 'Rubble dropped a #.' : zeros.length ? `Rubble dropped ${zeros.length} #s.` : '',
-      ...rubbleMerges.map(m => `Rubble merged ${m.from.length + 1} #s into one (+${scoreRubble([m])}).`),
+      describeMerges(merges, terms) + (gained ? ` (+${gained}).` : ''),
+      zeros.length ? `Rubble dropped ${terms.rubble(zeros.length)}.` : '',
+      ...rubbleMerges.map(m => `Rubble merged ${terms.rubble(m.from.length + 1)} into one (+${scoreRubble([m])}).`),
       ...messages,
     ].filter(Boolean).join(' '),
   };

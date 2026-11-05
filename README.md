@@ -6,7 +6,7 @@ The board comes from [Penrogo](https://github.com/dblevins-3dgfx/penrogo). The g
 
 ## On a phone
 
-On an iPhone, open the game in Safari and use **Share → Add to Home Screen**: it then opens full screen from its own icon, like an app. (Its scores and settings are kept apart from Safari's.) In **⚙ Preferences**, **Tap to preview** lets a tap show what a move would do before you commit, and the **Night** skin turns the whole screen dark and calm for playing before bed.
+On an iPhone, open the game in Safari and use **Share → Add to Home Screen**: it then opens full screen from its own icon, like an app. (Its scores and settings are kept apart from Safari's.) In **⚙ Preferences**, **Tap to preview** lets a tap show what a move would do before you commit, and **Skin** changes the ladder the tiles climb: **Alphabet** (A to Z) or **Evolution** (🦠 microbe to 🧑 human, with 🦴 bones for rubble). The rules are the same in every skin.
 
 ## Running
 
@@ -42,7 +42,10 @@ One-time setup, needed before the first deploy: repository **Settings → Pages 
 - `penrose-board.ts`: Penrose tiling generation and the tile adjacency graph (from Penrogo, unchanged)
 - `src/lib/board.ts`: board sizes, cuts this game's random square boards from the patch, and finds the tile under a point
 - `src/lib/view.ts`: fits the board to the space on screen
-- `src/lib/colors.ts`: the palettes: every color the board and the Next and Spare chips are drawn in, and the skins that pick one (Day, `DEFAULT_PALETTE`; Night, `NIGHT_PALETTE`)
+- `src/lib/colors.ts`: what a palette is (every color the board and the Next and Spare chips are drawn in), and the game's own, `DEFAULT_PALETTE`
+- `src/lib/skin.ts`: what a skin is (a ladder of 26 pieces, a rubble icon, a palette) and the words its messages use (`termsFor`)
+- `src/lib/skins/`: the skins, one file each (`alphabet.ts`, `evolution.ts`), with their tests; `index.ts` finds them and `skins.test.ts` checks every one
+- `src/emoji.ts`: which emoji this device can draw, so a picture skin falls back to older ones
 - `src/lib/labels.ts`: how values are written (as letters)
 - `src/lib/prefs.ts`: the player's preferences, and reading them and the board size from storage
 - `src/lib/powerups.ts`: the power-ups' rules (what earns each, what each does), then the power-ups in one table (names, caps, what earns each, what using one on the board does), and which one is armed
@@ -61,3 +64,14 @@ One-time setup, needed before the first deploy: repository **Settings → Pages 
 - `public/`: the web app manifest and icons
 - `SPEC.md`: the game as implemented, and the open questions
 - `untested-requirements.md`: spec rules without unit tests, and why
+
+## Adding a skin
+
+A skin changes only how the game looks and what its pieces are called. The rules stay the same. To add one:
+
+1. Add `src/lib/skins/<id>.ts`. It default-exports a `Skin` (see `src/lib/skin.ts`) whose `id` is the file name. It needs 26 pieces, each with a name; a rubble icon; the words its messages use (`piece`, `ladder`); and a palette, usually `{ ...DEFAULT_PALETTE, rungFills, rungTexts, zeroFill }`. If the pieces are emoji, set `pictures: true` and give newer emoji a `fallback`.
+2. Optionally, add `src/lib/skins/<id>.test.ts` for anything particular to it.
+3. List it in SPEC.md's **Skin** row.
+
+Nothing else changes. The registry (`src/lib/skins/index.ts`) finds the file, and the skin appears in Preferences, How to play and the game. `skins.test.ts` runs the shared checks on it: 26 distinct named pieces, a distinct rubble icon, distinct fills, readable text and distinct outlines.
+
