@@ -8,7 +8,7 @@ import { type ArmedPowerUp, powerUp } from './lib/powerups';
 import { parseBoardSize } from './lib/prefs';
 import { type TapRule, type WildRule, highestTile, outcome, wildChoices } from './lib/rules';
 import { addScore, parseScores } from './lib/scores';
-import type { Terms } from './lib/skins';
+import type { Terms } from './lib/skin';
 import { SCORES_STORAGE_KEY, SIZE_STORAGE_KEY, load, save } from './storage';
 
 export type { Board, Snapshot } from './lib/game';

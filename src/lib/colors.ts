@@ -1,7 +1,7 @@
 // Colors, as a palette: every color the board and the Next and Spare chips
 // are drawn in. The drawing takes a palette rather than choosing its own
-// colors, so a skin (issue #42) is just another palette. DEFAULT_PALETTE is
-// the game's look.
+// colors, so each skin (src/lib/skins/) brings its own. DEFAULT_PALETTE is
+// the game's look, Alphabet's, and the base other palettes build on.
 
 import { EMPTY, WILD, rungOf, type Cell, type Drawn, type Shape } from './rules';
 
@@ -104,51 +104,6 @@ export const DEFAULT_PALETTE: Palette = {
   ringDoneEdge: '#a16207',
 };
 
-// Evolution's palette (see SKINS in skins.ts): its pieces are pictures,
-// so the fills are their backgrounds, running from the sea (pale aqua to
-// ocean blue) through the shore and the swamp (teals and greens) and the
-// age of reptiles (earth tones) to warm fur, with gold for the human.
-const EVOLUTION_RUNG_FILLS = [
-  '#d8f3ef', // microbe
-  '#c2ece6', // sponge
-  '#a9e1e4', // coral
-  '#93d3e6', // jellyfish
-  '#7fc4e2', // worm
-  '#6fb3dc', // snail
-  '#5ea2d3', // squid
-  '#4f93c9', // crab
-  '#5aa3a0', // scorpion
-  '#4f9e8c', // fish
-  '#458f7c', // shark
-  '#8fca7a', // frog
-  '#a5cf6f', // lizard
-  '#b8c96a', // turtle
-  '#9fae5d', // crocodile
-  '#c6b86b', // sauropod
-  '#c9a25d', // T. rex
-  '#d9b77d', // bird
-  '#e2c3a0', // shrew
-  '#d7b08f', // hedgehog
-  '#d39a6a', // squirrel
-  '#c98a5f', // monkey
-  '#c47a52', // orangutan
-  '#a98a7a', // gorilla
-  '#e8c7ad', // early human
-  '#eab308', // human
-];
-
-export const EVOLUTION_PALETTE: Palette = {
-  ...DEFAULT_PALETTE,
-  rungFills: EVOLUTION_RUNG_FILLS,
-  rungTexts: EVOLUTION_RUNG_FILLS.map(() => '#1e293b'),
-  // Bones lie on warm stone
-  zeroFill: '#b3a896',
-  wild: {
-    fill: 'linear-gradient(135deg, #7fc4e2, #4f9e8c, #a5cf6f, #c9a25d, #d39a6a)',
-    text: '#ffffff',
-  },
-};
-
 // The default palette's colors by name, for the tests and the chips
 export const RUNG_FILLS = DEFAULT_PALETTE.rungFills;
 export const ZERO_FILL = DEFAULT_PALETTE.zeroFill;
@@ -184,4 +139,17 @@ export const colorsFor = (value: Cell | Drawn, palette: Palette = DEFAULT_PALETT
   if (value === EMPTY) return { fill: palette.emptyFill, text: textFor(1, palette) };
   if (value === WILD) return palette.wild;
   return { fill: fillFor(value, palette), text: textFor(value, palette) };
+};
+
+// The WCAG relative luminance of a #rrggbb color, and the contrast ratio
+// between two (1 to 21; text wants at least 4.5). For checking palettes.
+export const luminance = (hex: string) => {
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
+    .map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+
+export const contrast = (a: string, b: string) => {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
 };

@@ -5,7 +5,7 @@
 // outlines. The game loops over the table, so adding a power-up is adding
 // an entry here.
 
-import { type Terms } from './skins';
+import type { Terms } from './skin';
 import {
   EMPTY, TOP_VALUE, type Cell, type Merge, type PlaceResult, type Tile,
   place, previewAt, previewOf, rungOf,

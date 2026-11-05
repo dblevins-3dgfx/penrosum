@@ -42,8 +42,9 @@ One-time setup, needed before the first deploy: repository **Settings → Pages 
 - `penrose-board.ts`: Penrose tiling generation and the tile adjacency graph (from Penrogo, unchanged)
 - `src/lib/board.ts`: board sizes, cuts this game's random square boards from the patch, and finds the tile under a point
 - `src/lib/view.ts`: fits the board to the space on screen
-- `src/lib/colors.ts`: the palettes: every color the board and the Next and Spare chips are drawn in (Alphabet's `DEFAULT_PALETTE`, `EVOLUTION_PALETTE`)
-- `src/lib/skins.ts`: the skins: each a ladder of 26 pieces, a rubble icon, a palette, and the words its messages use (`termsFor`)
+- `src/lib/colors.ts`: what a palette is (every color the board and the Next and Spare chips are drawn in), and the game's own, `DEFAULT_PALETTE`
+- `src/lib/skin.ts`: what a skin is (a ladder of 26 pieces, a rubble icon, a palette) and the words its messages use (`termsFor`)
+- `src/lib/skins/`: the skins, one file each (`alphabet.ts`, `evolution.ts`), with their tests; `index.ts` finds them and `skins.test.ts` checks every one
 - `src/emoji.ts`: which emoji this device can draw, so a picture skin falls back to older ones
 - `src/lib/labels.ts`: how values are written (as letters)
 - `src/lib/prefs.ts`: the player's preferences, and reading them and the board size from storage
@@ -63,3 +64,14 @@ One-time setup, needed before the first deploy: repository **Settings → Pages 
 - `public/`: the web app manifest and icons
 - `SPEC.md`: the game as implemented, and the open questions
 - `untested-requirements.md`: spec rules without unit tests, and why
+
+## Adding a skin
+
+A skin changes only how the game looks and what its pieces are called. The rules stay the same. To add one:
+
+1. Add `src/lib/skins/<id>.ts`. It default-exports a `Skin` (see `src/lib/skin.ts`) whose `id` is the file name. It needs 26 pieces, each with a name; a rubble icon; the words its messages use (`piece`, `ladder`); and a palette, usually `{ ...DEFAULT_PALETTE, rungFills, rungTexts, zeroFill }`. If the pieces are emoji, set `pictures: true` and give newer emoji a `fallback`.
+2. Optionally, add `src/lib/skins/<id>.test.ts` for anything particular to it.
+3. List it in SPEC.md's **Skin** row.
+
+Nothing else changes. The registry (`src/lib/skins/index.ts`) finds the file, and the skin appears in Preferences, How to play and the game. `skins.test.ts` runs the shared checks on it: 26 distinct named pieces, a distinct rubble icon, distinct fills, readable text and distinct outlines.
+

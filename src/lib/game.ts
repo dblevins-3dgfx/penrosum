@@ -14,7 +14,8 @@ import {
   tapAction, valueToPlace,
 } from './rules';
 import { settle } from './settle';
-import { ALPHABET_TERMS, type Terms } from './skins';
+import type { Terms } from './skin';
+import { DEFAULT_TERMS } from './skins';
 
 export interface Board {
   size: BoardSize;
@@ -302,7 +303,7 @@ const swapWithSpare = (game: Game, rand: () => number, terms: Terms): Game => {
 // after it counts up. `terms` are the skin's words for the status line
 // (letters by default). The input is unchanged.
 export const gameReducer = (
-  game: Game, action: GameAction, rand: () => number = Math.random, terms: Terms = ALPHABET_TERMS,
+  game: Game, action: GameAction, rand: () => number = Math.random, terms: Terms = DEFAULT_TERMS,
 ): Game => {
   switch (action.type) {
     case 'newGame': return newGame(action.size, game.id + 1, rand);

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import BoardCanvas from './BoardCanvas';
 import { BOARD_SIZES } from './lib/board';
 import { type Palette, colorsFor } from './lib/colors';
-import { termsFor } from './lib/skins';
+import { termsFor } from './lib/skin';
 import { EMOJI_FONTS, skinFor } from './emoji';
 import { type ArmedPowerUp, POWER_UPS } from './lib/powerups';
 import { parsePrefs, parseRuleOptions, type Prefs } from './lib/prefs';

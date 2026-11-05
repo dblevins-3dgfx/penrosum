@@ -1,10 +1,11 @@
-// Skins: the progression the game is drawn as. A skin gives each rung of
-// the ladder (1 = A ... 26 = Z) a piece to draw, gives rubble (0) a themed
-// icon, and brings a palette. The rules never change with the skin, only
-// how values are drawn and named. Alphabet is the game's own look.
+// What a skin is: the progression the game is drawn as. A skin gives each
+// rung of the ladder (1 = A ... 26 = Z) a piece to draw, gives rubble (0)
+// a themed icon, and brings a palette. The rules never change with the
+// skin, only how values are drawn and named. This file knows no skin in
+// particular: each skin is a file of its own in src/lib/skins/, found
+// there by the registry (src/lib/skins/index.ts).
 
-import { DEFAULT_PALETTE, EVOLUTION_PALETTE, type Palette } from './colors';
-import { LETTERS } from './labels';
+import type { Palette } from './colors';
 import { WILD, rungOf, type Drawn } from './rules';
 
 // One step of a skin's ladder: what is drawn, its name (for labels and
@@ -17,6 +18,7 @@ export interface Piece {
 }
 
 export interface Skin {
+  id: string; // what the preference saves; the file's name
   name: string;
   description: string;
   pieces: Piece[]; // 26, rung 1 to 26
@@ -31,66 +33,6 @@ export interface Skin {
   palette: Palette;
   page: string; // the page's background, also the browser's theme color
 }
-
-const letters: Piece[] = [...LETTERS].map(l => ({ glyph: l, name: l }));
-
-export const SKINS = {
-  alphabet: {
-    name: 'Alphabet',
-    description: 'Letters, A to Z.',
-    pieces: letters,
-    rubble: { glyph: '#', name: '#' },
-    piece: 'letter',
-    ladder: 'the alphabet',
-    pictures: false,
-    palette: DEFAULT_PALETTE,
-    page: '#f1f5f9',
-  },
-  evolution: {
-    name: 'Evolution',
-    description: 'From a microbe in the sea to a human. Rubble is fossil bones.',
-    pieces: [
-      { glyph: '🦠', name: 'microbe', fallback: '🔬' },
-      { glyph: '🧽', name: 'sponge', fallback: '🐚' },
-      { glyph: '🪸', name: 'coral', fallback: '🌊' },
-      { glyph: '🪼', name: 'jellyfish', fallback: '🎐' },
-      { glyph: '🪱', name: 'worm', fallback: '🐛' },
-      { glyph: '🐌', name: 'snail' },
-      { glyph: '🦑', name: 'squid', fallback: '🐙' },
-      { glyph: '🦀', name: 'crab' },
-      { glyph: '🦂', name: 'scorpion' },
-      { glyph: '🐟', name: 'fish' },
-      { glyph: '🦈', name: 'shark', fallback: '🐬' },
-      { glyph: '🐸', name: 'frog' },
-      { glyph: '🦎', name: 'lizard', fallback: '🐍' },
-      { glyph: '🐢', name: 'turtle' },
-      { glyph: '🐊', name: 'crocodile' },
-      { glyph: '🦕', name: 'sauropod', fallback: '🐉' },
-      { glyph: '🦖', name: 'T. rex', fallback: '🐲' },
-      { glyph: '🐦', name: 'bird' },
-      { glyph: '🐁', name: 'shrew' },
-      { glyph: '🦔', name: 'hedgehog', fallback: '🐀' },
-      { glyph: '🐿️', name: 'squirrel' },
-      { glyph: '🐒', name: 'monkey' },
-      { glyph: '🦧', name: 'orangutan', fallback: '🐵' },
-      { glyph: '🦍', name: 'gorilla', fallback: '🙈' },
-      { glyph: '🚶', name: 'early human' },
-      { glyph: '🧑', name: 'human', fallback: '👤' },
-    ],
-    rubble: { glyph: '🦴', name: 'bone', fallback: '💀' },
-    piece: 'creature',
-    ladder: 'evolution',
-    pictures: true,
-    palette: EVOLUTION_PALETTE,
-    page: '#f1f5f9',
-  },
-} satisfies Record<string, Skin>;
-
-export type SkinId = keyof typeof SKINS;
-
-export const SKIN_IDS = Object.keys(SKINS) as SkinId[];
-
-export const DEFAULT_SKIN: SkinId = 'alphabet';
 
 // The skin with each emoji the device can't draw (`canDraw` false)
 // replaced by its fallback. The input is unchanged.
@@ -134,5 +76,3 @@ export const termsFor = (skin: Skin): Terms => {
   };
 };
 
-// The game's own words: letters and #
-export const ALPHABET_TERMS = termsFor(SKINS.alphabet);

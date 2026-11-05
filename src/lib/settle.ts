@@ -3,7 +3,8 @@
 // power-ups earned are added up to their caps, and the status line is
 // written. A plain function, so the component only calls it.
 
-import { ALPHABET_TERMS, type Terms } from './skins';
+import type { Terms } from './skin';
+import { DEFAULT_TERMS } from './skins';
 import { type Charges, type PowerUpId, type RosetteTiles, earnCharges, newlyCompleted } from './powerups';
 import {
   type Cell, type Merge, type Tile,
@@ -25,7 +26,7 @@ export interface Settled extends Holdings {
 }
 
 // "Merged 3 tiles into B, then 3 tiles into C"
-export const describeMerges = (merges: Merge[], terms: Terms = ALPHABET_TERMS) =>
+export const describeMerges = (merges: Merge[], terms: Terms = DEFAULT_TERMS) =>
   merges.length
     ? `Merged ${merges.map(m => `${m.from.length + 1} tiles into ${terms.label(m.sum)}`).join(', then ')}`
     : '';
@@ -40,7 +41,7 @@ export const describeMerges = (merges: Merge[], terms: Terms = ALPHABET_TERMS) =
 export const settle = (
   tiles: Tile[], rosettes: RosetteTiles[], base: Holdings, id: number,
   placed: Cell[], merges: Merge[], lead = '', spent: PowerUpId[] = [],
-  terms: Terms = ALPHABET_TERMS,
+  terms: Terms = DEFAULT_TERMS,
 ): Settled => {
   const { cells: after, zeros, rubbleMerges } = dropRubble(tiles, placed, merges);
   const gained = scoreMerges(merges);

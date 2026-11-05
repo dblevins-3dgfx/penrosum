@@ -3,7 +3,8 @@
 // per glyph on a small canvas: a drawn emoji has colored pixels; a missing
 // one draws as a gray box or nothing.
 
-import { SKINS, resolvePieces, type Skin, type SkinId } from './lib/skins';
+import { resolvePieces, type Skin } from './lib/skin';
+import { type SkinId, skinById } from './lib/skins';
 
 // The fonts emoji are drawn in, on the board and in the chips
 export const EMOJI_FONTS = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla", sans-serif';
@@ -40,7 +41,7 @@ const resolved = new Map<SkinId, Skin>();
 export const skinFor = (id: SkinId): Skin => {
   let skin = resolved.get(id);
   if (!skin) {
-    const base: Skin = SKINS[id];
+    const base = skinById(id);
     skin = base.pictures ? resolvePieces(base, canDrawEmoji) : base;
     resolved.set(id, skin);
   }

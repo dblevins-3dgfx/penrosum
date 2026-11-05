@@ -3,7 +3,8 @@
 
 import { BOARD_SIZES, type BoardSize } from './board';
 import { MIN_GROUP, TOP_VALUE, type Outcome, type Shape, type TapRule } from './rules';
-import { ALPHABET_TERMS, type Terms } from './skins';
+import type { Terms } from './skin';
+import { DEFAULT_TERMS } from './skins';
 
 export interface StatusInput {
   message: string; // what the last action said ('' for none)
@@ -23,7 +24,7 @@ export interface StatusInput {
 //   before the first move, a hint on how to play.
 export const statusLine = (
   { message, moves, dealtShape, tapRule, hint, result, score, latest }: StatusInput,
-  terms: Terms = ALPHABET_TERMS,
+  terms: Terms = DEFAULT_TERMS,
 ): string => {
   if (result.over) {
     const end = result.won

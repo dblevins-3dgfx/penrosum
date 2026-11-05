@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { type StatusInput, statusLine } from './status';
-import { SKINS, termsFor } from './skins';
+import { termsFor } from './skin';
+import { skinById } from './skins';
 
 // The game going on, before the first move, with nothing to report
 const input = (more: Partial<StatusInput> = {}): StatusInput => ({
@@ -17,7 +18,7 @@ describe('the status line', () => {
   });
 
   it('speaks the skin\'s words', () => {
-    const evo = termsFor(SKINS.evolution);
+    const evo = termsFor(skinById('evolution'));
     expect(statusLine(input(), evo)).toMatch(/^Place the Next creature on an empty kite\./);
     expect(statusLine(input({ moves: 9, score: 50, result: { over: true, won: false, highest: 27 } }), evo))
       .toBe('Board full. Score: 50 (highest tile 🪼, 9 moves).');

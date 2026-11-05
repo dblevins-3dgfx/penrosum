@@ -3,7 +3,8 @@ import type { BoardTile } from './board';
 import { type Game, type GameAction, type Snapshot, canUndo, doomedAt, gameReducer, newGame, placementArmed, previewFor } from './game';
 import { type Charges, startCharges } from './powerups';
 import { EMPTY, WILD, type Cell } from './rules';
-import { SKINS, termsFor } from './skins';
+import { termsFor } from './skin';
+import { skinById } from './skins';
 
 // A line of five tiles: three kites, then two darts
 //
@@ -170,7 +171,7 @@ describe('the hot spare', () => {
 
 describe('the skin\'s words', () => {
   it('writes the status line in the skin it is given, and plays the same', () => {
-    const evo = termsFor(SKINS.evolution);
+    const evo = termsFor(skinById('evolution'));
     const g = gameOf([EMPTY, 1, 1, 9, 27], { next: 3 });
     const kept = gameReducer(g, { type: 'swapSpare' }, rand, evo);
     expect(kept.position.message).toBe('🧽 kept as the spare.');

@@ -12,7 +12,7 @@ export interface Prefs {
   // second places it ('preview'), or a tap places at once ('place')
   tap: TapRule;
   // The skin: the ladder the values are drawn as, and its colors (see
-  // SKINS). A saved skin that no longer exists (the old 'day' and 'night')
+  // src/lib/skins/). A saved skin that no longer exists (the old 'day' and 'night')
   // falls back to Alphabet.
   skin: SkinId;
 }

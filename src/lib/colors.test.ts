@@ -1,20 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_PALETTE, EMPTY_FILL, OFF_SHAPE_FILL, type Palette, RUNG_FILLS, WILD_COLORS, ZERO_FILL, colorsFor, fillFor, textFor, tileFill,
+  DEFAULT_PALETTE, EMPTY_FILL, OFF_SHAPE_FILL, type Palette, RUNG_FILLS, WILD_COLORS, ZERO_FILL, colorsFor, contrast, fillFor, luminance, textFor, tileFill,
 } from './colors';
-import { SKINS, SKIN_IDS } from './skins';
 import { EMPTY, TOP_VALUE, WILD } from './rules';
-
-// The WCAG contrast ratio between two #rrggbb colors
-const luminance = (hex: string) => {
-  const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
-    .map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-};
-const contrast = (a: string, b: string) => {
-  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-  return (hi + 0.05) / (lo + 0.05);
-};
 
 // Every rung's value: A (1), B (3) ... Z (3 to the 25th)
 const rungs = Array.from({ length: 26 }, (_, i) => 3 ** i);
@@ -123,35 +111,4 @@ describe('board tile fills', () => {
     expect(tileFill(EMPTY, 'kite', null, skin)).toBe('#010101');
     expect(tileFill(EMPTY, 'dart', 'kite', skin)).toBe('#020202');
   });
-});
-
-describe('skin palettes', () => {
-  for (const id of SKIN_IDS) {
-    const { name, palette, pictures } = SKINS[id];
-
-    it(`${name}: gives every rung its own fill, and # one of its own`, () => {
-      expect(palette.rungFills).toHaveLength(26);
-      expect(palette.rungTexts).toHaveLength(26);
-      const fills = rungs.map(v => fillFor(v, palette));
-      expect(new Set(fills).size).toBe(26);
-      for (const other of [palette.zeroFill, palette.emptyFill, palette.offShapeFill]) expect(fills).not.toContain(other);
-      expect(new Set([palette.zeroFill, palette.emptyFill, palette.offShapeFill]).size).toBe(3);
-    });
-
-    // Pictures draw in their own colors, so only a text skin's letters
-    // need contrast with their tiles; the preview's text is always drawn
-    // in the palette
-    it(`${name}: keeps ${pictures ? 'the preview' : 'every letter, #, and the preview'} readable: contrast of at least 4.5 to 1`, () => {
-      if (!pictures) {
-        for (const v of [0, ...rungs]) expect(contrast(fillFor(v, palette), textFor(v, palette))).toBeGreaterThanOrEqual(4.5);
-      }
-      expect(contrast(palette.previewText, palette.previewTint)).toBeGreaterThanOrEqual(4.5);
-      expect(contrast(palette.previewText, palette.previewTintMerging)).toBeGreaterThanOrEqual(4.5);
-    });
-
-    it(`${name}: keeps the four outlines on the board apart`, () => {
-      const { previewOutline, doomedOutline, pickedOutline, lastMoveOutline } = palette;
-      expect(new Set([previewOutline, doomedOutline, pickedOutline, lastMoveOutline]).size).toBe(4);
-    });
-  }
 });

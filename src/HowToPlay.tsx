@@ -2,7 +2,7 @@ import Dialog from './Dialog';
 import { ANY_SHAPE_MAX, BIG_MERGE, CLEAR_MAX, SWAP_MAX, SWAP_SCORE_STEP, SWEEP_MAX, UNDO_MAX, UNDO_START, UPGRADE_MAX } from './lib/powerups';
 import { MIN_GROUP, type RuleOptions } from './lib/rules';
 import { LETTERS } from './lib/labels';
-import type { Skin } from './lib/skins';
+import type { Skin } from './lib/skin';
 import { EMOJI_FONTS } from './emoji';
 
 interface ChoiceProps<T extends string> {
