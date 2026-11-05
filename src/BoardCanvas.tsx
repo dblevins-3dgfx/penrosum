@@ -143,6 +143,7 @@ export interface BoardCanvasProps {
   // below it, or above it in the lower part of the board, kept on screen
   overlay?: { id: number; content: ReactNode };
   onHover: (id: number) => void; // the tile under the pointer, or -1
+  tip?: string | null; // the tooltip for the tile under the pointer (its piece's name), if any
   onTap: (id: number, pointerType: string) => void; // a press on tile `id` (-1 off the board)
 }
 
@@ -151,7 +152,7 @@ export interface BoardCanvasProps {
 // which is pressed. It draws what it is told; the game decides what.
 const BoardCanvas = ({
   tiles, bounds, rosettes, completed, cells, lastMove, mustBe, previewed, preview, doomed, picked,
-  crosshair, label, pictures, palette, overlay, onHover, onTap,
+  crosshair, label, pictures, palette, overlay, onHover, onTap, tip,
 }: BoardCanvasProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -212,6 +213,7 @@ const BoardCanvas = ({
         className={`absolute inset-0 w-full h-full touch-none ${crosshair ? 'cursor-crosshair' : 'cursor-pointer'}`}
         onPointerMove={e => onHover(tileFromEvent(e))}
         onPointerLeave={() => onHover(-1)}
+        title={tip ?? undefined}
         onPointerDown={e => onTap(tileFromEvent(e), e.pointerType)}
       />
       {overlay && anchor && (

@@ -7,7 +7,7 @@
 
 import type { Palette } from './colors';
 import { LETTERS } from './labels';
-import { WILD, rungOf, type Drawn } from './rules';
+import { EMPTY, WILD, rungOf, type Cell, type Drawn } from './rules';
 
 // One step of a skin's ladder: what is drawn, its name (for labels and
 // tooltips), and for an emoji a device may lack, an older one to draw
@@ -94,3 +94,9 @@ export const termsFor = (skin: Skin): Terms => {
   };
 };
 
+// The tooltip for a board tile holding `value`: its piece's name and rung
+// ("🦈 shark, 11 of 26"; "e⁺ positron, rubble"), as the Next and Spare
+// chips show. None for an empty tile, nor in a skin of plain letters,
+// where the letter says it all.
+export const tileTip = (skin: Skin, terms: Terms, value: Cell): string | null =>
+  value === EMPTY || isAlphabet(skin) ? null : terms.title(value);

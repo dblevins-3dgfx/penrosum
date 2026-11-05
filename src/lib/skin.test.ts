@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { LETTERS } from './labels';
-import { WILD } from './rules';
-import { type Skin, isAlphabet, resolvePieces, rubblePlural, termsFor, withArticle } from './skin';
+import { EMPTY, WILD } from './rules';
+import { type Skin, isAlphabet, resolvePieces, rubblePlural, termsFor, tileTip, withArticle } from './skin';
 import { DEFAULT_PALETTE } from './colors';
 
 // Two skins made up for the tests: one of text, one of pictures
@@ -107,6 +107,20 @@ describe('isAlphabet', () => {
     expect(isAlphabet(letters)).toBe(true);
     expect(isAlphabet(pictures)).toBe(false);
     expect(isAlphabet({ ...letters, rubble: { glyph: '☄️', name: 'comet' } })).toBe(false);
+  });
+});
+
+describe('tileTip', () => {
+  it('names a board tile\'s piece and rung, or its rubble, in a skin that isn\'t plain letters', () => {
+    const terms = termsFor(pictures);
+    expect(tileTip(pictures, terms, 3 ** 10)).toBe('<K> thing 11, 11 of 26');
+    expect(tileTip(pictures, terms, 0)).toBe('🦴 bone, rubble');
+  });
+
+  it('gives none for an empty tile, nor in a skin of plain letters', () => {
+    expect(tileTip(pictures, termsFor(pictures), EMPTY)).toBeNull();
+    expect(tileTip(letters, termsFor(letters), 3 ** 10)).toBeNull();
+    expect(tileTip(letters, termsFor(letters), 0)).toBeNull();
   });
 });
 
