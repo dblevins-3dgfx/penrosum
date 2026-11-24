@@ -1,3 +1,5 @@
+@AGENTS.md
+
 # Keep SPEC.md in step with the code
 
 `SPEC.md` describes the game as it is implemented. Any change the player can see, or that changes what is stored (play, the board, the screen, the rule options, the top 10), updates `SPEC.md` in the same pull request. The PR description names the spec sections that changed, or says why none needed to.
